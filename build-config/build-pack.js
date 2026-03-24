@@ -7,8 +7,8 @@ const afterPack = require('./build-after-pack')
  * @see https://www.electron.build/configuration/configuration
  */
 const options = {
-  appId: 'com.ikunshare.music.desktop',
-  productName: 'ikun-music-desktop',
+  appId: 'cn.toside.music.desktop',
+  productName: 'z-music-desktop',
   beforePack,
   afterPack,
   protocols: {
