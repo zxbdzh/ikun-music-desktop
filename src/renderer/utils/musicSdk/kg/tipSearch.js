@@ -1,11 +1,8 @@
+import BaseTipSearch from '../base/BaseTipSearch'
 import { createHttpFetch } from './util'
 
-export default {
-  requestObj: null,
-  cancelTipSearch() {
-    if (this.requestObj && this.requestObj.cancelHttp) this.requestObj.cancelHttp()
-  },
-  tipSearchBySong(str) {
+class KgTipSearch extends BaseTipSearch {
+  fetchTips(str) {
     this.cancelTipSearch()
     this.requestObj = createHttpFetch(
       `https://searchtip.kugou.com/getSearchTip?MusicTipCount=10&keyword=${encodeURIComponent(str)}`,
@@ -15,14 +12,12 @@ export default {
         },
       }
     )
-    return this.requestObj.then((body) => {
-      return body[0].RecordDatas
-    })
-  },
+    return this.requestObj.then((body) => body[0].RecordDatas)
+  }
+
   handleResult(rawData) {
     return rawData.map((info) => info.HintInfo)
-  },
-  async search(str) {
-    return this.tipSearchBySong(str).then((result) => this.handleResult(result))
-  },
+  }
 }
+
+export default new KgTipSearch()

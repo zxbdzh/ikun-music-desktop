@@ -6,6 +6,17 @@ Project versioning adheres to [Semantic Versioning](http://semver.org/).
 Commit convention is based on [Conventional Commits](http://conventionalcommits.org).
 Change log format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [3.3.0-fix.8](https://github.com/ikunshare/ikun-music-desktop/compare/v3.3.0-fix.5...v3.3.0-fix.8) - 2026-03-28
+
+### 新增
+- 支持 ekey 解密播放（QQ音乐/酷我加密音频）
+- 新增 lxmusic-audio 自定义协议，流式解密播放
+- 下载完成后自动解密文件
+- 用户 API 脚本支持返回 { url, ekey } 对象
+
+### 修复
+- QQ音乐经常搜索不了
+
 ## [3.3.0-fix.5](https://github.com/ikunshare/ikun-music-desktop/compare/v3.3.0-fix.4...v3.3.0-fix.5) - 2026-01-13
 
 我们很高兴地宣布新项目 Any Listen 的桌面版已发布，目前已支持列表跟随本地文件自动更新、加载并播放WebDAV上的歌曲等功能，更多功能仍在积极开发中，桌面版与Web版将同步更新。

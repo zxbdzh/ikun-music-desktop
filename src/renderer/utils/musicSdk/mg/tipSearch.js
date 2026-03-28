@@ -1,11 +1,8 @@
+import BaseTipSearch from '../base/BaseTipSearch'
 import { createHttpFetch } from './utils'
 
-export default {
-  requestObj: null,
-  cancelTipSearch() {
-    if (this.requestObj && this.requestObj.cancelHttp) this.requestObj.cancelHttp()
-  },
-  tipSearchBySong(str) {
+class MgTipSearch extends BaseTipSearch {
+  fetchTips(str) {
     this.cancelTipSearch()
     this.requestObj = createHttpFetch(
       `https://music.migu.cn/v3/api/search/suggest?keyword=${encodeURIComponent(str)}`,
@@ -15,14 +12,12 @@ export default {
         },
       }
     )
-    return this.requestObj.then((body) => {
-      return body.songs
-    })
-  },
+    return this.requestObj.then((body) => body.songs)
+  }
+
   handleResult(rawData) {
     return rawData.map((info) => `${info.name} - ${info.singerName}`)
-  },
-  async search(str) {
-    return this.tipSearchBySong(str).then((result) => this.handleResult(result))
-  },
+  }
 }
+
+export default new MgTipSearch()

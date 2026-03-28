@@ -1,18 +1,21 @@
+import BaseHotSearch from '../base/BaseHotSearch'
 import { httpFetch } from '../../request'
 
-export default {
-  _requestObj: null,
-  async getList(retryNum = 0) {
-    if (this._requestObj) this._requestObj.cancelHttp()
-    if (retryNum > 2) return Promise.reject(new Error('try max num'))
+class MgHotSearch extends BaseHotSearch {
+  constructor() {
+    super('mg')
+  }
 
-    const _requestObj = httpFetch('http://jadeite.migu.cn:7090/music_search/v3/search/hotword')
-    const { body, statusCode } = await _requestObj.promise
+  async fetchList() {
+    this._requestObj = httpFetch('http://jadeite.migu.cn:7090/music_search/v3/search/hotword')
+    const { body, statusCode } = await this._requestObj.promise
     if (statusCode != 200 || body.code !== '000000') throw new Error('获取热搜词失败')
-    // console.log(body, statusCode)
-    return { source: 'mg', list: this.filterList(body.data.hotwords[0].hotwordList) }
-  },
+    return body.data.hotwords[0].hotwordList
+  }
+
   filterList(rawList) {
     return rawList.filter((item) => item.resourceType == 'song').map((item) => item.word)
-  },
+  }
 }
+
+export default new MgHotSearch()
