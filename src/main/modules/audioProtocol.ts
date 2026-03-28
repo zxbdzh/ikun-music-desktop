@@ -227,7 +227,7 @@ export const registerAudioProtocol = (ses: Electron.Session) => {
         }
         const { start, end } = range
         const sliced = entry.buffer.slice(start, end + 1)
-        return new Response(Buffer.from(sliced), {
+        return new Response(sliced.buffer, {
           status: 206,
           headers: {
             'Content-Type': entry.contentType,
@@ -241,7 +241,7 @@ export const registerAudioProtocol = (ses: Electron.Session) => {
       // ---- 已缓存：直接返回 ----
       if (cached) {
         cached.timestamp = Date.now()
-        return new Response(Buffer.from(cached.buffer), {
+        return new Response(cached.buffer.buffer, {
           status: 200,
           headers: {
             'Content-Type': cached.contentType,
