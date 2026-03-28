@@ -1,14 +1,13 @@
-import BaseHotSearch from '../base/BaseHotSearch'
 import { httpFetch } from '../../request'
 import { decodeName } from '../../index'
 
-class KgHotSearch extends BaseHotSearch {
-  constructor() {
-    super('kg')
-  }
+export default {
+  _requestObj: null,
+  async getList(retryNum = 0) {
+    if (this._requestObj) this._requestObj.cancelHttp()
+    if (retryNum > 2) return Promise.reject(new Error('try max num'))
 
-  async fetchList() {
-    this._requestObj = httpFetch(
+    const _requestObj = httpFetch(
       'http://gateway.kugou.com/api/v3/search/hot_tab?signature=ee44edb9d7155821412d220bcaf509dd&appid=1005&clientver=10026&plat=0',
       {
         method: 'get',
@@ -22,18 +21,16 @@ class KgHotSearch extends BaseHotSearch {
         },
       }
     )
-    const { body, statusCode } = await this._requestObj.promise
+    const { body, statusCode } = await _requestObj.promise
     if (statusCode != 200 || body.errcode !== 0) throw new Error('获取热搜词失败')
-    return body.data.list
-  }
-
+    // console.log(body, statusCode)
+    return { source: 'kg', list: this.filterList(body.data.list) }
+  },
   filterList(rawList) {
     const list = []
     rawList.forEach((item) => {
       item.keywords.map((k) => list.push(decodeName(k.keyword)))
     })
     return list
-  }
+  },
 }
-
-export default new KgHotSearch()

@@ -1,6 +1,6 @@
 {
   "name": "ikun-music-desktop",
-  "version": "3.3.0-fix.8",
+  "version": "3.3.0-fix.7",
   "description": "一个免费的音乐查找助手",
   "main": "./dist/main.js",
   "scripts": {
@@ -127,11 +127,11 @@
     "browserslist": "^4.28.1",
     "chalk": "^4.1.2",
     "changelog-parser": "^3.0.1",
-    "copy-webpack-plugin": "^14.0.0",
+    "copy-webpack-plugin": "^13.0.1",
     "core-js": "^3.47.0",
     "cross-env": "^10.1.0",
     "css-loader": "^7.1.2",
-    "css-minimizer-webpack-plugin": "^8.0.0",
+    "css-minimizer-webpack-plugin": "^7.0.4",
     "del": "^6.1.1",
     "electron": "37.6.1",
     "electron-builder": "^26.3.6",
@@ -177,7 +177,6 @@
   },
   "dependencies": {
     "@simonwep/pickr": "^1.9.1",
-    "@unlock-music/crypto": "^0.1.12",
     "better-sqlite3": "^12.5.0",
     "bufferutil": "^4.0.9",
     "comlink": "~4.3.1",
@@ -191,7 +190,6 @@
     "message2call": "^0.1.3",
     "music-metadata": "^11.10.3",
     "needle": "github:lyswhut/needle#93299ac841b7e9a9f82ca7279b88aaaeda404060",
-    "node-gyp": "^12.2.0",
     "node-id3": "^0.2.9",
     "sortablejs": "^1.15.6",
     "tunnel": "^0.0.6",
