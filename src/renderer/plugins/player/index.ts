@@ -525,7 +525,7 @@ export const setResource = (src: string) => {
 }
 
 export const setPlay = () => {
-  void audio?.play()
+  void audio?.play().catch(() => {})
 }
 
 export const setPause = () => {

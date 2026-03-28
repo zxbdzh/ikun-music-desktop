@@ -132,6 +132,8 @@ const modules = {
     save_music_url: 'save_music_url',
     clear_music_url: 'clear_music_url',
     get_music_url_count: 'get_music_url_count',
+    register_decrypt_request: 'register_decrypt_request',
+    decrypt_file: 'decrypt_file',
 
     open_api_action: 'open_api_action',
     sync_action: 'sync_action',

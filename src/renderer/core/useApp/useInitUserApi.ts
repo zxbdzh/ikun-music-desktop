@@ -68,7 +68,7 @@ export default () => {
                     })
                       .then((res) => {
                         // console.log(res)
-                        return { type, url: res.data.url }
+                        return { type, url: res.data.url, ekey: res.data.ekey ?? null }
                       })
                       .catch(async (err) => {
                         console.log(err.message)

@@ -184,13 +184,14 @@ export const getOnlineOtherSourceMusicUrlByLocal = async (
   url: string
   quality: LX.Quality
   isFromCache: boolean
+  ekey?: string | null
 }> => {
   if (!(await window.lx.apiInitPromise[0])) throw new Error('source init failed')
 
   const quality = '128k'
 
   const cachedUrl = await getStoreMusicUrl(musicInfo, quality)
-  if (cachedUrl && !isRefresh) return { url: cachedUrl, quality, isFromCache: true }
+  if (cachedUrl && !isRefresh) return { url: cachedUrl.url, quality, isFromCache: true, ekey: cachedUrl.ekey }
 
   let reqPromise
   try {
@@ -283,6 +284,7 @@ export const getOnlineOtherSourceMusicUrl = async ({
   musicInfo: LX.Music.MusicInfoOnline
   quality: LX.Quality
   isFromCache: boolean
+  ekey?: string | null
 }> => {
   if (!(await window.lx.apiInitPromise[0])) throw new Error('source init failed')
 
@@ -310,7 +312,7 @@ export const getOnlineOtherSourceMusicUrl = async ({
 
   const cachedUrl = await getStoreMusicUrl(musicInfo, itemQuality)
   if (cachedUrl && !isRefresh)
-    return { url: cachedUrl, musicInfo, quality: itemQuality, isFromCache: true }
+    return { url: cachedUrl.url, musicInfo, quality: itemQuality, isFromCache: true, ekey: cachedUrl.ekey }
 
   let reqPromise
   try {
@@ -324,8 +326,8 @@ export const getOnlineOtherSourceMusicUrl = async ({
   // retryedSource.includes(musicInfo.source)
 
   return reqPromise
-    .then(({ url, type }: { url: string; type: LX.Quality }) => {
-      return { musicInfo, url, quality: type, isFromCache: false }
+    .then(({ url, type, ekey }: { url: string; type: LX.Quality; ekey?: string | null }) => {
+      return { musicInfo, url, quality: type, isFromCache: false, ekey }
     })
     .catch((err: any) => {
       if (err.message == requestMsg.tooManyRequests) throw err
@@ -360,6 +362,7 @@ export const handleGetOnlineMusicUrl = async ({
   musicInfo: LX.Music.MusicInfoOnline
   quality: LX.Quality
   isFromCache: boolean
+  ekey?: string | null
 }> => {
   if (!(await window.lx.apiInitPromise[0])) throw new Error('source init failed')
   // console.log(musicInfo.source)
@@ -375,8 +378,8 @@ export const handleGetOnlineMusicUrl = async ({
     reqPromise = Promise.reject(err)
   }
   return reqPromise
-    .then(({ url, type }: { url: string; type: LX.Quality }) => {
-      return { musicInfo, url, quality: type, isFromCache: false }
+    .then(({ url, type, ekey }: { url: string; type: LX.Quality; ekey?: string | null }) => {
+      return { musicInfo, url, quality: type, isFromCache: false, ekey }
     })
     .catch(async (err: any) => {
       console.log(err)

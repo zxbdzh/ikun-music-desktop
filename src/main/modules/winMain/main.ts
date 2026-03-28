@@ -6,6 +6,7 @@ import { getProxy, openDevTools as handleOpenDevTools } from '@main/utils'
 import { mainSend } from '@common/mainIpc'
 import { sendFocus, sendTaskbarButtonClick } from './rendererEvent'
 import { encodePath } from '@common/utils/electron'
+import { registerAudioProtocol, registerAudioProtocolIpc } from '../audioProtocol'
 
 let browserWindow: Electron.BrowserWindow | null = null
 
@@ -68,6 +69,8 @@ export const createWindow = () => {
   const ses = session.fromPartition('persist:win-main')
   const proxy = getProxy()
   setSesProxy(ses, proxy?.host, proxy?.port)
+  registerAudioProtocol(ses)
+  registerAudioProtocolIpc()
 
   /**
    * Initial window options

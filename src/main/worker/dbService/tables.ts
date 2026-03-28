@@ -226,7 +226,8 @@ tables.set(
   `
   CREATE TABLE "music_url" (
     "id" TEXT NOT NULL,
-    "url" TEXT NOT NULL
+    "url" TEXT NOT NULL,
+    "ekey" TEXT
   );
 `
 )
@@ -264,4 +265,4 @@ tables.set(
 
 export default tables
 
-export const DB_VERSION = '2'
+export const DB_VERSION = '3'
