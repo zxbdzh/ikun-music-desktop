@@ -1,6 +1,6 @@
-import { httpFetch } from '../../request'
-import { decodeName } from '../../index'
-import { formatSinger, objStr2JSON } from './util'
+import {httpFetch} from '../../request'
+import {decodeName} from '../../index'
+import {formatSinger, objStr2JSON} from './util'
 
 // let requestObj_list
 export default {
@@ -14,31 +14,31 @@ export default {
       let types = []
       let _types = {}
       if (formats.includes('MP3128')) {
-        types.push({ type: '128k', size: null })
+        types.push({type: '128k', size: null})
         _types['128k'] = {
           size: null,
         }
       }
       if (formats.includes('MP3H')) {
-        types.push({ type: '320k', size: null })
+        types.push({type: '320k', size: null})
         _types['320k'] = {
           size: null,
         }
       }
       if (formats.includes('ALFLAC')) {
-        types.push({ type: 'flac', size: null })
+        types.push({type: 'flac', size: null})
         _types.flac = {
           size: null,
         }
       }
       if (formats.includes('HIRFLAC')) {
-        types.push({ type: 'hires', size: null })
+        types.push({type: 'hires', size: null})
         _types.hires = {
           size: null,
         }
       }
       if (formats.includes('ZPLY')) {
-        types.push({ type: 'master', size: null })
+        types.push({type: 'master', size: null})
         _types.master = {
           size: null,
         }
@@ -75,7 +75,7 @@ export default {
     const requestObj_listDetail = httpFetch(
       `http://search.kuwo.cn/r.s?pn=${page - 1}&rn=${this.limit_song}&stype=albuminfo&albumid=${id}&show_copyright_off=0&encoding=utf&vipver=MUSIC_9.1.0`
     )
-    return requestObj_listDetail.promise.then(({ statusCode, body }) => {
+    return requestObj_listDetail.promise.then(({statusCode, body}) => {
       if (statusCode !== 200) return this.getAlbumListDetail(id, page, ++retryNum)
       body = objStr2JSON(body)
       // console.log(body)

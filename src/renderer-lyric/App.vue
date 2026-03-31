@@ -133,7 +133,7 @@ body {
     }
   }
   &.hide {
-    opacity: .05;
+    opacity: 0.05;
     &:hover {
       opacity: 1;
     }

@@ -1,6 +1,6 @@
-import { httpFetch } from '../../request'
-import { formatPlayTime, decodeName } from '../../index'
-import { formatSinger, objStr2JSON } from './util'
+import {httpFetch} from '../../request'
+import {decodeName, formatPlayTime} from '../../index'
+import {formatSinger, objStr2JSON} from './util'
 import album from './album'
 
 export default {
@@ -30,7 +30,7 @@ export default {
     'http://wapi.kuwo.cn/api/pc/classify/playlist/getTagList?cmd=rcm_keyword_playlist&user=0&prod=kwplayer_pc_9.0.5.0&vipver=9.0.5.0&source=kwplayer_pc_9.0.5.0&loginUid=0&loginSid=0&appUid=76039576',
   hotTagUrl:
     'http://wapi.kuwo.cn/api/pc/classify/playlist/getRcmTagList?loginUid=0&loginSid=0&appUid=76039576',
-  getListUrl({ sortId, id, type, page }) {
+  getListUrl({sortId, id, type, page}) {
     if (!id)
       return `http://wapi.kuwo.cn/api/pc/classify/playlist/getRcmPlayList?loginUid=0&loginSid=0&appUid=76039576&&pn=${page}&rn=${this.limit_list}&order=${sortId}`
     switch (type) {
@@ -55,7 +55,7 @@ export default {
     if (this._requestObj_tags) this._requestObj_tags.cancelHttp()
     if (tryNum > 2) return Promise.reject(new Error('try max num'))
     this._requestObj_tags = httpFetch(this.tagsUrl)
-    return this._requestObj_tags.promise.then(({ body }) => {
+    return this._requestObj_tags.promise.then(({body}) => {
       if (body.code !== this.successCode) return this.getTag(++tryNum)
       return this.filterTagInfo(body.data)
     })
@@ -65,7 +65,7 @@ export default {
     if (this._requestObj_hotTags) this._requestObj_hotTags.cancelHttp()
     if (tryNum > 2) return Promise.reject(new Error('try max num'))
     this._requestObj_hotTags = httpFetch(this.hotTagUrl)
-    return this._requestObj_hotTags.promise.then(({ body }) => {
+    return this._requestObj_hotTags.promise.then(({body}) => {
       if (body.code !== this.successCode) return this.getHotTag(++tryNum)
       return this.filterInfoHotTag(body.data[0].data)
     })
@@ -103,8 +103,8 @@ export default {
     } else {
       id = null
     }
-    this._requestObj_list = httpFetch(this.getListUrl({ sortId, id, type, page }))
-    return this._requestObj_list.promise.then(({ body }) => {
+    this._requestObj_list = httpFetch(this.getListUrl({sortId, id, type, page}))
+    return this._requestObj_list.promise.then(({body}) => {
       if (!id || type == '10000') {
         if (body.code !== this.successCode) return this.getList(sortId, tagId, page, ++tryNum)
         return {
@@ -177,7 +177,7 @@ export default {
     if (tryNum > 2) return Promise.reject(new Error('try max num'))
 
     const requestObj = httpFetch(this.getListDetailUrl(id, page))
-    return requestObj.promise.then(({ body }) => {
+    return requestObj.promise.then(({body}) => {
       if (body.result !== 'ok') return this.getListDetail(id, page, ++tryNum)
       return {
         list: this.filterListDetail(body.musiclist),
@@ -200,7 +200,7 @@ export default {
     const requestObj = httpFetch(
       `http://qukudata.kuwo.cn/q.k?op=query&cont=ninfo&node=${id}&pn=0&rn=1&fmt=json&src=mbox&level=2`
     )
-    return requestObj.promise.then(({ statusCode, body }) => {
+    return requestObj.promise.then(({statusCode, body}) => {
       if (statusCode != 200 || !body.child) return this.getListDetail(id, ++tryNum)
       // console.log(body)
       return body.child.length ? body.child[0].sourceid : null
@@ -213,7 +213,7 @@ export default {
         this.limit_song
       }&encode=utf-8&keyset=pl2012&identity=kuwo&pcmp4=1`
     )
-    return requestObj.promise.then(({ body }) => {
+    return requestObj.promise.then(({body}) => {
       // console.log(body)
       if (body.result !== 'ok') return this.getListDetail(id, page, ++tryNum)
       return {
@@ -245,25 +245,25 @@ export default {
         info.size = info.size?.toLocaleUpperCase()
         switch (info.bitrate) {
           case '4000':
-            types.push({ type: 'flac24bit', size: info.size })
+            types.push({type: 'flac24bit', size: info.size})
             _types.flac24bit = {
               size: info.size,
             }
             break
           case '2000':
-            types.push({ type: 'flac', size: info.size })
+            types.push({type: 'flac', size: info.size})
             _types.flac = {
               size: info.size,
             }
             break
           case '320':
-            types.push({ type: '320k', size: info.size })
+            types.push({type: '320k', size: info.size})
             _types['320k'] = {
               size: info.size,
             }
             break
           case '128':
-            types.push({ type: '128k', size: info.size })
+            types.push({type: '128k', size: info.size})
             _types['128k'] = {
               size: info.size,
             }
@@ -294,10 +294,11 @@ export default {
     function t() {
       return ((65536 * (1 + Math.random())) | 0).toString(16).substring(1)
     }
+
     return t() + t() + t() + t() + t() + t() + t() + t()
   },
   async getListDetailMusicListByBDListInfo(id, source) {
-    const { body: infoData } = await httpFetch(
+    const {body: infoData} = await httpFetch(
       `https://bd-api.kuwo.cn/api/service/playlist/info/${id}?reqId=${this.getReqId()}&source=${source}`,
       {
         headers: {
@@ -306,7 +307,7 @@ export default {
           plat: 'h5',
         },
       }
-    ).promise.catch(() => ({ code: 0 }))
+    ).promise.catch(() => ({code: 0}))
 
     if (infoData.code != 200) return null
 
@@ -319,7 +320,7 @@ export default {
     }
   },
   async getListDetailMusicListByBDUserPub(id) {
-    const { body: infoData } = await httpFetch(
+    const {body: infoData} = await httpFetch(
       `https://bd-api.kuwo.cn/api/ucenter/users/pub/${id}?reqId=${this.getReqId()}`,
       {
         headers: {
@@ -328,7 +329,7 @@ export default {
           plat: 'h5',
         },
       }
-    ).promise.catch(() => ({ code: 0 }))
+    ).promise.catch(() => ({code: 0}))
 
     if (infoData.code != 200) return null
 
@@ -342,7 +343,7 @@ export default {
     }
   },
   async getListDetailMusicListByBDList(id, source, page, tryNum = 0) {
-    const { body: listData } = await httpFetch(
+    const {body: listData} = await httpFetch(
       `https://bd-api.kuwo.cn/api/service/playlist/${id}/musicList?reqId=${this.getReqId()}&source=${source}&pn=${page}&rn=${
         this.limit_song
       }`,
@@ -429,43 +430,43 @@ export default {
         if (info) {
           switch (info[2]) {
             case '20900':
-              types.push({ type: 'master', size: info[4] })
+              types.push({type: 'master', size: info[4]})
               _types.master = {
                 size: info[4].toLocaleUpperCase(),
               }
               break
             case '20501':
-              types.push({ type: 'atmos_plus', size: info[4] })
+              types.push({type: 'atmos_plus', size: info[4]})
               _types.atmos_plus = {
                 size: info[4].toLocaleUpperCase(),
               }
               break
             case '20201':
-              types.push({ type: 'atmos', size: info[4] })
+              types.push({type: 'atmos', size: info[4]})
               _types.atmos = {
                 size: info[4].toLocaleUpperCase(),
               }
               break
             case '4000':
-              types.push({ type: 'hires', size: info[4] })
+              types.push({type: 'hires', size: info[4]})
               _types.flac24bit = {
                 size: info[4].toLocaleUpperCase(),
               }
               break
             case '2000':
-              types.push({ type: 'flac', size: info[4] })
+              types.push({type: 'flac', size: info[4]})
               _types.flac = {
                 size: info[4].toLocaleUpperCase(),
               }
               break
             case '320':
-              types.push({ type: '320k', size: info[4] })
+              types.push({type: '320k', size: info[4]})
               _types['320k'] = {
                 size: info[4].toLocaleUpperCase(),
               }
               break
             case '128':
-              types.push({ type: '128k', size: info[4] })
+              types.push({type: '128k', size: info[4]})
               _types['128k'] = {
                 size: info[4].toLocaleUpperCase(),
               }
@@ -513,7 +514,7 @@ export default {
       `http://search.kuwo.cn/r.s?all=${encodeURIComponent(text)}&pn=${
         page - 1
       }&rn=${limit}&rformat=json&encoding=utf8&ver=mbox&vipver=MUSIC_8.7.7.0_BCS37&plat=pc&devid=28156413&ft=playlist&pay=0&needliveshow=0`
-    ).promise.then(({ body }) => {
+    ).promise.then(({body}) => {
       body = objStr2JSON(body)
       // console.log(body)
       return {

@@ -1,39 +1,8 @@
-// import { httpGet, httpFetch } from '../../request'
-import { WIN_MAIN_RENDERER_EVENT_NAME } from '@common/ipcNames'
-import { rendererInvoke } from '@common/rendererIpc'
-import { createCipheriv, createDecipheriv } from 'crypto'
-import { toMD5 } from '../utils'
-
-// const kw_token = {
-//   token: null,
-//   isGetingToken: false,
-// }
-
-// const translationMap = {
-//   "{'": '{"',
-//   "'}\n": '"}',
-//   "'}": '"}',
-//   "':'": '":"',
-//   "','": '","',
-//   "':{'": '":{"',
-//   "':['": '":["',
-//   "'}],'": '"}],"',
-//   "':[{'": '":[{"',
-//   "'},'": '"},"',
-//   "'},{'": '"},{"',
-//   "':[],'": '":[],"',
-//   "':{},'": '":{},"',
-//   "'}]}": '"}]}',
-// }
-
-// export const objStr2JSON = str => {
-//   return JSON.parse(str.replace(/(^{'|'}\n$|'}$|':'|','|':\[{'|'}\],'|':{'|'},'|'},{'|':\['|':\[\],'|':{},'|'}]})/g, s => translationMap[s]))
-// }
+import {createCipheriv, createDecipheriv} from 'crypto'
+import {toMD5} from '../utils'
 
 export const objStr2JSON = (str) => {
-  return JSON.parse(
-    str.replace(/('(?=(,\s*')))|('(?=:))|((?<=([:,]\s*))')|((?<={)')|('(?=}))/g, '"')
-  )
+  return JSON.parse(str.replace(/('(?=(,\s*')))|('(?=:))|((?<=([:,]\s*))')|((?<={)')|('(?=}))/g, '"'))
 }
 
 export const formatSinger = (rawData) => rawData.replace(/&/g, '、')
@@ -46,60 +15,13 @@ export const matchToken = (headers) => {
   }
 }
 
-// const wait = time => new Promise(resolve => setTimeout(() => resolve(), time))
-
-// export const getToken = (retryNum = 0) => new Promise((resolve, reject) => {
-//   if (retryNum > 2) return Promise.reject(new Error('try max num'))
-
-//   if (kw_token.isGetingToken) return wait(1000).then(() => getToken(retryNum).then(token => resolve(token)))
-//   if (kw_token.token) return resolve(kw_token.token)
-//   kw_token.isGetingToken = true
-//   httpGet('http://www.kuwo.cn/', (err, resp) => {
-//     kw_token.isGetingToken = false
-//     if (err) return getToken(++retryNum)
-//     if (resp.statusCode != 200) return reject(new Error('获取失败'))
-//     const token = kw_token.token = matchToken(resp.headers)
-//     resolve(token)
-//   })
-// })
-
-export const decodeLyric = (base64Data) =>
-  rendererInvoke(WIN_MAIN_RENDERER_EVENT_NAME.handle_kw_decode_lyric, base64Data)
-
-// export const tokenRequest = async(url, options = {}) => {
-//   let token = kw_token.token
-//   if (!token) token = await getToken()
-//   if (!options.headers) {
-//     options.headers = {
-//       Referer: 'http://www.kuwo.cn/',
-//       csrf: token,
-//       cookie: 'kw_token=' + token,
-//     }
-//   }
-//   const requestObj = httpFetch(url, options)
-//   requestObj.promise = requestObj.promise.then(resp => {
-//     // console.log(resp)
-//     if (resp.statusCode == 200) {
-//       kw_token.token = matchToken(resp.headers)
-//     }
-//     return resp
-//   })
-//   return requestObj
-// }
-
 export const lrcTools = {
   rxps: {
     wordLine: /^(\[\d{1,2}:.*\d{1,4}\])\s*(\S+(?:\s+\S+)*)?\s*/,
     tagLine: /\[(ver|ti|ar|al|offset|by|kuwo):\s*(\S+(?:\s+\S+)*)\s*\]/,
     wordTimeAll: /<(-?\d+),(-?\d+)(?:,-?\d+)?>/g,
     wordTime: /<(-?\d+),(-?\d+)(?:,-?\d+)?>/,
-  },
-  offset: 1,
-  offset2: 1,
-  isOK: false,
-  lines: [],
-  tags: [],
-  getWordInfo(str, str2, prevWord) {
+  }, offset: 1, offset2: 1, isOK: false, lines: [], tags: [], getWordInfo(str, str2, prevWord) {
     const offset = parseInt(str)
     const offset2 = parseInt(str2)
     let startTime = Math.abs((offset + offset2) / (this.offset * 2))
@@ -112,16 +34,12 @@ export const lrcTools = {
         }
 
         prevWord.newTimeStr = `<${prevWord.startTime},${prevWord.endTime - prevWord.startTime}>`
-        // console.log(prevWord)
       }
     }
     return {
-      startTime,
-      endTime,
-      timeStr: `<${startTime},${endTime - startTime}>`,
+      startTime, endTime, timeStr: `<${startTime},${endTime - startTime}>`,
     }
-  },
-  parseLine(line) {
+  }, parseLine(line) {
     if (line.length < 6) return
     let result = this.rxps.wordLine.exec(line)
     if (result) {
@@ -132,14 +50,12 @@ export const lrcTools = {
       }
       const wordTimes = words.match(this.rxps.wordTimeAll)
       if (!wordTimes) return
-      // console.log(wordTimes)
       let preTimeInfo
       for (const timeStr of wordTimes) {
         const result = this.rxps.wordTime.exec(timeStr)
         const wordInfo = this.getWordInfo(result[1], result[2], preTimeInfo)
         words = words.replace(timeStr, wordInfo.timeStr)
-        if (preTimeInfo?.newTimeStr)
-          words = words.replace(preTimeInfo.timeStr, preTimeInfo.newTimeStr)
+        if (preTimeInfo?.newTimeStr) words = words.replace(preTimeInfo.timeStr, preTimeInfo.newTimeStr)
         preTimeInfo = wordInfo
       }
       this.lines.push(time + words)
@@ -155,20 +71,13 @@ export const lrcTools = {
       const valueOf = parseInt(content, 8)
       this.offset = Math.trunc(valueOf / 10)
       this.offset2 = Math.trunc(valueOf % 10)
-      if (
-        this.offset == 0 ||
-        Number.isNaN(this.offset) ||
-        this.offset2 == 0 ||
-        Number.isNaN(this.offset2)
-      ) {
+      if (this.offset == 0 || Number.isNaN(this.offset) || this.offset2 == 0 || Number.isNaN(this.offset2)) {
         this.isOK = false
       }
     } else {
       this.tags.push(line)
     }
-  },
-  parse(lrc) {
-    // console.log(lrc)
+  }, parse(lrc) {
     const lines = lrc.split(/\r\n|\r|\n/)
     const tools = Object.create(this)
     tools.isOK = true
@@ -184,7 +93,6 @@ export const lrcTools = {
     if (!tools.lines.length) return ''
     let lrcs = tools.lines.join('\n')
     if (tools.tags.length) lrcs = `${tools.tags.join('\n')}\n${lrcs}`
-    // console.log(lrcs)
     return lrcs
   },
 }
@@ -201,10 +109,7 @@ const createAesDecrypt = (buffer, mode, key, iv) => {
 
 export const wbdCrypto = {
   aesMode: 'aes-128-ecb',
-  aesKey: Buffer.from(
-    [112, 87, 39, 61, 199, 250, 41, 191, 57, 68, 45, 114, 221, 94, 140, 228],
-    'binary'
-  ),
+  aesKey: Buffer.from([112, 87, 39, 61, 199, 250, 41, 191, 57, 68, 45, 114, 221, 94, 140, 228], 'binary'),
   aesIv: '',
   appId: 'y67sprxhhpws',
   decodeData(base64Result) {
@@ -219,9 +124,7 @@ export const wbdCrypto = {
     const data = Buffer.from(JSON.stringify(jsonData))
     const time = Date.now()
 
-    const encodeData = createAesEncrypt(data, this.aesMode, this.aesKey, this.aesIv).toString(
-      'base64'
-    )
+    const encodeData = createAesEncrypt(data, this.aesMode, this.aesKey, this.aesIv).toString('base64')
     const sign = this.createSign(encodeData, time)
 
     return `data=${encodeURIComponent(encodeData)}&time=${time}&appId=${this.appId}&sign=${sign}`

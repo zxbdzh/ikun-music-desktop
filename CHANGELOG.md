@@ -15,7 +15,6 @@ Change log format is based on [Keep a Changelog](http://keepachangelog.com/).
 
 - 优化托盘图标行为：在非 Windows 系统中，点击托盘图标时不再显示主窗口
 
-
 ### 修复
 
 - 修复音量条在调整音量时实际音量与显示的数值不一致的问题（#2606）
@@ -29,7 +28,6 @@ Change log format is based on [Keep a Changelog](http://keepachangelog.com/).
 ### 优化
 
 - 优化托盘图标行为：在非 Windows 系统中，点击托盘图标时不再显示主窗口
-
 
 ### 修复
 
@@ -87,7 +85,7 @@ Change log format is based on [Keep a Changelog](http://keepachangelog.com/).
 
 ---
 
-*感谢 @3gf8jv4dv 对 LX 系列项目翻译、文档等文案的大幅修订优化。*
+_感谢 @3gf8jv4dv 对 LX 系列项目翻译、文档等文案的大幅修订优化。_
 
 ### 不兼容性变更
 
@@ -497,14 +495,12 @@ Linux 系统至少需要 `GLIBC_2.29` 版本才能运行。
 
 ## [2.1.2](https://github.com/lyswhut/ikun-music-desktop/compare/v2.1.1...v2.1.2) - 2023-02-18
 
-
 ### 修复
 
 - 修复处于最新版本时更新弹窗日志内容显示异常的问题
 - 修复更新到最新版本后的首次启动时的更新日志未显示的问题
 
 ## [2.1.1](https://github.com/lyswhut/ikun-music-desktop/compare/v2.1.0...v2.1.1) - 2023-02-18
-
 
 ### 修复
 
@@ -559,7 +555,6 @@ Linux 系统至少需要 `GLIBC_2.29` 版本才能运行。
 
 ## [2.0.4](https://github.com/lyswhut/ikun-music-desktop/compare/v2.0.3...v2.0.4) - 2023-01-15
 
-
 ### 修复
 
 - 修复备份文件导入指引无法识别v2配置的问题
@@ -570,7 +565,6 @@ Linux 系统至少需要 `GLIBC_2.29` 版本才能运行。
 - 修复备份与恢复的列表导入列表信息设置逻辑问题与潜在导入问题
 
 ## [2.0.3](https://github.com/lyswhut/ikun-music-desktop/compare/v2.0.2...v2.0.3) - 2023-01-08
-
 
 ### 修复
 
@@ -620,7 +614,6 @@ Linux 系统至少需要 `GLIBC_2.29` 版本才能运行。
 - 单次执行所有sql语句，尝试解决某些情况下某些表没有成功创建的问题
 
 ## [2.0.0](https://github.com/lyswhut/ikun-music-desktop/compare/v1.22.3...v2.0.0) - 2023-01-01
-
 
 ### 不兼容性变更说明
 
@@ -1134,7 +1127,7 @@ Linux 系统至少需要 `GLIBC_2.29` 版本才能运行。
 ### 变更
 
 - 添加歌曲到列表时从原来的底部改为顶部，若你想要将你的列表歌曲顺序反转以适应这一变更，可先按住`shift`键的情况下点击列表的最后一首歌，然后再点击列表的第一首歌，完成倒序选中，最后随便右击列表的任意一首歌，在弹出的菜单中选择调整顺序，在弹出框输入1后确定即可反转列表。
-若你想要恢复原来的行为则可以去更改“添加歌曲到列表时的位置”设置项。
+  若你想要恢复原来的行为则可以去更改“添加歌曲到列表时的位置”设置项。
 
 ### 其他
 
@@ -1333,7 +1326,6 @@ https://github.com/lyswhut/lx-music-mobile#readme
 - 修复某些酷狗源歌单链接无法打开的问题
 
 ## [1.4.1](https://github.com/lyswhut/ikun-music-desktop/compare/v1.4.0...v1.4.1) - 2020-11-25
-
 
 ### 修复
 
@@ -1586,7 +1578,6 @@ https://github.com/lyswhut/lx-music-mobile#readme
 ### 其他
 
 更新 Electron 到 8.2.5
-
 
 ## [0.17.0](https://github.com/lyswhut/ikun-music-desktop/compare/v0.16.0...v0.17.0) - 2020-03-15
 
@@ -2009,7 +2000,6 @@ https://github.com/lyswhut/lx-music-mobile#readme
 
 ## [0.4.0](https://github.com/lyswhut/ikun-music-desktop/compare/v0.3.5...v0.4.0) - 2019-09-04
 
-
 ### 新增
 
 - 新增**歌单**功能，目前支持酷我、酷狗、百度源歌单
@@ -2054,7 +2044,6 @@ https://github.com/lyswhut/lx-music-mobile#readme
 - 修复设置界面更新出错时仍然显示更新下载中的问题
 - 修复手动定位播放进度条时存在偏差的问题
 - 屏蔽播放器中没有歌曲时对进度条的点击
-
 
 ## [0.3.2](https://github.com/lyswhut/ikun-music-desktop/compare/v0.3.1...v0.3.2) - 2019-08-24
 
@@ -2154,7 +2143,7 @@ https://github.com/lyswhut/lx-music-mobile#readme
 
 - 新增音乐来源切换，可到设置页面-基本设置 look look !
 - 为搜索结果列表添加多选功能。
-P.S：暂时没想好多选后的操作按钮放哪...
+  P.S：暂时没想好多选后的操作按钮放哪...
 
 ### 优化
 
@@ -2201,4 +2190,4 @@ P.S：暂时没想好多选后的操作按钮放哪...
 
 ## [0.1.0] - 2019-8-16
 
-* 0.1.0版本发布
+- 0.1.0版本发布

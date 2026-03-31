@@ -88,9 +88,7 @@ export default {
         ].map((field) => field.toLowerCase())
 
         const keywords = keyword.toLowerCase().split(/\s+/)
-        return keywords.every((git) =>
-          searchFields.some((field) => field.includes(git))
-        )
+        return keywords.every((git) => searchFields.some((field) => field.includes(git)))
       })
 
       console.log(`[Gitcode] 找到 ${searchResults.length} 个结果`)
@@ -124,5 +122,5 @@ export default {
         source: 'git',
       })
     }
-  }
+  },
 }

@@ -1,6 +1,5 @@
 const MiniCssExtractPlugin = require('mini-css-extract-plugin')
 const cssLoaderConfig = require('./css-loader.config')
-const chalk = require('chalk')
 
 // merge css-loader
 exports.mergeCSSLoader = (beforeLoader) => {
@@ -48,28 +47,6 @@ exports.mergeCSSLoader = (beforeLoader) => {
   return loader
 }
 
-exports.logStats = (proc, data) => {
-  let log = ''
-
-  log += chalk.yellow.bold(`${proc} Process：`)
-  log += '\n'
-
-  if (typeof data === 'object') {
-    data
-      .toString({
-        colors: true,
-        chunks: false,
-      })
-      .split(/\r?\n/)
-      .forEach((line) => {
-        log += '  ' + line + '\n'
-      })
-  } else {
-    log += `  ${data}\n`
-  }
-
-  console.log(log)
-}
 
 exports.debounce = (fn, delay = 100) => {
   let timer = null

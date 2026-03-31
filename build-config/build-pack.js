@@ -1,5 +1,5 @@
 const builder = require('electron-builder')
-const beforePack = require('./build-before-pack')
+const beforePack = require('./build-before-pack').default
 const afterPack = require('./build-after-pack')
 
 /**
@@ -31,7 +31,6 @@ const options = {
     'node_modules/node-gyp-build',
     'node_modules/bufferutil',
     'node_modules/utf-8-validate',
-    'build/Release/qrc_decode.node',
     'dist/**/*',
   ],
   asar: {

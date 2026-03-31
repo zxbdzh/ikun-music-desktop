@@ -105,8 +105,17 @@
       />
       <!-- <base-menu :menus="listItemMenu" :location="listMenu.menuLocation" item-name="name" :is-show="listMenu.isShowItemMenu" @menu-click="handleListItemMenuClick" /> -->
     </div>
-    <common-list-add-modal v-model:show="isShowListAdd" :music-info="selectedAddMusicInfo" teleport="#view" />
-    <common-list-add-multiple-modal v-model:show="isShowListAddMultiple" :music-list="selectedList" teleport="#view" @confirm="removeAllSelect" />
+    <common-list-add-modal
+      v-model:show="isShowListAdd"
+      :music-info="selectedAddMusicInfo"
+      teleport="#view"
+    />
+    <common-list-add-multiple-modal
+      v-model:show="isShowListAddMultiple"
+      :music-list="selectedList"
+      teleport="#view"
+      @confirm="removeAllSelect"
+    />
   </div>
 </template>
 
@@ -155,20 +164,10 @@ export default {
       handleOpenFile,
     } = useTaskActions({ list, removeAllSelect, selectedList })
 
-    const {
-      isShowListAdd,
-      isShowListAddMultiple,
-      selectedAddMusicInfo,
-      handleShowMusicAddModal,
-    } = useMusicAdd({ selectedList, list })
+    const { isShowListAdd, isShowListAddMultiple, selectedAddMusicInfo, handleShowMusicAddModal } =
+      useMusicAdd({ selectedList, list })
 
-    const {
-      menus,
-      menuLocation,
-      isShowItemMenu,
-      showMenu,
-      menuClick,
-    } = useMenu({
+    const { menus, menuLocation, isShowItemMenu, showMenu, menuClick } = useMenu({
       handleStartTask,
       handlePauseTask,
       handleRemoveTask,

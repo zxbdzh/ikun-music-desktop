@@ -18,5 +18,8 @@ export const getMusicUrl = async (songInfo, type) => {
     return Promise.reject(new Error('找不到歌曲信息'))
   }
 
-  return Promise.resolve({ type, url: gitcodeData.download_url || buildDownloadUrl(gitcodeData.relative_path) })
+  return Promise.resolve({
+    type,
+    url: gitcodeData.download_url || buildDownloadUrl(gitcodeData.relative_path),
+  })
 }

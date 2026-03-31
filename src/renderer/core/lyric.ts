@@ -168,7 +168,8 @@ export const setLyric = () => {
   if (musicInfo.lrc) {
     const extendedLyrics = []
     if (appSetting['player.isShowLyricRoma'] && musicInfo.rlrc) extendedLyrics.push(musicInfo.rlrc)
-    if (appSetting['player.isShowLyricTranslation'] && musicInfo.tlrc) extendedLyrics.push(musicInfo.tlrc)
+    if (appSetting['player.isShowLyricTranslation'] && musicInfo.tlrc)
+      extendedLyrics.push(musicInfo.tlrc)
     if (appSetting['player.isSwapLyricTranslationAndRoma']) extendedLyrics.reverse()
 
     lrc.setLyric(

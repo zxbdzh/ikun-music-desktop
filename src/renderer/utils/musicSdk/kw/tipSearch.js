@@ -1,6 +1,6 @@
 // import { decodeName } from '../../index'
 // import { tokenRequest } from './util'
-import { httpFetch } from '../../request'
+import {httpFetch} from '../../request'
 
 export default {
   regExps: {
@@ -18,7 +18,7 @@ export default {
         Referer: 'http://www.kuwo.cn/',
       }
     )
-    return this.requestObj.promise.then(({ body, statusCode }) => {
+    return this.requestObj.promise.then(({body, statusCode}) => {
       if (statusCode != 200 || !body.WORDITEMS) return Promise.reject(new Error('请求失败'))
       return body.WORDITEMS
     })

@@ -86,7 +86,7 @@ export default () => {
   //   buttons.lockLrc = setting.desktopLyric.isLock
   //   setButtons()
   // }
-  const rTaskbarThumbarClick = onPlayerAction(async({ params: { action, data } }) => {
+  const rTaskbarThumbarClick = onPlayerAction(async ({ params: { action, data } }) => {
     switch (action) {
       case 'play':
         play()

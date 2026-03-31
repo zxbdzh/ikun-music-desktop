@@ -1,9 +1,9 @@
 // import '../../polyfill/array.find'
 
-import { httpFetch } from '../../request'
-import { formatPlayTime, decodeName } from '../../index'
+import {httpFetch} from '../../request'
+import {decodeName, formatPlayTime} from '../../index'
 // import { debug } from '../../utils/env'
-import { formatSinger } from './util'
+import {formatSinger} from './util'
 
 export default {
   regExps: {
@@ -49,31 +49,31 @@ export default {
         if (info) {
           switch (info[2]) {
             case '20900':
-              types.push({ type: 'master', size: info[4] })
+              types.push({type: 'master', size: info[4]})
               _types.master = {
                 size: info[4].toLocaleUpperCase(),
               }
               break
             case '4000':
-              types.push({ type: 'hires', size: info[4] })
+              types.push({type: 'hires', size: info[4]})
               _types.hires = {
                 size: info[4].toLocaleUpperCase(),
               }
               break
             case '2000':
-              types.push({ type: 'flac', size: info[4] })
+              types.push({type: 'flac', size: info[4]})
               _types.flac = {
                 size: info[4].toLocaleUpperCase(),
               }
               break
             case '320':
-              types.push({ type: '320k', size: info[4] })
+              types.push({type: '320k', size: info[4]})
               _types['320k'] = {
                 size: info[4].toLocaleUpperCase(),
               }
               break
             case '128':
-              types.push({ type: '128k', size: info[4] })
+              types.push({type: '128k', size: info[4]})
               _types['128k'] = {
                 size: info[4].toLocaleUpperCase(),
               }
@@ -111,7 +111,7 @@ export default {
     if (retryNum > 2) return Promise.reject(new Error('try max num'))
     if (limit == null) limit = this.limit
     // http://newlyric.kuwo.cn/newlyric.lrc?62355680
-    return this.musicSearch(str, page, limit).then(({ body: result }) => {
+    return this.musicSearch(str, page, limit).then(({body: result}) => {
       // console.log(result)
       if (!result || (result.TOTAL !== '0' && result.SHOW === '0'))
         return this.search(str, page, limit, ++retryNum)

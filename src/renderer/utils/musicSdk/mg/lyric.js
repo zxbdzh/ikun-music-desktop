@@ -23,7 +23,9 @@ const mrcTools = {
       let time = startTime
       let ms = time % 1000
       time /= 1000
-      let m = parseInt(time / 60).toString().padStart(2, '0')
+      let m = parseInt(time / 60)
+        .toString()
+        .padStart(2, '0')
       time %= 60
       let s = parseInt(time).toString().padStart(2, '0')
       time = `${m}:${s}.${ms}`
@@ -34,7 +36,7 @@ const mrcTools = {
 
       let times = words.match(this.rxps.wordTimeAll)
       if (!times) continue
-      times = times.map(time => {
+      times = times.map((time) => {
         const result = /\((\d+),(\d+)\)/.exec(time)
         return `<${parseInt(result[1]) - startTime},${result[2]}>`
       })
@@ -51,7 +53,8 @@ const mrcTools = {
     const requestObj = httpFetch(url, {
       headers: {
         Referer: 'https://app.c.nf.migu.cn/',
-        'User-Agent': 'Mozilla/5.0 (Linux; Android 5.1.1; Nexus 6 Build/LYZ28E) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.115 Mobile Safari/537.36',
+        'User-Agent':
+          'Mozilla/5.0 (Linux; Android 5.1.1; Nexus 6 Build/LYZ28E) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.115 Mobile Safari/537.36',
         channel: '0146921',
       },
     })
@@ -62,25 +65,23 @@ const mrcTools = {
     })
   },
   getMrc(url) {
-    return this.getText(url).then(text => {
+    return this.getText(url).then((text) => {
       return this.parseLyric(decrypt(text))
     })
   },
   getLrc(url) {
-    return this.getText(url).then(text => ({ lxlyric: '', lyric: text }))
+    return this.getText(url).then((text) => ({ lxlyric: '', lyric: text }))
   },
   getTrc(url) {
     if (!url) return Promise.resolve('')
     return this.getText(url)
   },
   async getMusicInfo(songInfo) {
-    return songInfo.mrcUrl == null
-      ? getMusicInfo(songInfo.copyrightId)
-      : songInfo
+    return songInfo.mrcUrl == null ? getMusicInfo(songInfo.copyrightId) : songInfo
   },
   getLyric(songInfo) {
     return {
-      promise: this.getMusicInfo(songInfo).then(info => {
+      promise: this.getMusicInfo(songInfo).then((info) => {
         let p
         if (info.mrcUrl) p = this.getMrc(info.mrcUrl)
         else if (info.lrcUrl) p = this.getLrc(info.lrcUrl)

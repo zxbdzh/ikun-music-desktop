@@ -9,7 +9,9 @@ import { nativeTheme, powerSaveBlocker } from 'electron'
 import { joinPath } from '@common/utils/nodejs'
 import themes from '@common/theme/index.json'
 
-export const parseEnvParams = (argv = process.argv): { cmdParams: LX.CmdParams, deeplink: string | null } => {
+export const parseEnvParams = (
+  argv = process.argv
+): { cmdParams: LX.CmdParams; deeplink: string | null } => {
   const cmdParams: LX.CmdParams = {}
   let deeplink = null
   const rx = /^-\w+/

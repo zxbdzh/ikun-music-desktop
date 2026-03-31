@@ -202,7 +202,11 @@ export default {
       this.currentMusicInfo =
         'progress' in this.musicInfo ? this.musicInfo.metadata.musicInfo : this.musicInfo
 
-      if (this.currentMusicInfo.source == 'local' || this.currentMusicInfo.source == 'git' || !music[this.currentMusicInfo.source].comment) {
+      if (
+        this.currentMusicInfo.source == 'local' ||
+        this.currentMusicInfo.source == 'git' ||
+        !music[this.currentMusicInfo.source].comment
+      ) {
         this.available = false
         return
       }
@@ -288,7 +292,7 @@ export default {
   cursor: pointer;
   transition: opacity @transition-normal;
 
-  +.commentHeaderBtn {
+  + .commentHeaderBtn {
     margin-left: 5px;
   }
 

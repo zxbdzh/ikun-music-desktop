@@ -1,49 +1,17 @@
-// const path = require('path')
-const webpack = require('webpack')
-const TerserPlugin = require('terser-webpack-plugin')
 const { merge } = require('webpack-merge')
-
+const TerserPlugin = require('terser-webpack-plugin')
 const baseConfig = require('./webpack.config.base')
-const buildConfig = require('../webpack-build-config')
-
-// const { dependencies } = require('../../package.json')
-
-// let whiteListedModules = ['vue']
-// let whiteListedModules = ['vue', 'vue-router', 'vuex', 'vue-i18n']
+const { prodDefines, perfProd, babelLoader } = require('../shared')
 
 module.exports = merge(baseConfig, {
   mode: 'production',
   devtool: 'source-map',
-  externals: [
-    // ...Object.keys(dependencies || {}).filter(d => !whiteListedModules.includes(d)),
-  ],
-  module: {
-    rules: [
-      {
-        test: /\.js$/,
-        loader: 'babel-loader',
-        exclude: /node_modules/,
-      },
-    ],
-  },
-  plugins: [
-    new webpack.DefinePlugin({
-      'process.env': {
-        NODE_ENV: '"production"',
-      },
-    }),
-  ],
+  module: { rules: [babelLoader] },
+  plugins: [prodDefines()],
   optimization: {
-    minimize: buildConfig.minimize,
+    minimize: true,
     minimizer: [new TerserPlugin()],
   },
-  performance: {
-    maxEntrypointSize: 1024 * 1024 * 10,
-    maxAssetSize: 1024 * 1024 * 20,
-    hints: 'warning',
-  },
-  node: {
-    __dirname: false,
-    __filename: false,
-  },
+  performance: perfProd,
+  node: { __dirname: false, __filename: false },
 })

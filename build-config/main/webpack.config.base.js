@@ -1,15 +1,13 @@
 const path = require('path')
-
-const isDev = process.env.NODE_ENV === 'development'
+const { merge } = require('webpack-merge')
+const { mainAliases, extensionsWithMjs, tsLoader, nodeLoader, DIST } = require('../shared')
 
 module.exports = {
   target: 'electron-main',
   output: {
     filename: '[name].js',
-    library: {
-      type: 'commonjs2',
-    },
-    path: path.join(__dirname, '../../dist'),
+    library: { type: 'commonjs2' },
+    path: DIST,
   },
   externals: {
     'font-list': 'font-list',
@@ -17,30 +15,12 @@ module.exports = {
     'electron-font-manager': 'electron-font-manager',
     bufferutil: 'bufferutil',
     'utf-8-validate': 'utf-8-validate',
-    'qrc_decode.node': isDev
-      ? path.join(__dirname, '../../build/Release/qrc_decode.node')
-      : path.join('../build/Release/qrc_decode.node'),
   },
   resolve: {
-    alias: {
-      '@main': path.join(__dirname, '../../src/main'),
-      '@renderer': path.join(__dirname, '../../src/renderer'),
-      '@lyric': path.join(__dirname, '../../src/renderer-lyric'),
-      '@common': path.join(__dirname, '../../src/common'),
-    },
-    extensions: ['.tsx', '.ts', '.js', '.mjs', '.json', '.node'],
+    alias: mainAliases,
+    extensions: extensionsWithMjs,
   },
   module: {
-    rules: [
-      {
-        test: /\.node$/,
-        use: 'node-loader',
-      },
-      {
-        test: /\.tsx?$/,
-        use: 'ts-loader',
-        exclude: /node_modules/,
-      },
-    ],
+    rules: [nodeLoader, tsLoader()],
   },
 }

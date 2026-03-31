@@ -7,24 +7,27 @@ import { clipFileNameLength, clipNameLength } from '@common/utils/tools'
 /**
  * 保存歌词文件
  */
-export const saveLrc = async(lrcData: LX.Music.LyricInfo, info: {
-  filePath: string
-  format: LX.LyricFormat
-  downloadLxlrc: boolean
-  downloadTlrc: boolean
-  downloadRlrc: boolean
-}) => {
+export const saveLrc = async (
+  lrcData: LX.Music.LyricInfo,
+  info: {
+    filePath: string
+    format: LX.LyricFormat
+    downloadLxlrc: boolean
+    downloadTlrc: boolean
+    downloadRlrc: boolean
+  }
+) => {
   const iconv = await import('iconv-lite')
   const lrc = buildLyrics(lrcData, info.downloadLxlrc, info.downloadTlrc, info.downloadRlrc)
   switch (info.format) {
     case 'gbk':
-      fs.writeFile(info.filePath, iconv.encode(lrc, 'gbk', { addBOM: true }), err => {
+      fs.writeFile(info.filePath, iconv.encode(lrc, 'gbk', { addBOM: true }), (err) => {
         if (err) console.log(err)
       })
       break
     case 'utf8':
     default:
-      fs.writeFile(info.filePath, iconv.encode(lrc, 'utf8', { addBOM: true }), err => {
+      fs.writeFile(info.filePath, iconv.encode(lrc, 'utf8', { addBOM: true }), (err) => {
         if (err) console.log(err)
       })
       break

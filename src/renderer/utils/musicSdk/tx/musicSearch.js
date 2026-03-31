@@ -1,6 +1,6 @@
-import {formatPlayTime, sizeFormate} from '../../index'
-import {formatSingerName} from '../utils'
-import {signRequest} from "@renderer/utils/musicSdk/tx/utils";
+import { formatPlayTime, sizeFormate } from '../../index'
+import { formatSingerName } from '../utils'
+import { signRequest } from '@renderer/utils/musicSdk/tx/utils'
 
 export default {
   limit: 50,
@@ -59,7 +59,7 @@ export default {
         },
       },
     })
-    return searchRequest.promise.then(({body}) => {
+    return searchRequest.promise.then(({ body }) => {
       console.log(body)
       if (body.code !== this.successCode || body.req.code !== this.successCode)
         return this.musicSearch(str, page, limit, ++retryNum)
@@ -87,49 +87,49 @@ export default {
       const file = item.file
       if (file.size_128mp3 !== 0) {
         let size = sizeFormate(file.size_128mp3)
-        types.push({type: '128k', size})
+        types.push({ type: '128k', size })
         _types['128k'] = {
           size,
         }
       }
       if (file.size_320mp3 !== 0) {
         let size = sizeFormate(file.size_320mp3)
-        types.push({type: '320k', size})
+        types.push({ type: '320k', size })
         _types['320k'] = {
           size,
         }
       }
       if (file.size_flac !== 0) {
         let size = sizeFormate(file.size_flac)
-        types.push({type: 'flac', size})
+        types.push({ type: 'flac', size })
         _types.flac = {
           size,
         }
       }
       if (file.size_hires !== 0) {
         let size = sizeFormate(file.size_hires)
-        types.push({type: 'hires', size})
+        types.push({ type: 'hires', size })
         _types.hires = {
           size,
         }
       }
       if (file.size_new[1] !== 0) {
         let size = sizeFormate(file.size_new[1])
-        types.push({type: 'atmos', size})
+        types.push({ type: 'atmos', size })
         _types.atmos = {
           size,
         }
       }
       if (file.size_new[2] !== 0) {
         let size = sizeFormate(file.size_new[2])
-        types.push({type: 'atmos_plus', size})
+        types.push({ type: 'atmos_plus', size })
         _types.atmos_plus = {
           size,
         }
       }
       if (file.size_new[0] !== 0) {
         let size = sizeFormate(file.size_new[0])
-        types.push({type: 'master', size})
+        types.push({ type: 'master', size })
         _types.master = {
           size,
         }
@@ -167,7 +167,7 @@ export default {
   },
   search(str, page = 1, limit) {
     if (limit == null) limit = this.limit
-    return this.musicSearch(str, page, limit).then(({body, meta}) => {
+    return this.musicSearch(str, page, limit).then(({ body, meta }) => {
       let list = this.handleResult(body.item_song)
 
       this.total = meta.estimate_sum

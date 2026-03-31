@@ -145,11 +145,12 @@ export default {
   getBoardsData() {
     if (this.requestBoardsObj) this._requestBoardsObj.cancelHttp()
     this.requestBoardsObj = httpFetch('https://app.c.nf.migu.cn/pc/bmw/rank/rank-index/v1.0', {
-    // this.requestBoardsObj = httpFetch('https://app.c.nf.migu.cn/MIGUM3.0/v1.0/template/rank-list/release', {
-    // this.requestBoardsObj = httpFetch('https://app.c.nf.migu.cn/MIGUM2.0/v2.0/content/indexrank.do?templateVersion=8', {
+      // this.requestBoardsObj = httpFetch('https://app.c.nf.migu.cn/MIGUM3.0/v1.0/template/rank-list/release', {
+      // this.requestBoardsObj = httpFetch('https://app.c.nf.migu.cn/MIGUM2.0/v2.0/content/indexrank.do?templateVersion=8', {
       headers: {
         Referer: 'https://app.c.nf.migu.cn/',
-        'User-Agent': 'Mozilla/5.0 (Linux; Android 5.1.1; Nexus 6 Build/LYZ28E) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.115 Mobile Safari/537.36',
+        'User-Agent':
+          'Mozilla/5.0 (Linux; Android 5.1.1; Nexus 6 Build/LYZ28E) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.115 Mobile Safari/537.36',
         channel: '0146921',
       },
     })
@@ -219,8 +220,9 @@ export default {
     if (++retryNum > 3) return Promise.reject(new Error('try max num'))
     return this.getData(this.getUrl(bangid, page)).then(({ statusCode, body }) => {
       // console.log(body)
-      if (statusCode !== 200 || body.code !== this.successCode) return this.getList(bangid, page, retryNum)
-      const list = filterMusicInfoList(body.columnInfo.contents.map(m => m.objectInfo))
+      if (statusCode !== 200 || body.code !== this.successCode)
+        return this.getList(bangid, page, retryNum)
+      const list = filterMusicInfoList(body.columnInfo.contents.map((m) => m.objectInfo))
       return {
         total: list.length,
         list,

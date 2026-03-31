@@ -1,10 +1,10 @@
-import { httpFetch } from '../../request'
-import { dateFormat2 } from '../../index'
+import {httpFetch} from '../../request'
+import {dateFormat2} from '../../index'
 
 export default {
   _requestObj: null,
   _requestObj2: null,
-  async getComment({ songmid }, page = 1, limit = 20) {
+  async getComment({songmid}, page = 1, limit = 20) {
     if (this._requestObj) this._requestObj.cancelHttp()
 
     const _requestObj = httpFetch(
@@ -15,7 +15,7 @@ export default {
         },
       }
     )
-    const { body, statusCode } = await _requestObj.promise
+    const {body, statusCode} = await _requestObj.promise
     if (statusCode != 200 || body.code != '200') throw new Error('获取评论失败')
     // console.log(body)
 
@@ -29,7 +29,7 @@ export default {
       maxPage: Math.ceil(total / limit) || 1,
     }
   },
-  async getHotComment({ songmid }, page = 1, limit = 100) {
+  async getHotComment({songmid}, page = 1, limit = 100) {
     if (this._requestObj2) this._requestObj2.cancelHttp()
 
     const _requestObj2 = httpFetch(
@@ -40,7 +40,7 @@ export default {
         },
       }
     )
-    const { body, statusCode } = await _requestObj2.promise
+    const {body, statusCode} = await _requestObj2.promise
     if (statusCode != 200 || body.code != '200') throw new Error('获取热门评论失败')
     // console.log(body)
 
@@ -69,18 +69,18 @@ export default {
         images: item.mpic ? [decodeURIComponent(item.mpic)] : [],
         reply: item.child_comments
           ? item.child_comments.map((i) => {
-              return {
-                id: i.id,
-                text: i.msg,
-                time: i.time,
-                timeStr: dateFormat2(Number(i.time) * 1000),
-                userName: i.u_name,
-                avatar: i.u_pic,
-                userId: i.u_id,
-                likedCount: i.like_num,
-                images: i.mpic ? [i.mpic] : [],
-              }
-            })
+            return {
+              id: i.id,
+              text: i.msg,
+              time: i.time,
+              timeStr: dateFormat2(Number(i.time) * 1000),
+              userName: i.u_name,
+              avatar: i.u_pic,
+              userId: i.u_id,
+              likedCount: i.like_num,
+              images: i.mpic ? [i.mpic] : [],
+            }
+          })
           : [],
       }
     })

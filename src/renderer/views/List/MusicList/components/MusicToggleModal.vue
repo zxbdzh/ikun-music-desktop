@@ -10,7 +10,11 @@
               <h3 :class="$style.text" :aria-label="`${item.name} - ${item.singer}`">
                 {{ item.name }}
               </h3>
-              <h3 v-if="item.meta.albumName" :class="[$style.text, $style.albumName]" :aria-label="item.meta.albumName">
+              <h3
+                v-if="item.meta.albumName"
+                :class="[$style.text, $style.albumName]"
+                :aria-label="item.meta.albumName"
+              >
                 {{ item.singer }}
                 <span v-if="item.meta.albumName"> / {{ item.meta.albumName }}</span>
               </h3>
@@ -21,8 +25,15 @@
                 <svg-icon name="share" />
               </button>
               <button type="button" :class="$style.btn" @click="handlePlay(item)">
-                <svg v-once version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink"
-                  height="50%" viewBox="0 0 287.386 287.386" space="preserve">
+                <svg
+                  v-once
+                  version="1.1"
+                  xmlns="http://www.w3.org/2000/svg"
+                  xlink="http://www.w3.org/1999/xlink"
+                  height="50%"
+                  viewBox="0 0 287.386 287.386"
+                  space="preserve"
+                >
                   <use xlink:href="#icon-testPlay" />
                 </svg>
               </button>
@@ -50,18 +61,25 @@
             <h2>
               <div :class="$style.nameLabel">
                 <span :class="$style.name">{{ toggleMusicInfo.name }}</span>
-                <span :class="$style.label">{{ toggleMusicInfo.source }} {{ musicInfo.interval }}</span>
+                <span :class="$style.label"
+                  >{{ toggleMusicInfo.source }} {{ musicInfo.interval }}</span
+                >
               </div>
               <div :class="$style.singer">
                 {{ toggleMusicInfo.singer }}
                 <span v-if="toggleMusicInfo.meta.albumName">
-                  / {{ toggleMusicInfo.meta.albumName }}</span>
+                  / {{ toggleMusicInfo.meta.albumName }}</span
+                >
               </div>
             </h2>
           </template>
         </div>
-        <base-btn :disabled="!toggleMusicInfo || musicInfo.id == toggleMusicInfo.id" :class="$style.btn"
-          @click="handleConfirm">{{ $t('music_toggle_confirm') }}</base-btn>
+        <base-btn
+          :disabled="!toggleMusicInfo || musicInfo.id == toggleMusicInfo.id"
+          :class="$style.btn"
+          @click="handleConfirm"
+          >{{ $t('music_toggle_confirm') }}</base-btn
+        >
       </div>
     </main>
   </material-modal>
@@ -388,7 +406,7 @@ export default {
     min-width: 70px;
     // .mixin-ellipsis-1();
 
-    +.btn {
+    + .btn {
       margin-left: 10px;
     }
   }

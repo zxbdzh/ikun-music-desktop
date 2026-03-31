@@ -1,11 +1,11 @@
-import { httpFetch } from '../../request'
+import {httpFetch} from '../../request'
 import tipSearch from './tipSearch'
 import musicSearch from './musicSearch'
-import { formatSinger } from './util'
+import {formatSinger} from './util'
 import leaderboard from './leaderboard'
 import lyric from './lyric'
 import pic from './pic'
-import { apis } from '../api-source'
+import {apis} from '../api-source'
 import songList from './songList'
 import hotSearch from './hotSearch'
 import comment from './comment'
@@ -67,7 +67,7 @@ const kw = {
     this._musicInfoRequestObj = httpFetch(
       `http://www.kuwo.cn/api/www/music/musicInfo?mid=${songInfo.songmid}`
     )
-    return this._musicInfoRequestObj.promise.then(({ body }) => {
+    return this._musicInfoRequestObj.promise.then(({body}) => {
       return body.code === 200 ? body.data : Promise.reject(new Error(body.msg))
     })
   },

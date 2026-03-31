@@ -43,19 +43,19 @@ const CONTENT_TYPE = {
 type ParamsData = Record<string, string | number | null | undefined | boolean>
 export interface Options {
   method?:
-  | 'GET'
-  | 'HEAD'
-  | 'POST'
-  | 'PUT'
-  | 'DELETE'
-  | 'OPTIONS'
-  | 'PATCH'
-  | 'PROPFIND'
-  | 'COPY'
-  | 'MOVE'
-  | 'MKCOL'
-  | 'PROPPATCH'
-  | 'QUOTA'
+    | 'GET'
+    | 'HEAD'
+    | 'POST'
+    | 'PUT'
+    | 'DELETE'
+    | 'OPTIONS'
+    | 'PATCH'
+    | 'PROPFIND'
+    | 'COPY'
+    | 'MOVE'
+    | 'MKCOL'
+    | 'PROPPATCH'
+    | 'QUOTA'
   query?: ParamsData
   headers?: Record<string, string | string[]>
   timeout?: number
@@ -183,7 +183,10 @@ const buildRequestDispatcher = (options: Options) => {
   return buildDispatcher()
 }
 
-export const request = async <T = unknown>(url: string, options: Options = {}): Promise<Response<T>> => {
+export const request = async <T = unknown>(
+  url: string,
+  options: Options = {}
+): Promise<Response<T>> => {
   const method = (options.method?.toUpperCase() ?? 'GET') as Dispatcher.RequestOptions['method']
   const timeout = options.timeout ?? defaultOptions.timeout
   const [headers, body] = buildRequestBody(options)
@@ -206,7 +209,7 @@ export const request = async <T = unknown>(url: string, options: Options = {}): 
     body,
     signal: options.signal,
     dispatcher: buildRequestDispatcher(options),
-  }).then(async(response) => {
+  }).then(async (response) => {
     if (options.needBody) {
       return {
         headers: response.headers,

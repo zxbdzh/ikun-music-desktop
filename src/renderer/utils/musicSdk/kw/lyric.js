@@ -1,6 +1,7 @@
-import { httpFetch } from '../../request'
-import { decodeLyric, lrcTools } from './util'
-import { decodeName } from '../../index'
+import {httpFetch} from '../../request'
+import {lrcTools} from './util'
+import {decodeName} from '../../index'
+import {decodeLyric} from "./decodeLyric";
 
 const buf_key = Buffer.from('yeelion')
 const buf_key_len = buf_key.length
@@ -22,8 +23,8 @@ const buildParams = (id, isGetLyricx) => {
   return Buffer.from(output).toString('base64')
 }
 
-const timeExp = /^\[([\d:.]*)\]{1}/g
-const existTimeExp = /\[\d{1,2}:.*\d{1,4}\]/
+const timeExp = /^\[([\d:.]*)]/g
+const existTimeExp = /\[\d{1,2}:.*\d{1,4}]/
 const lyricxTag = /^<-?\d+,-?\d+>/
 export default {
   sortLrcArr(arr) {
@@ -87,25 +88,24 @@ export default {
     const requestObj = httpFetch(
       `http://newlyric.kuwo.cn/newlyric.lrc?${buildParams(musicInfo.songmid, isGetLyricx)}`
     )
-    requestObj.promise = requestObj.promise.then(({ statusCode, body, raw }) => {
-      if (statusCode != 200) return Promise.reject(new Error(JSON.stringify(body)))
-      return decodeLyric({ lrcBase64: raw.toString('base64'), isGetLyricx }).then((base64Data) => {
-        let lrcInfo
-        try {
-          lrcInfo = this.parseLrc(Buffer.from(base64Data, 'base64').toString())
-        } catch (err) {
-          return Promise.reject(new Error('Get lyric failed'))
-        }
-        if (lrcInfo.tlyric) lrcInfo.tlyric = lrcInfo.tlyric.replace(lrcTools.rxps.wordTimeAll, '')
-        try {
-          lrcInfo.lxlyric = lrcTools.parse(lrcInfo.lyric)
-        } catch {
-          lrcInfo.lxlyric = ''
-        }
-        lrcInfo.lyric = lrcInfo.lyric.replace(lrcTools.rxps.wordTimeAll, '')
-        if (!existTimeExp.test(lrcInfo.lyric)) return Promise.reject(new Error('Get lyric failed'))
-        return lrcInfo
-      })
+    requestObj.promise = requestObj.promise.then(async ({statusCode, body, raw}) => {
+      if (statusCode !== 200) return Promise.reject(new Error(JSON.stringify(body)))
+      const base64Data = await decodeLyric({lrcBase64: raw.toString('base64'), isGetLyricx});
+      let lrcInfo;
+      try {
+        lrcInfo = this.parseLrc(Buffer.from(base64Data, 'base64').toString());
+      } catch (err) {
+        return Promise.reject(new Error('Get lyric failed'));
+      }
+      if (lrcInfo.tlyric) lrcInfo.tlyric = lrcInfo.tlyric.replace(lrcTools.rxps.wordTimeAll, '');
+      try {
+        lrcInfo.lxlyric = lrcTools.parse(lrcInfo.lyric);
+      } catch {
+        lrcInfo.lxlyric = '';
+      }
+      lrcInfo.lyric = lrcInfo.lyric.replace(lrcTools.rxps.wordTimeAll, '');
+      if (!existTimeExp.test(lrcInfo.lyric)) return Promise.reject(new Error('Get lyric failed'));
+      return lrcInfo;
     })
     return requestObj
   },

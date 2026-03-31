@@ -106,8 +106,14 @@ export const createWindow = () => {
   }
   browserWindow = new BrowserWindow(options)
 
-  const winURL = process.env.NODE_ENV !== 'production' ? 'http://localhost:9080' : `file://${path.join(encodePath(__dirname), 'index.html')}`
-  void browserWindow.loadURL(winURL + `?os=${getPlatform()}&dt=${global.envParams.cmdParams.dt}&dark=${shouldUseDarkColors}&theme=${encodeURIComponent(JSON.stringify(theme))}`)
+  const winURL =
+    process.env.NODE_ENV !== 'production'
+      ? 'http://localhost:9080'
+      : `file://${path.join(encodePath(__dirname), 'index.html')}`
+  void browserWindow.loadURL(
+    winURL +
+      `?os=${getPlatform()}&dt=${global.envParams.cmdParams.dt}&dark=${shouldUseDarkColors}&theme=${encodeURIComponent(JSON.stringify(theme))}`
+  )
 
   winEvent()
 

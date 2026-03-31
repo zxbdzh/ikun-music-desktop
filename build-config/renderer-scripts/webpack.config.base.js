@@ -1,4 +1,5 @@
 const path = require('path')
+const { rendererAliases, extensions, tsLoader, nodeLoader, DIST } = require('../shared')
 
 module.exports = {
   target: 'electron-renderer',
@@ -7,39 +8,15 @@ module.exports = {
   },
   output: {
     filename: '[name].js',
-    library: {
-      type: 'commonjs2',
-    },
-    path: path.join(__dirname, '../../dist'),
+    library: { type: 'commonjs2' },
+    path: DIST,
     publicPath: '',
   },
   resolve: {
-    alias: {
-      '@root': path.join(__dirname, '../../src'),
-      '@main': path.join(__dirname, '../../src/main'),
-      '@renderer': path.join(__dirname, '../../src/renderer'),
-      '@lyric': path.join(__dirname, '../../src/renderer-lyric'),
-      '@static': path.join(__dirname, '../../src/static'),
-      '@common': path.join(__dirname, '../../src/common'),
-    },
-    extensions: ['.tsx', '.ts', '.js', '.json', '.node'],
+    alias: rendererAliases,
+    extensions,
   },
   module: {
-    rules: [
-      {
-        test: /\.tsx?$/,
-        exclude: /node_modules/,
-        use: {
-          loader: 'ts-loader',
-          options: {
-            appendTsSuffixTo: [/\.vue$/],
-          },
-        },
-      },
-      {
-        test: /\.node$/,
-        use: 'node-loader',
-      },
-    ],
+    rules: [tsLoader(true), nodeLoader],
   },
 }

@@ -530,7 +530,8 @@ table {
         flex: auto;
       }
 
-      &.num, .num {
+      &.num,
+      .num {
         .nobreak();
         .center();
         padding-left: 3px;
@@ -547,7 +548,7 @@ table {
         text-overflow: initial;
         align-items: center;
 
-        >.name {
+        > .name {
           .mixin-ellipsis-1();
         }
       }

@@ -1,49 +1,31 @@
 const path = require('path')
 const { merge } = require('webpack-merge')
-const webpack = require('webpack')
 const CopyWebpackPlugin = require('copy-webpack-plugin')
-
 const baseConfig = require('./webpack.config.base')
-
-// const { dependencies } = require('../../package.json')
-
-// const buildConfig = require('../webpack-build-config')
+const { prodDefines, perfProd, SRC, DIST } = require('../shared')
 
 module.exports = merge(baseConfig, {
   mode: 'production',
   devtool: false,
   entry: {
     main: path.join(__dirname, '../../src/main/index.ts'),
-    // 'dbService.worker': path.join(__dirname, '../../src/main/worker/dbService/index.ts'),
   },
-  node: {
-    __dirname: false,
-    __filename: false,
-  },
+  node: { __dirname: false, __filename: false },
   plugins: [
     new CopyWebpackPlugin({
       patterns: [
         {
-          from: path.join(__dirname, '../../src/main/modules/userApi/renderer/user-api.html'),
-          to: path.join(__dirname, '../../dist/userApi/renderer/user-api.html'),
+          from: path.join(SRC, 'main/modules/userApi/renderer/user-api.html'),
+          to: path.join(DIST, 'userApi/renderer/user-api.html'),
         },
         {
-          from: path.join(__dirname, '../../src/common/theme/images/*').replace(/\\/g, '/'),
-          to: path.join(__dirname, '../../dist/theme_images/[name][ext]'),
+          from: path.join(SRC, 'common/theme/images/*').replace(/\\/g, '/'),
+          to: path.join(DIST, 'theme_images/[name][ext]'),
         },
       ],
     }),
-    new webpack.DefinePlugin({
-      'process.env': {
-        NODE_ENV: '"production"',
-      },
-    }),
+    prodDefines(),
   ],
-  performance: {
-    maxEntrypointSize: 1024 * 1024 * 10,
-    maxAssetSize: 1024 * 1024 * 20,
-  },
-  optimization: {
-    minimize: false,
-  },
+  performance: perfProd,
+  optimization: { minimize: false },
 })

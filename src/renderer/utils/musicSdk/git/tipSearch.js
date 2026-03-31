@@ -1,4 +1,4 @@
-import { loadDatabase, extractNameFromFile } from "./util"
+import { loadDatabase, extractNameFromFile } from './util'
 
 export default {
   requestObj: null,
@@ -30,7 +30,7 @@ export default {
 
         // 根据关键词过滤（如果需要）或者随机返回
         const filtered = str
-          ? database.filter(item => {
+          ? database.filter((item) => {
               const title = item.title || extractNameFromFile(item.filename)
               return title.toLowerCase().includes(str.toLowerCase())
             })
@@ -50,7 +50,7 @@ export default {
       promise,
       cancelHttp: () => {
         canceled = true
-      }
+      },
     }
 
     return this.requestObj.promise

@@ -1,5 +1,5 @@
 import { httpFetch } from '../../../request'
-import {zzcSign} from "@renderer/utils/musicSdk/tx/utils/sign";
+import { zzcSign } from '@renderer/utils/musicSdk/tx/utils/sign'
 
 export const signRequest = (data) => {
   console.log(data)
