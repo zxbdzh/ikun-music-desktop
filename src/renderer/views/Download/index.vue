@@ -158,6 +158,7 @@ export default {
     const {
       handleSearch,
       handleOpenMusicDetail,
+      handleCopyMusicLink,
       handleStartTask,
       handlePauseTask,
       handleRemoveTask,
@@ -177,6 +178,7 @@ export default {
       handleShowMusicAddModal,
       handleSearch,
       handleOpenMusicDetail,
+      handleCopyMusicLink,
     })
 
     let clickTime = 0

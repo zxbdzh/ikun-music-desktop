@@ -38,6 +38,13 @@ export default ({ props, list, selectedList, removeAllSelect }) => {
     )
   }
 
+  const handleCopyMusicLink = (index) => {
+    const minfo = list.value[index]
+    const url = musicSdk[minfo.source]?.getMusicDetailPageUrl(toOldMusicInfo(minfo))
+    if (!url) return
+    clipboardWriteText(`${minfo.name} (${minfo.singer}) ${url}`)
+  }
+
   const handleDislikeMusic = async (index) => {
     const minfo = list.value[index]
     const confirm = await dialog.confirm({
@@ -74,6 +81,7 @@ export default ({ props, list, selectedList, removeAllSelect }) => {
     handleSearch,
     handleOpenMusicDetail,
     handleCopyName,
+    handleCopyMusicLink,
     handleDislikeMusic,
     handleRemoveMusic,
   }

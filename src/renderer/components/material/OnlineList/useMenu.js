@@ -14,6 +14,7 @@ export default ({
   handleSearch,
   handleShowMusicAddModal,
   handleOpenMusicDetail,
+  handleCopyMusicLink,
   handleDislikeMusic,
 }) => {
   const itemMenuControl = reactive({
@@ -23,6 +24,7 @@ export default ({
     download: true,
     search: true,
     sourceDetail: true,
+    copyLink: true,
     dislike: true,
   })
   const t = useI18n()
@@ -62,6 +64,11 @@ export default ({
         disabled: !itemMenuControl.sourceDetail,
       },
       {
+        name: t('list__copy_link'),
+        action: 'copyLink',
+        disabled: !itemMenuControl.copyLink,
+      },
+      {
         name: t('list__dislike'),
         action: 'dislike',
         disabled: !itemMenuControl.dislike,
@@ -71,6 +78,7 @@ export default ({
 
   const showMenu = (event, musicInfo) => {
     itemMenuControl.sourceDetail = !!musicSdk[musicInfo.source]?.getMusicDetailPageUrl
+    itemMenuControl.copyLink = !!musicSdk[musicInfo.source]?.getMusicDetailPageUrl
     // this.listMenu.itemMenuControl.play =
     //   this.listMenu.itemMenuControl.playLater =
     itemMenuControl.download = assertApiSupport(musicInfo.source)
@@ -118,6 +126,9 @@ export default ({
         break
       case 'sourceDetail':
         handleOpenMusicDetail(index)
+        break
+      case 'copyLink':
+        handleCopyMusicLink(index)
         break
       case 'dislike':
         handleDislikeMusic(index)

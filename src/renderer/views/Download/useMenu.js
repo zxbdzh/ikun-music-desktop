@@ -13,6 +13,7 @@ export default ({
   handleShowMusicAddModal,
   handleSearch,
   handleOpenMusicDetail,
+  handleCopyMusicLink,
 }) => {
   const itemMenuControl = reactive({
     play: true,
@@ -21,6 +22,7 @@ export default ({
     playLater: true,
     file: true,
     sourceDetail: true,
+    copyLink: true,
     search: true,
     remove: true,
     addTo: true,
@@ -67,6 +69,11 @@ export default ({
         disabled: !itemMenuControl.sourceDetail,
       },
       {
+        name: t('list__copy_link'),
+        action: 'copyLink',
+        disabled: !itemMenuControl.copyLink,
+      },
+      {
         name: t('list__search'),
         action: 'search',
         hide: !itemMenuControl.search,
@@ -81,6 +88,8 @@ export default ({
 
   const showMenu = (event, taskInfo) => {
     itemMenuControl.sourceDetail =
+      !!musicSdk[taskInfo.metadata.musicInfo.source]?.getMusicDetailPageUrl
+    itemMenuControl.copyLink =
       !!musicSdk[taskInfo.metadata.musicInfo.source]?.getMusicDetailPageUrl
 
     if (taskInfo.isComplate) {
@@ -150,6 +159,10 @@ export default ({
         break
       case 'sourceDetail':
         handleOpenMusicDetail(index)
+        break
+      case 'copyLink':
+        handleCopyMusicLink(index)
+        break
     }
   }
 
