@@ -378,6 +378,7 @@ export default {
       handleSearch,
       handleOpenMusicDetail,
       handleCopyName,
+      handleCopyMusicLink,
       handleDislikeMusic,
       handleRemoveMusic,
     } = useMusicActions({ props, list, removeAllSelect, selectedList })
@@ -396,6 +397,7 @@ export default {
       handleShowSortModal,
       handleOpenMusicDetail,
       handleCopyName,
+      handleCopyMusicLink,
       handleDislikeMusic,
       handleRemoveMusic,
     })

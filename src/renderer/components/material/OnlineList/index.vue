@@ -321,7 +321,7 @@ export default {
       handleShowDownloadModal,
     } = useMusicDownload({ selectedList, props })
 
-    const { handleSearch, handleOpenMusicDetail, handleDislikeMusic } = useMusicActions({ props })
+    const { handleSearch, handleOpenMusicDetail, handleCopyMusicLink, handleDislikeMusic } = useMusicActions({ props })
 
     const { menus, menuLocation, isShowItemMenu, showMenu, menuClick } = useMenu({
       props,
@@ -334,6 +334,7 @@ export default {
       handleSearch,
       handleShowMusicAddModal,
       handleOpenMusicDetail,
+      handleCopyMusicLink,
       handleDislikeMusic,
     })
 

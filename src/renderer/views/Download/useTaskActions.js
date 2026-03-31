@@ -1,6 +1,6 @@
 import { useRouter } from '@common/utils/vueRouter'
 import musicSdk from '@renderer/utils/musicSdk'
-import { openUrl } from '@common/utils/electron'
+import { openUrl, clipboardWriteText } from '@common/utils/electron'
 import { checkPath } from '@common/utils/nodejs'
 // import { dialog } from '@renderer/plugins/Dialog'
 // import { useI18n } from '@renderer/plugins/i18n'
@@ -33,6 +33,14 @@ export default ({ list, selectedList, removeAllSelect }) => {
     const url = musicSdk[mInfo.source]?.getMusicDetailPageUrl?.(mInfo)
     if (!url) return
     openUrl(url)
+  }
+
+  const handleCopyMusicLink = (index) => {
+    const task = list.value[index]
+    const mInfo = toOldMusicInfo(task.metadata.musicInfo)
+    const url = musicSdk[mInfo.source]?.getMusicDetailPageUrl?.(mInfo)
+    if (!url) return
+    clipboardWriteText(`${mInfo.name} (${mInfo.singer}) ${url}`)
   }
 
   const handleStartTask = async (index, single) => {
@@ -79,6 +87,7 @@ export default ({ list, selectedList, removeAllSelect }) => {
   return {
     handleSearch,
     handleOpenMusicDetail,
+    handleCopyMusicLink,
     handleStartTask,
     handlePauseTask,
     handleRemoveTask,

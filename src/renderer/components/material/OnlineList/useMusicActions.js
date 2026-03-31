@@ -1,6 +1,6 @@
 import { useRouter } from '@common/utils/vueRouter'
 import musicSdk from '@renderer/utils/musicSdk'
-import { openUrl } from '@common/utils/electron'
+import { openUrl, clipboardWriteText } from '@common/utils/electron'
 import { toOldMusicInfo } from '@renderer/utils'
 import { addDislikeInfo, hasDislike } from '@renderer/core/dislikeList'
 import { playNext } from '@renderer/core/player'
@@ -29,6 +29,13 @@ export default ({ props }) => {
     openUrl(url)
   }
 
+  const handleCopyMusicLink = (index) => {
+    const minfo = props.list[index]
+    const url = musicSdk[minfo.source]?.getMusicDetailPageUrl?.(toOldMusicInfo(minfo))
+    if (!url) return
+    clipboardWriteText(`${minfo.name} (${minfo.singer}) ${url}`)
+  }
+
   const handleDislikeMusic = async (index) => {
     const minfo = props.list[index]
     const confirm = await dialog.confirm({
@@ -48,6 +55,7 @@ export default ({ props }) => {
   return {
     handleSearch,
     handleOpenMusicDetail,
+    handleCopyMusicLink,
     handleDislikeMusic,
   }
 }
