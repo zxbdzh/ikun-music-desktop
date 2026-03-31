@@ -8,7 +8,7 @@ const afterPack = require('./build-after-pack')
  */
 const options = {
   appId: 'cn.toside.music.desktop',
-  productName: 'z-music-desktop',
+  productName: 'ikun-music-desktop',
   beforePack,
   afterPack,
   protocols: {
