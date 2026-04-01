@@ -86,7 +86,7 @@ const parseLyricLines = (lyric = '') => {
   return Array.from(linesMap.values())
 }
 
-export const buildLyricSelectableLines = (lyric = '', tlyric = '', max = 14) => {
+export const buildLyricSelectableLines = (lyric = '', tlyric = '', max = 9999) => {
   const baseLines = parseLyricLines(lyric)
   const transMap = new Map(parseLyricLines(tlyric).map((line) => [line.key, line.text]))
 

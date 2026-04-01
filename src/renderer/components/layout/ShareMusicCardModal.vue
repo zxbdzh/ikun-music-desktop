@@ -27,7 +27,7 @@
                 :key="preset.id"
                 :class="[$style.presetBtn, { [$style.active]: stylePreset == preset.id }]"
                 type="button"
-                @click="stylePreset = preset.id"
+                @click="handlePresetChange(preset.id)"
               >
                 {{ preset.name }}
               </button>
@@ -43,8 +43,15 @@
               </label>
             </div>
             <div v-if="lyricLines.length" :class="[$style.lyricList, 'scroll']">
-              <label v-for="(line, index) in lyricLines" :key="line.key + index" :class="$style.lineItem">
-                <input v-model="selectedLineIndexes" :value="index" type="checkbox" />
+              <div :class="$style.lyricTip">{{ $t('share__lyric_limit_tip', { max: maxLyricLines }) }}</div>
+              <label v-for="(line, index) in lyricLines" :key="line.key + index" :class="[$style.lineItem, { [$style.disabled]: !isLineSelectable(index) }]">
+                <input
+                  v-model="selectedLineIndexes"
+                  :value="index"
+                  type="checkbox"
+                  :disabled="!isLineSelectable(index)"
+                  @change="handleLineSelectChange"
+                />
                 <div>
                   <div :class="$style.lineMain">{{ line.text }}</div>
                   <div v-if="line.translation" :class="$style.lineSub">{{ line.translation }}</div>
@@ -62,9 +69,15 @@
         </aside>
 
         <section :class="$style.previewWrap">
-          <div ref="dom_card" :class="[$style.card, $style[stylePreset]]">
+          <div ref="dom_card" :class="[$style.card, $style[stylePreset]]" :style="coverStyle">
             <div :class="$style.coverWrap">
-              <img v-if="musicInfo?.meta?.picUrl" :src="musicInfo.meta.picUrl" :class="$style.cover" />
+              <img
+                v-if="musicInfo?.meta?.picUrl"
+                ref="dom_cover"
+                :src="musicInfo.meta.picUrl"
+                :class="$style.cover"
+                crossorigin="anonymous"
+              />
               <div v-else :class="$style.coverFallback">♪</div>
             </div>
             <div :class="$style.meta">
@@ -95,19 +108,76 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from '@common/utils/vueTools'
+import { computed, ref, watch, nextTick } from '@common/utils/vueTools'
 import { isShowShareMusicCard, shareMusicInfo, closeShareMusicCard } from '@renderer/store/shareMusicCard'
 import { resolveMusicDetailWebUrl, buildLyricSelectableLines } from '@renderer/utils/shareMusicCard'
 import { clipboardWriteText, clipboardWriteImageDataURL } from '@common/utils/electron'
+import { dialog } from '@renderer/plugins/Dialog'
 import { getPlayerLyric, openSaveDir } from '@renderer/utils/ipc'
 import { musicInfo as playerMusicInfo } from '@renderer/store/player/state'
 import { toPng } from 'html-to-image'
 import QRCode from 'qrcode'
 
+/**
+ * 使用 Canvas API 提取图片主色调
+ * @param {string} imageUrl - 图片 URL
+ * @returns {Promise<[number, number, number] | null>} RGB 数组或 null
+ */
+const extractDominantColor = (imageUrl) => {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas')
+        const ctx = canvas.getContext('2d')
+        const width = 50
+        const height = Math.round((img.height / img.width) * width)
+        canvas.width = width
+        canvas.height = height
+        ctx.drawImage(img, 0, 0, width, height)
+        const imageData = ctx.getImageData(0, 0, width, height)
+        const data = imageData.data
+
+        // 统计颜色出现次数
+        const colorCounts = {}
+        let maxCount = 0
+        let dominantColor = null
+
+        for (let i = 0; i < data.length; i += 4) {
+          const r = Math.round(data[i] / 16) * 16
+          const g = Math.round(data[i + 1] / 16) * 16
+          const b = Math.round(data[i + 2] / 16) * 16
+          const a = data[i + 3]
+
+          // 跳过透明像素
+          if (a < 128) continue
+          // 跳过接近白色和黑色的
+          if ((r > 240 && g > 240 && b > 240) || (r < 15 && g < 15 && b < 15)) continue
+
+          const key = `${r},${g},${b}`
+          colorCounts[key] = (colorCounts[key] || 0) + 1
+
+          if (colorCounts[key] > maxCount) {
+            maxCount = colorCounts[key]
+            dominantColor = [r, g, b]
+          }
+        }
+        resolve(dominantColor)
+      } catch {
+        resolve(null)
+      }
+    }
+    img.onerror = () => resolve(null)
+    img.src = imageUrl
+  })
+}
+
 const presets = [
   { id: 'presetNebula', name: 'Nebula' },
   { id: 'presetAmber', name: 'Amber' },
   { id: 'presetMono', name: 'Mono' },
+  { id: 'presetCover', name: 'Cover' },
 ]
 
 const stylePreset = ref('presetNebula')
@@ -116,6 +186,41 @@ const lyricLines = ref([])
 const selectedLineIndexes = ref([])
 const qrDataUrl = ref('')
 const dom_card = ref(null)
+const dom_cover = ref(null)
+const coverColors = ref(null)
+const maxLyricLines = 6 // 最多选择6行歌词
+
+// 计算当前选择会占用多少行（含翻译）
+const getSelectedLinesCount = () => {
+  return selectedLineIndexes.value.reduce((count, index) => {
+    const line = lyricLines.value[index]
+    return count + (line?.translation && includeTranslation.value ? 2 : 1)
+  }, 0)
+}
+
+// 检查某行是否可选中
+const isLineSelectable = (index) => {
+  if (selectedLineIndexes.value.includes(index)) return true
+  const line = lyricLines.value[index]
+  const addedLines = line?.translation && includeTranslation.value ? 2 : 1
+  return getSelectedLinesCount() + addedLines <= maxLyricLines
+}
+
+// 处理选择变化
+const handleLineSelectChange = () => {
+  // 确保不会超过限制
+  let currentCount = 0
+  const validIndexes = []
+  for (const index of selectedLineIndexes.value) {
+    const line = lyricLines.value[index]
+    const addedLines = line?.translation && includeTranslation.value ? 2 : 1
+    if (currentCount + addedLines <= maxLyricLines) {
+      currentCount += addedLines
+      validIndexes.push(index)
+    }
+  }
+  selectedLineIndexes.value = validIndexes
+}
 
 const musicInfo = computed(() => shareMusicInfo.value)
 const detailUrl = computed(() => resolveMusicDetailWebUrl(musicInfo.value))
@@ -124,6 +229,36 @@ const selectedLyricLines = computed(() => {
   if (!selectedLineIndexes.value.length) return lyricLines.value.slice(0, 4)
   return lyricLines.value.filter((_, index) => selectedLineIndexes.value.includes(index))
 })
+
+const coverStyle = computed(() => {
+  if (stylePreset.value !== 'presetCover' || !coverColors.value) return {}
+  const [r, g, b] = coverColors.value
+  // 根据主色调生成渐变背景
+  return {
+    background: `linear-gradient(135deg,
+      rgb(${r}, ${g}, ${b}) 0%,
+      rgb(${Math.max(0, r - 40)}, ${Math.max(0, g - 40)}, ${Math.max(0, b - 40)}) 50%,
+      rgb(${Math.max(0, r - 80)}, ${Math.max(0, g - 80)}, ${Math.max(0, b - 80)}) 100%)`,
+  }
+})
+
+const extractCoverColors = async () => {
+  if (stylePreset.value !== 'presetCover' || !musicInfo.value?.meta?.picUrl) {
+    coverColors.value = null
+    return
+  }
+  const colors = await extractDominantColor(musicInfo.value.meta.picUrl)
+  coverColors.value = colors
+}
+
+const handlePresetChange = (presetId) => {
+  stylePreset.value = presetId
+  if (presetId === 'presetCover') {
+    nextTick(() => {
+      extractCoverColors()
+    })
+  }
+}
 
 const refreshLyricData = async () => {
   const mInfo = musicInfo.value
@@ -175,33 +310,78 @@ const renderCardPng = async () => {
   })
 }
 
-const handleCopyLink = () => {
+const handleCopyLink = async () => {
   if (!detailUrl.value) return
-  clipboardWriteText(detailUrl.value)
+  try {
+    clipboardWriteText(detailUrl.value)
+    await dialog.confirm({
+      message: window.i18n.t('share__copy_link_success'),
+      confirmButtonText: window.i18n.t('ok'),
+    })
+  } catch {
+    await dialog.confirm({
+      message: window.i18n.t('share__copy_link_failed'),
+      confirmButtonText: window.i18n.t('ok'),
+    })
+  }
 }
 
 const handleCopyImage = async () => {
-  const dataUrl = await renderCardPng()
-  if (!dataUrl) return
-  clipboardWriteImageDataURL(dataUrl)
+  try {
+    const dataUrl = await renderCardPng()
+    if (!dataUrl) {
+      await dialog.confirm({
+        message: window.i18n.t('share__copy_image_failed'),
+        confirmButtonText: window.i18n.t('ok'),
+      })
+      return
+    }
+    clipboardWriteImageDataURL(dataUrl)
+    await dialog.confirm({
+      message: window.i18n.t('share__copy_image_success'),
+      confirmButtonText: window.i18n.t('ok'),
+    })
+  } catch {
+    await dialog.confirm({
+      message: window.i18n.t('share__copy_image_failed'),
+      confirmButtonText: window.i18n.t('ok'),
+    })
+  }
 }
 
 const handleSaveImage = async () => {
-  const dataUrl = await renderCardPng()
-  if (!dataUrl) return
+  try {
+    const dataUrl = await renderCardPng()
+    if (!dataUrl) {
+      await dialog.confirm({
+        message: window.i18n.t('share__save_image_failed'),
+        confirmButtonText: window.i18n.t('ok'),
+      })
+      return
+    }
 
-  const result = await openSaveDir({
-    title: 'Save share card',
-    defaultPath: `${musicInfo.value?.name || 'music-share-card'}.png`,
-    filters: [{ name: 'PNG', extensions: ['png'] }],
-  })
-  if (result.canceled || !result.filePath) return
+    const result = await openSaveDir({
+      title: 'Save share card',
+      defaultPath: `${musicInfo.value?.name || 'music-share-card'}.png`,
+      filters: [{ name: 'PNG', extensions: ['png'] }],
+    })
+    if (result.canceled || !result.filePath) return
 
-  const base64 = dataUrl.replace(/^data:image\/png;base64,/, '')
-  const binary = window.atob(base64)
-  const bytes = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-  await window.lx.worker.main.saveStrToFile(result.filePath, bytes)
+    const base64 = dataUrl.replace(/^data:image\/png;base64,/, '')
+    const binary = window.atob(base64)
+    const bytes = new Uint8Array(binary.length)
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+    await window.lx.worker.main.saveStrToFile(result.filePath, bytes)
+    await dialog.confirm({
+      message: window.i18n.t('share__save_image_success'),
+      confirmButtonText: window.i18n.t('ok'),
+    })
+  } catch {
+    await dialog.confirm({
+      message: window.i18n.t('share__save_image_failed'),
+      confirmButtonText: window.i18n.t('ok'),
+    })
+  }
 }
 
 watch(
@@ -210,6 +390,11 @@ watch(
     if (!show) return
     await refreshLyricData()
     await refreshQRCode()
+    if (stylePreset.value === 'presetCover') {
+      nextTick(() => {
+        extractCoverColors()
+      })
+    }
   }
 )
 
@@ -219,6 +404,23 @@ watch(
     if (!isShowShareMusicCard.value) return
     await refreshLyricData()
     await refreshQRCode()
+    if (stylePreset.value === 'presetCover') {
+      nextTick(() => {
+        extractCoverColors()
+      })
+    }
+  }
+)
+
+watch(
+  () => musicInfo.value?.meta?.picUrl,
+  async () => {
+    if (!isShowShareMusicCard.value) return
+    if (stylePreset.value === 'presetCover') {
+      nextTick(() => {
+        extractCoverColors()
+      })
+    }
   }
 )
 </script>
@@ -292,6 +494,7 @@ watch(
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
 }
 .group {
   border: 1px solid var(--color-primary-alpha-600);
@@ -335,11 +538,22 @@ watch(
   max-height: 230px;
   overflow: auto;
 }
+.lyricTip {
+  font-size: 11px;
+  opacity: 0.6;
+  margin-bottom: 8px;
+  color: var(--color-font);
+}
 .lineItem {
   display: flex;
   gap: 8px;
   align-items: flex-start;
   margin-bottom: 8px;
+
+  &.disabled {
+    opacity: 0.4;
+    pointer-events: none;
+  }
 }
 .lineMain {
   font-size: 13px;
@@ -354,7 +568,7 @@ watch(
   opacity: 0.7;
 }
 .actions {
-  margin-top: auto;
+  margin-top: 10px;
   display: flex;
   gap: 10px;
 }
@@ -368,18 +582,16 @@ watch(
 }
 .card {
   width: 360px;
-  height: 560px;
-  border-radius: 26px;
   padding: 18px;
   display: flex;
   flex-direction: column;
   color: #fff;
   box-shadow: 0 22px 50px rgba(0, 0, 0, 0.3);
+  max-height: calc(100vh - 180px);
 }
 .coverWrap {
   width: 96px;
   height: 96px;
-  border-radius: 14px;
   overflow: hidden;
 }
 .cover {
@@ -409,8 +621,7 @@ watch(
 }
 .lyricPreview {
   margin-top: 18px;
-  flex: auto;
-  overflow: hidden;
+  min-height: 60px;
 }
 .previewMain {
   margin: 0 0 8px;
@@ -431,7 +642,6 @@ watch(
 .qrWrap {
   width: 88px;
   height: 88px;
-  border-radius: 10px;
   background: #fff;
   padding: 6px;
 }
