@@ -159,6 +159,7 @@ export default {
       handleSearch,
       handleOpenMusicDetail,
       handleCopyMusicLink,
+      handleShareCard,
       handleStartTask,
       handlePauseTask,
       handleRemoveTask,
@@ -179,6 +180,7 @@ export default {
       handleSearch,
       handleOpenMusicDetail,
       handleCopyMusicLink,
+      handleShareCard,
     })
 
     let clickTime = 0

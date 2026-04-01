@@ -14,6 +14,7 @@ export default ({
   handleSearch,
   handleOpenMusicDetail,
   handleCopyMusicLink,
+  handleShareCard,
 }) => {
   const itemMenuControl = reactive({
     play: true,
@@ -23,6 +24,7 @@ export default ({
     file: true,
     sourceDetail: true,
     copyLink: true,
+    shareCard: true,
     search: true,
     remove: true,
     addTo: true,
@@ -47,6 +49,11 @@ export default ({
         name: t('list__pause'),
         action: 'pause',
         hide: !itemMenuControl.pause,
+      },
+      {
+        name: t('list__share_card'),
+        action: 'shareCard',
+        hide: !itemMenuControl.shareCard,
       },
       {
         name: t('list__play_later'),
@@ -129,7 +136,6 @@ export default ({
   }
 
   const menuClick = (action, index) => {
-    // console.log(action)
     hideMenu()
     if (!action) return
     switch (action.action) {
@@ -162,6 +168,9 @@ export default ({
         break
       case 'copyLink':
         handleCopyMusicLink(index)
+        break
+      case 'shareCard':
+        handleShareCard(index)
         break
     }
   }

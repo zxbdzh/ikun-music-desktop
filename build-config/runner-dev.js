@@ -21,6 +21,18 @@ const { debounce } = require('./utils')
 let electronProcess = null
 const hotMiddlewares = {}
 
+function shouldShowRuntimeError(error) {
+  if (!error) return true
+  const message = String(error?.message ?? error)
+  if (message.includes('ResizeObserver loop completed with undelivered notifications')) {
+    return false
+  }
+  if (message.includes('ResizeObserver loop limit exceeded')) {
+    return false
+  }
+  return true
+}
+
 // ── Renderer dev server factory ──
 function startRendererDevServer(name, config, port, staticOpts) {
   return new Promise((resolve) => {
@@ -42,7 +54,14 @@ function startRendererDevServer(name, config, port, staticOpts) {
       port,
       hot: true,
       historyApiFallback: true,
-      client: { logging: 'warn', overlay: true },
+      client: {
+        logging: 'warn',
+        overlay: {
+          errors: true,
+          warnings: false,
+          runtimeErrors: shouldShowRuntimeError,
+        },
+      },
       setupMiddlewares(middlewares, devServer) {
         devServer.app.use(hmr)
         setImmediate(() => devServer.middleware.waitUntilValid(resolve))

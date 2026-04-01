@@ -2,9 +2,6 @@ import { useRouter } from '@common/utils/vueRouter'
 import musicSdk from '@renderer/utils/musicSdk'
 import { openUrl, clipboardWriteText } from '@common/utils/electron'
 import { checkPath } from '@common/utils/nodejs'
-// import { dialog } from '@renderer/plugins/Dialog'
-// import { useI18n } from '@renderer/plugins/i18n'
-// import { appSetting } from '@renderer/store/setting'
 import { toOldMusicInfo } from '@renderer/utils/index'
 import {
   startDownloadTasks,
@@ -12,10 +9,10 @@ import {
   removeDownloadTasks,
 } from '@renderer/store/download/action'
 import { openDirInExplorer } from '@renderer/utils/ipc'
+import { openShareMusicCard } from '@renderer/store/shareMusicCard'
 
 export default ({ list, selectedList, removeAllSelect }) => {
   const router = useRouter()
-  // const t = useI18n()
 
   const handleSearch = (index) => {
     const info = list.value[index].metadata.musicInfo
@@ -43,6 +40,13 @@ export default ({ list, selectedList, removeAllSelect }) => {
     clipboardWriteText(`${mInfo.name} (${mInfo.singer}) ${url}`)
   }
 
+  const handleShareCard = (index) => {
+    const task = list.value[index]
+    const mInfo = task?.metadata?.musicInfo
+    if (!mInfo) return
+    openShareMusicCard(mInfo)
+  }
+
   const handleStartTask = async (index, single) => {
     if (selectedList.value.length && !single) {
       startDownloadTasks([...selectedList.value])
@@ -63,14 +67,6 @@ export default ({ list, selectedList, removeAllSelect }) => {
 
   const handleRemoveTask = async (index, single) => {
     if (selectedList.value.length && !single) {
-      // const confirm = await (selectedList.value.length > 1
-      //   ? dialog.confirm({
-      //     message: t('lists__remove_music_tip', { len: selectedList.value.length }),
-      //     confirmButtonText: t('lists__remove_tip_button'),
-      //   })
-      //   : Promise.resolve(true)
-      // )
-      // if (!confirm) return
       removeDownloadTasks(selectedList.value.map((m) => m.id))
       removeAllSelect()
     } else {
@@ -88,6 +84,7 @@ export default ({ list, selectedList, removeAllSelect }) => {
     handleSearch,
     handleOpenMusicDetail,
     handleCopyMusicLink,
+    handleShareCard,
     handleStartTask,
     handlePauseTask,
     handleRemoveTask,

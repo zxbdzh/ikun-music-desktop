@@ -1,4 +1,4 @@
-import { shell, clipboard } from 'electron'
+import { shell, clipboard, nativeImage } from 'electron'
 
 /**
  * 在资源管理器中打开目录
@@ -23,6 +23,14 @@ export const openUrl = async (url: string) => {
  */
 export const clipboardWriteText = (str: string) => {
   clipboard.writeText(str)
+}
+
+/**
+ * 复制图片 dataURL 到剪贴板
+ */
+export const clipboardWriteImageDataURL = (dataUrl: string) => {
+  if (!dataUrl.startsWith('data:image/')) return
+  clipboard.writeImage(nativeImage.createFromDataURL(dataUrl))
 }
 
 /**
