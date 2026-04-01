@@ -13,6 +13,7 @@
     <layout-sync-mode-modal />
     <layout-sync-auth-code-modal />
     <layout-play-detail />
+    <layout-share-music-card-modal />
   </div>
 </template>
 

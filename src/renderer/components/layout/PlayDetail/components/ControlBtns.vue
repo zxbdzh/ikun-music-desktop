@@ -18,6 +18,9 @@ div(:class="$style.footerLeftControlBtns")
   common-playback-rate-btn
   common-volume-btn
   common-toggle-play-mode-btn
+  button(:class="$style.footerLeftControlBtn" :aria-label="$t('share__title')" @click="handleShareCurrentMusic")
+    svg(version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" width="95%" viewBox="0 0 24 24" space="preserve")
+      use(xlink:href="#icon-refresh")
   button(:class="$style.footerLeftControlBtn" :aria-label="$t('player__add_music_to')" @click="isShowAddMusicTo = true")
     svg(version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" viewBox="0 0 512 512" space="preserve")
       use(xlink:href="#icon-add-2")
@@ -41,6 +44,7 @@ import useToggleDesktopLyric from '@renderer/utils/compositions/useToggleDesktop
 import { dialog } from '@renderer/plugins/Dialog'
 import { setMediaDeviceId } from '@renderer/plugins/player'
 import { appSetting, saveMediaDeviceId, setEnableAudioVisualization } from '@renderer/store/setting'
+import { openShareMusicCard } from '@renderer/store/shareMusicCard'
 
 export default {
   setup() {
@@ -61,6 +65,11 @@ export default {
       useToggleDesktopLyric()
 
     const isShowAddMusicTo = ref(false)
+
+    const handleShareCurrentMusic = () => {
+      if (!playMusicInfo.musicInfo) return
+      openShareMusicCard(playMusicInfo.musicInfo)
+    }
 
     const toggleAudioVisualization = async () => {
       const newSetting = !appSetting['player.audioVisualization']
@@ -88,6 +97,7 @@ export default {
       toggleDesktopLyricBtnTitle,
       toggleDesktopLyric,
       toggleLockDesktopLyric,
+      handleShareCurrentMusic,
       toggleAudioVisualization,
       isShowAddMusicTo,
       playMusicInfo,

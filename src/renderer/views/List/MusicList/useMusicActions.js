@@ -9,6 +9,7 @@ import { toOldMusicInfo } from '@renderer/utils/index'
 import { addDislikeInfo, hasDislike } from '@renderer/core/dislikeList'
 import { playNext } from '@renderer/core/player'
 import { playMusicInfo } from '@renderer/store/player/state'
+import { openShareMusicCard } from '@renderer/store/shareMusicCard'
 
 export default ({ props, list, selectedList, removeAllSelect }) => {
   const router = useRouter()
@@ -43,6 +44,12 @@ export default ({ props, list, selectedList, removeAllSelect }) => {
     const url = musicSdk[minfo.source]?.getMusicDetailPageUrl(toOldMusicInfo(minfo))
     if (!url) return
     clipboardWriteText(`${minfo.name} (${minfo.singer}) ${url}`)
+  }
+
+  const handleShareCard = (index) => {
+    const minfo = list.value[index]
+    if (!minfo) return
+    openShareMusicCard(minfo)
   }
 
   const handleDislikeMusic = async (index) => {
@@ -82,6 +89,7 @@ export default ({ props, list, selectedList, removeAllSelect }) => {
     handleOpenMusicDetail,
     handleCopyName,
     handleCopyMusicLink,
+    handleShareCard,
     handleDislikeMusic,
     handleRemoveMusic,
   }

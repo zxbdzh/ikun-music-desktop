@@ -195,6 +195,8 @@
     "node-abi": "^4.28.0",
     "node-id3": "^0.2.9",
     "pako": "^2.1.0",
+    "qrcode": "^1.5.4",
+    "html-to-image": "^1.11.13",
     "sortablejs": "^1.15.6",
     "tunnel": "^0.0.6",
     "undici": "^7.16.0",

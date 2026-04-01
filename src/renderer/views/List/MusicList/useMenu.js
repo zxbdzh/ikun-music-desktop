@@ -18,6 +18,7 @@ export default ({
   handleOpenMusicDetail,
   handleCopyName,
   handleCopyMusicLink,
+  handleShareCard,
   handleDislikeMusic,
   handleRemoveMusic,
 }) => {
@@ -26,6 +27,7 @@ export default ({
     playLater: true,
     copyName: true,
     copyLink: true,
+    shareCard: true,
     addTo: true,
     moveTo: true,
     sort: true,
@@ -51,6 +53,11 @@ export default ({
         name: t('list__download'),
         action: 'download',
         disabled: !itemMenuControl.download,
+      },
+      {
+        name: t('list__share_card'),
+        action: 'shareCard',
+        disabled: !itemMenuControl.shareCard,
       },
       {
         name: t('list__play_later'),
@@ -113,8 +120,6 @@ export default ({
   const showMenu = (event, musicInfo) => {
     itemMenuControl.sourceDetail = !!musicSdk[musicInfo.source]?.getMusicDetailPageUrl
     itemMenuControl.copyLink = !!musicSdk[musicInfo.source]?.getMusicDetailPageUrl
-    // itemMenuControl.play =
-    //   itemMenuControl.playLater =
     itemMenuControl.download = assertApiSupport(musicInfo.source) && musicInfo.source != 'local'
 
     itemMenuControl.dislike = !hasDislike(musicInfo)
@@ -135,7 +140,6 @@ export default ({
   }
 
   const menuClick = (action, index) => {
-    // console.log(action)
     hideMenu()
     if (!action) return
     switch (action.action) {
@@ -150,6 +154,9 @@ export default ({
         break
       case 'copyLink':
         handleCopyMusicLink(index)
+        break
+      case 'shareCard':
+        handleShareCard(index)
         break
       case 'addTo':
         handleShowMusicAddModal(index)

@@ -379,6 +379,7 @@ export default {
       handleOpenMusicDetail,
       handleCopyName,
       handleCopyMusicLink,
+      handleShareCard,
       handleDislikeMusic,
       handleRemoveMusic,
     } = useMusicActions({ props, list, removeAllSelect, selectedList })
@@ -398,6 +399,7 @@ export default {
       handleOpenMusicDetail,
       handleCopyName,
       handleCopyMusicLink,
+      handleShareCard,
       handleDislikeMusic,
       handleRemoveMusic,
     })
