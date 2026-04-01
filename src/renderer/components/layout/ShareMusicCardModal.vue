@@ -43,14 +43,11 @@
               </label>
             </div>
             <div v-if="lyricLines.length" :class="[$style.lyricList, 'scroll']">
-              <div :class="$style.lyricTip">{{ $t('share__lyric_limit_tip', { max: maxLyricLines }) }}</div>
-              <label v-for="(line, index) in lyricLines" :key="line.key + index" :class="[$style.lineItem, { [$style.disabled]: !isLineSelectable(index) }]">
+              <label v-for="(line, index) in lyricLines" :key="line.key + index" :class="$style.lineItem">
                 <input
                   v-model="selectedLineIndexes"
                   :value="index"
                   type="checkbox"
-                  :disabled="!isLineSelectable(index)"
-                  @change="handleLineSelectChange"
                 />
                 <div>
                   <div :class="$style.lineMain">{{ line.text }}</div>
@@ -188,39 +185,6 @@ const qrDataUrl = ref('')
 const dom_card = ref(null)
 const dom_cover = ref(null)
 const coverColors = ref(null)
-const maxLyricLines = 6 // 最多选择6行歌词
-
-// 计算当前选择会占用多少行（含翻译）
-const getSelectedLinesCount = () => {
-  return selectedLineIndexes.value.reduce((count, index) => {
-    const line = lyricLines.value[index]
-    return count + (line?.translation && includeTranslation.value ? 2 : 1)
-  }, 0)
-}
-
-// 检查某行是否可选中
-const isLineSelectable = (index) => {
-  if (selectedLineIndexes.value.includes(index)) return true
-  const line = lyricLines.value[index]
-  const addedLines = line?.translation && includeTranslation.value ? 2 : 1
-  return getSelectedLinesCount() + addedLines <= maxLyricLines
-}
-
-// 处理选择变化
-const handleLineSelectChange = () => {
-  // 确保不会超过限制
-  let currentCount = 0
-  const validIndexes = []
-  for (const index of selectedLineIndexes.value) {
-    const line = lyricLines.value[index]
-    const addedLines = line?.translation && includeTranslation.value ? 2 : 1
-    if (currentCount + addedLines <= maxLyricLines) {
-      currentCount += addedLines
-      validIndexes.push(index)
-    }
-  }
-  selectedLineIndexes.value = validIndexes
-}
 
 const musicInfo = computed(() => shareMusicInfo.value)
 const detailUrl = computed(() => resolveMusicDetailWebUrl(musicInfo.value))
@@ -492,9 +456,10 @@ watch(
 .previewWrap {
   flex: auto;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  overflow: hidden;
+  overflow-y: auto;
+  padding: 20px 0;
 }
 .group {
   border: 1px solid var(--color-primary-alpha-600);
@@ -538,22 +503,11 @@ watch(
   max-height: 230px;
   overflow: auto;
 }
-.lyricTip {
-  font-size: 11px;
-  opacity: 0.6;
-  margin-bottom: 8px;
-  color: var(--color-font);
-}
 .lineItem {
   display: flex;
   gap: 8px;
   align-items: flex-start;
   margin-bottom: 8px;
-
-  &.disabled {
-    opacity: 0.4;
-    pointer-events: none;
-  }
 }
 .lineMain {
   font-size: 13px;
@@ -587,7 +541,6 @@ watch(
   flex-direction: column;
   color: #fff;
   box-shadow: 0 22px 50px rgba(0, 0, 0, 0.3);
-  max-height: calc(100vh - 180px);
 }
 .coverWrap {
   width: 96px;
@@ -637,7 +590,8 @@ watch(
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: 10px;
+  margin-top: auto;
+  padding-top: 18px;
 }
 .qrWrap {
   width: 88px;
