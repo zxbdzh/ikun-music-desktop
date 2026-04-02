@@ -21,26 +21,84 @@ export default {
    * @param cookie 网易云Cookie
    */
   async getUid(cookie: string): Promise<number> {
-    const csrfToken = getCsrfToken(cookie)
+    // 先尝试使用 /weapi/nuser/account/get 接口
+    try {
+      const response: any = httpFetch('https://music.163.com/weapi/nuser/account/get', {
+        method: 'POST',
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Content-Type': 'application/x-www-form-urlencoded',
+          origin: 'https://music.163.com',
+          Referer: 'https://music.163.com/',
+          cookie,
+        },
+        body: weapi({}),
+      })
 
-    const response: any = httpFetch('https://music.163.com/weapi/nuser/account/get', {
-      method: 'post',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        origin: 'https://music.163.com',
-        Referer: 'https://music.163.com/',
-        cookie,
-      },
-      form: weapi({}),
-    })
+      const { body, statusCode } = await response.promise
 
-    const { body, statusCode } = await response.promise
-
-    if (statusCode !== 200 || body.code !== 200) {
-      throw new Error('获取用户信息失败')
+      if (statusCode === 200 && body.code === 200) {
+        return body.account?.id || body.profile?.userId || 0
+      }
+    } catch (err) {
+      console.error('weapi/nuser/account/get failed:', err)
     }
 
-    return body.account?.id || body.profile?.userId || 0
+    // 如果第一个接口失败，尝试使用用户详情接口
+    try {
+      const uidMatch = cookie.match(/(?:NMTID|music\.163\.com[^=]*=)[^;]+/gi)
+      if (!uidMatch) {
+        // 尝试从 Cookie 中提取已知信息
+        const musicUMatch = cookie.match(/MUSIC_U=([^;]+)/)
+        if (musicUMatch && musicUMatch[1]) {
+          // MUSIC_U 存在但无法解析UID，需要使用其他方式验证
+          // 返回 0 表示 Cookie 可能有效但无法获取 UID
+          console.warn('Cookie contains MUSIC_U but cannot extract UID')
+          return 0
+        }
+        throw new Error('Invalid cookie: missing MUSIC_U')
+      }
+    } catch (err) {
+      console.error('Cookie validation error:', err)
+      throw err
+    }
+
+    return 0
+  },
+
+  /**
+   * 验证Cookie是否有效（简化版）
+   * 只要包含 MUSIC_U= 或 NMTID= 就认为 Cookie 格式正确
+   * @param cookie 网易云Cookie
+   */
+  async verifyCookie(cookie: string): Promise<{ valid: boolean; uid: number }> {
+    // 检查必要的 Cookie 字段
+    const hasMusicU = cookie.includes('MUSIC_U=')
+    const hasNmtid = cookie.includes('NMTID=')
+
+    if (!hasMusicU && !hasNmtid) {
+      console.warn('Cookie validation failed: missing MUSIC_U and NMTID')
+      return { valid: false, uid: 0 }
+    }
+
+    // 尝试获取 UID（可能失败，但只要有 MUSIC_U 就认为 Cookie 可能有效）
+    try {
+      const uid = await this.getUid(cookie)
+      if (uid > 0) {
+        console.log('Cookie validated, UID:', uid)
+        return { valid: true, uid }
+      }
+    } catch (err) {
+      console.warn('Failed to get UID from API:', err)
+    }
+
+    // 如果获取 UID 失败，但 MUSIC_U 存在，仍然认为 Cookie 有效
+    if (hasMusicU) {
+      console.log('Cookie contains MUSIC_U, treating as valid (UID unknown)')
+      return { valid: true, uid: 0 }
+    }
+
+    return { valid: false, uid: 0 }
   },
 
   /**

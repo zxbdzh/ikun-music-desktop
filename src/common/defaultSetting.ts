@@ -19,6 +19,7 @@ const defaultSetting: LX.AppSetting = {
   'common.isAgreePact': false,
   'common.controlBtnPosition': isMac ? 'left' : 'right',
   'common.playBarProgressStyle': 'mini',
+  'common.wy_cookie': '',
   'common.transparentWindow': !isMac,
   'common.tryAutoUpdate': true,
   'common.showChangeLog': true,

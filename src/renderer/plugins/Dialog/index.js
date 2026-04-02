@@ -18,14 +18,21 @@ export const dialog = function (options) {
       typeof options == 'string' ? { message: options } : options || {}
     )
   return new Promise((resolve, reject) => {
+    const container = document.createElement('div')
     let app = createApp(Dialog, {
       afterLeave() {
-        app?.unmount()
-        app = null
+        // 延迟卸载，确保 DOM 已完全清理
+        setTimeout(() => {
+          app?.unmount()
+          app = null
+          if (container.parentNode) {
+            container.parentNode.removeChild(container)
+          }
+        }, 0)
       },
     })
 
-    let instance = app.mount(document.createElement('div'))
+    let instance = app.mount(container)
 
     // 属性设置
     instance.visible = true
@@ -37,7 +44,7 @@ export const dialog = function (options) {
     instance.selection = selection
 
     // 挂载
-    document.getElementById('container').appendChild(instance.$el)
+    document.getElementById('container').appendChild(container)
 
     instance.handleCancel = () => {
       instance.visible = false
