@@ -68,6 +68,11 @@ declare global {
       'common.playBarProgressStyle': 'mini' | 'full' | 'middle'
 
       /**
+       * 网易云音乐登录 Cookie
+       */
+      'common.wy_cookie': string
+
+      /**
        * 启用透明窗口
        */
       'common.transparentWindow': boolean

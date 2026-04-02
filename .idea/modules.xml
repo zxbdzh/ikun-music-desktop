@@ -3,6 +3,7 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/ikun-music-desktop.iml" filepath="$PROJECT_DIR$/.idea/ikun-music-desktop.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../../JetbrainsProjects/WebStormProject/lx-netease-music-mobile/.idea/lx-netease-music-mobile.iml" filepath="$PROJECT_DIR$/../../JetbrainsProjects/WebStormProject/lx-netease-music-mobile/.idea/lx-netease-music-mobile.iml" />
     </modules>
   </component>
 </project>
