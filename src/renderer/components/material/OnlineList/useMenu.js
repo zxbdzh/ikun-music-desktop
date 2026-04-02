@@ -2,6 +2,7 @@ import { computed, ref, reactive, nextTick } from '@common/utils/vueTools'
 import musicSdk from '@renderer/utils/musicSdk'
 import { useI18n } from '@renderer/plugins/i18n'
 import { hasDislike } from '@renderer/core/dislikeList'
+import { appSetting } from '@renderer/store/setting'
 
 export default ({
   props,
@@ -16,6 +17,7 @@ export default ({
   handleOpenMusicDetail,
   handleCopyMusicLink,
   handleDislikeMusic,
+  handleLikeMusic,
 }) => {
   const itemMenuControl = reactive({
     play: true,
@@ -26,13 +28,14 @@ export default ({
     sourceDetail: true,
     copyLink: true,
     dislike: true,
+    like: true,
   })
   const t = useI18n()
   const menuLocation = reactive({ x: 0, y: 0 })
   const isShowItemMenu = ref(false)
 
   const menus = computed(() => {
-    return [
+    const menuList = [
       {
         name: t('list__play'),
         action: 'play',
@@ -74,6 +77,17 @@ export default ({
         disabled: !itemMenuControl.dislike,
       },
     ]
+
+    // 如果已登录网易云，添加喜欢按钮
+    if (appSetting['common.wy_cookie']) {
+      menuList.push({
+        name: t('list__like'),
+        action: 'like',
+        disabled: !itemMenuControl.like,
+      })
+    }
+
+    return menuList
   })
 
   const showMenu = (event, musicInfo) => {
@@ -132,6 +146,9 @@ export default ({
         break
       case 'dislike':
         handleDislikeMusic(index)
+        break
+      case 'like':
+        handleLikeMusic(index)
         break
     }
   }

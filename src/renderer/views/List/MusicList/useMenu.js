@@ -2,6 +2,7 @@ import { computed, ref, shallowReactive, reactive, nextTick } from '@common/util
 import musicSdk from '@renderer/utils/musicSdk'
 import { useI18n } from '@renderer/plugins/i18n'
 import { hasDislike } from '@renderer/core/dislikeList'
+import { appSetting } from '@renderer/store/setting'
 
 export default ({
   assertApiSupport,
@@ -21,6 +22,7 @@ export default ({
   handleShareCard,
   handleDislikeMusic,
   handleRemoveMusic,
+  handleLikeMusic,
 }) => {
   const itemMenuControl = reactive({
     play: true,
@@ -37,13 +39,14 @@ export default ({
     dislike: true,
     remove: true,
     sourceDetail: true,
+    like: true,
   })
   const t = useI18n()
   const menuLocation = shallowReactive({ x: 0, y: 0 })
   const isShowItemMenu = ref(false)
 
   const menus = computed(() => {
-    return [
+    const menuList = [
       {
         name: t('list__play'),
         action: 'play',
@@ -109,12 +112,24 @@ export default ({
         action: 'dislike',
         disabled: !itemMenuControl.dislike,
       },
-      {
-        name: t('list__remove'),
-        action: 'remove',
-        disabled: !itemMenuControl.remove,
-      },
     ]
+
+    // 如果已登录网易云，添加喜欢按钮
+    if (appSetting['common.wy_cookie']) {
+      menuList.push({
+        name: t('list__like'),
+        action: 'like',
+        disabled: !itemMenuControl.like,
+      })
+    }
+
+    menuList.push({
+      name: t('list__remove'),
+      action: 'remove',
+      disabled: !itemMenuControl.remove,
+    })
+
+    return menuList
   })
 
   const showMenu = (event, musicInfo) => {
@@ -184,6 +199,10 @@ export default ({
         break
       case 'sourceDetail':
         handleOpenMusicDetail(index)
+        break
+      case 'like':
+        handleLikeMusic(index)
+        break
     }
   }
 

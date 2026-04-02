@@ -287,6 +287,7 @@ import useMusicActions from './useMusicActions'
 import useSearch from './useSearch'
 import useListScroll from './useListScroll'
 import useMusicToggle from './useMusicToggle'
+import useLikeMusic from './useLikeMusic'
 import { appSetting } from '@renderer/store/setting'
 export default {
   name: 'MusicList',
@@ -384,6 +385,8 @@ export default {
       handleRemoveMusic,
     } = useMusicActions({ props, list, removeAllSelect, selectedList })
 
+    const { handleLikeMusic } = useLikeMusic({ props })
+
     const { menus, menuLocation, isShowItemMenu, showMenu, menuClick } = useMenu({
       assertApiSupport,
       emit,
@@ -402,6 +405,7 @@ export default {
       handleShareCard,
       handleDislikeMusic,
       handleRemoveMusic,
+      handleLikeMusic,
     })
 
     const { isShowSearchBar, searchList, handleMusicSearchAction } = useSearch({

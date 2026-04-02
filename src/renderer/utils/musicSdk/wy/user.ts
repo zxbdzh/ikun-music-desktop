@@ -109,6 +109,15 @@ export default {
    */
   async likeSong(songId: string | number, isLike: boolean, cookie: string): Promise<boolean> {
     const csrfToken = getCsrfToken(cookie)
+    // 确保 songId 是数字类型
+    const trackId = Number(songId)
+
+    if (isNaN(trackId)) {
+      console.error('Invalid song ID:', songId, typeof songId)
+      throw new Error('歌曲ID无效，无法收藏到网易云')
+    }
+
+    console.log('Like song request:', { trackId, isLike, csrfToken: csrfToken ? 'present' : 'missing' })
 
     const response: any = httpFetch('https://music.163.com/weapi/song/like', {
       method: 'post',
@@ -119,7 +128,7 @@ export default {
         cookie,
       },
       form: weapi({
-        trackId: songId,
+        trackId: trackId,
         like: isLike,
         alg: 'itembased',
         time: 3,
@@ -130,7 +139,9 @@ export default {
     const { body, statusCode } = await response.promise
 
     if (statusCode !== 200 || body.code !== 200) {
-      throw new Error(isLike ? '收藏歌曲失败' : '取消收藏失败')
+      const errorMsg = body.message || body.msg || (isLike ? '收藏歌曲失败' : '取消收藏失败')
+      console.error('Like song failed:', body)
+      throw new Error(errorMsg)
     }
 
     return true
