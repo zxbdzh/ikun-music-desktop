@@ -794,5 +794,8 @@
   "setting__wy_login_failed": "Invalid cookie, login failed",
   "setting__wy_login_invalid_cookie": "Cookie format is incorrect, please ensure it contains MUSIC_U or NMTID field",
   "setting__wy_login_logout_success": "Logged out",
-  "setting__wy_login_window_blocked": "Please allow popups to login"
+  "setting__wy_login_window_blocked": "Please allow pop-up windows for login",
+  "wy_like_success": "Added to 'My Favorites' playlist",
+  "wy_like_failed": "Failed to add to favorites, please try again",
+  "list__like": "Like"
 }

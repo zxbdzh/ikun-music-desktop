@@ -794,5 +794,8 @@
   "setting__wy_login_failed": "Cookie 无效，登录失败",
   "setting__wy_login_invalid_cookie": "Cookie 格式不正确，请确保包含 MUSIC_U 或 NMTID 字段",
   "setting__wy_login_logout_success": "已退出登录",
-  "setting__wy_login_window_blocked": "请允许弹出窗口以便进行登录"
+  "setting__wy_login_window_blocked": "请允许弹出窗口以便进行登录",
+  "list__like": "喜欢",
+  "wy_like_success": "已添加到「我喜欢」歌单",
+  "wy_like_failed": "添加到「我喜欢」失败，请重试"
 }

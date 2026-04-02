@@ -257,6 +257,7 @@ import usePlay from './usePlay'
 import useMusicDownload from './useMusicDownload'
 import useMusicAdd from './useMusicAdd'
 import useMusicActions from './useMusicActions'
+import useLikeMusic from './useLikeMusic'
 import { appSetting } from '@renderer/store/setting'
 export default {
   name: 'MaterialOnlineList',
@@ -323,6 +324,8 @@ export default {
 
     const { handleSearch, handleOpenMusicDetail, handleCopyMusicLink, handleDislikeMusic } = useMusicActions({ props })
 
+    const { handleLikeMusic } = useLikeMusic({ props })
+
     const { menus, menuLocation, isShowItemMenu, showMenu, menuClick } = useMenu({
       props,
       assertApiSupport,
@@ -336,6 +339,7 @@ export default {
       handleOpenMusicDetail,
       handleCopyMusicLink,
       handleDislikeMusic,
+      handleLikeMusic,
     })
 
     const handleListItemClick = (event, index) => {
