@@ -71,6 +71,9 @@ export default {
   ): Promise<any[]> {
     const csrfToken = (cookie.match(/_csrf=([^(;|$)]+)/) || [])[1] || ''
 
+    // 如果没有 playlistId，使用单曲模式
+    const type = playlistId ? 'fromPlayOne' : 'fromPlayOne'
+
     const response: any = httpFetch(`https://music.163.com/weapi/playmode/intelligence/list?csrf_token=${csrfToken}`, {
       method: 'post',
       headers: {
@@ -80,9 +83,9 @@ export default {
         cookie,
       },
       form: weapi({
-        playlistId,
+        playlistId: playlistId || undefined,
         songId,
-        type: 'fromPlayOne',
+        type,
         startMusicId: songId,
         count: 150,
         csrf_token: csrfToken,
