@@ -5,13 +5,9 @@ import wyScrobble from '@renderer/utils/musicSdk/wy/scrobble'
 import musicSdk from '@renderer/utils/musicSdk'
 
 export default () => {
-  let playStartTime = 0
   let lastScrobbledSongId: string | number | null = null
 
-  const handlePlay = () => {
-    playStartTime = Date.now()
-  }
-
+  // 播放结束时上报听歌记录
   const handleScrobble = async () => {
     // 检查是否启用听歌记录同步
     if (!appSetting['common.wy_enableScrobble']) return
@@ -31,10 +27,6 @@ export default () => {
     const source = isListItem ? music.metadata.musicInfo.source : music.source
     const interval = isListItem ? music.metadata.musicInfo.interval : music.interval
 
-    // 计算播放时长
-    const duration = Date.now() - playStartTime
-    if (duration < 5000) return // 播放时长少于5秒不记录
-
     // 如果是网易云歌曲，直接上报
     if (source === 'wy') {
       // 避免重复上报同一首歌
@@ -42,8 +34,10 @@ export default () => {
       lastScrobbledSongId = songId
 
       try {
+        // 播放时长使用歌曲的 interval（分钟转换为秒）
+        const duration = interval ? parseIntervalToSeconds(interval) * 1000 : 300000 // 默认5分钟
         await wyScrobble.scrobble(songId, duration, cookie)
-        console.log(`[Scrobble] Reported wy song: ${songName}`)
+        console.log(`[Scrobble] Reported wy song: ${songName}, duration: ${duration}ms`)
       } catch (e) {
         console.error('[Scrobble] Failed to report wy song:', e)
       }
@@ -57,7 +51,7 @@ export default () => {
         singer: singer,
         albumName: '',
         interval: interval || undefined,
-        source: undefined,
+        source: 'wy', // 只搜索网易云
       })
 
       // 找到匹配的网易云歌曲（取第一个结果）
@@ -69,6 +63,7 @@ export default () => {
           if (lastScrobbledSongId === matchedSong.songmid) return
           lastScrobbledSongId = matchedSong.songmid
 
+          const duration = interval ? parseIntervalToSeconds(interval) * 1000 : 300000
           await wyScrobble.scrobble(matchedSong.songmid, duration, cookie)
           console.log(`[Scrobble] Matched and reported: ${songName} -> wy:${matchedSong.songmid}`)
         }
@@ -80,11 +75,22 @@ export default () => {
     }
   }
 
-  window.app_event.on('play', handlePlay)
-  window.app_event.on('playerPlaying', handleScrobble)
+  // 辅助函数：将 "03:55" 格式转换为秒
+  const parseIntervalToSeconds = (interval: string): number => {
+    if (!interval) return 0
+    const parts = interval.split(':')
+    if (parts.length !== 2) return 0
+    const minutes = parseInt(parts[0], 10) || 0
+    const seconds = parseInt(parts[1], 10) || 0
+    return minutes * 60 + seconds
+  }
+
+  // 监听播放结束和停止事件
+  window.app_event.on('playerEnded', handleScrobble)
+  window.app_event.on('stop', handleScrobble)
 
   onBeforeUnmount(() => {
-    window.app_event.off('play', handlePlay)
-    window.app_event.off('playerPlaying', handleScrobble)
+    window.app_event.off('playerEnded', handleScrobble)
+    window.app_event.off('stop', handleScrobble)
   })
 }
