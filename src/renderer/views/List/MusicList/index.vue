@@ -385,7 +385,7 @@ export default {
       handleRemoveMusic,
     } = useMusicActions({ props, list, removeAllSelect, selectedList })
 
-    const { likeList, fetchLikeList, isLiked, handleToggleLike, handleToggleLikeMultiple } = useLikeMusic({ list })
+    const { likeList, fetchLikeList, isLiked, handleToggleLike, handleToggleLikeMultiple, handleToggleUnlikeMultiple } = useLikeMusic({ list })
 
     // 获取网易云喜欢列表
     void fetchLikeList()
@@ -411,6 +411,7 @@ export default {
       handleRemoveMusic,
       handleToggleLike,
       handleToggleLikeMultiple,
+      handleToggleUnlikeMultiple,
       likeList,
       isLiked,
     })

@@ -802,5 +802,9 @@
   "list__like_multiple": "Batch Like ({num})",
   "wy_like_multiple_confirm": "Add {num} selected songs to 'My Favorites'?",
   "wy_like_multiple_success": "Successfully liked {count}/{total} songs",
-  "wy_like_all_already_liked": "All selected songs are already in 'My Favorites'"
+  "wy_like_all_already_liked": "All selected songs are already in 'My Favorites'",
+  "list__dislike_multiple": "Batch Dislike ({num})",
+  "wy_unlike_multiple_confirm": "Remove {num} selected songs from 'My Favorites'?",
+  "wy_unlike_multiple_success": "Successfully unliked {count}/{total} songs",
+  "wy_unlike_all_already_not_liked": "All selected songs are not in 'My Favorites'"
 }
