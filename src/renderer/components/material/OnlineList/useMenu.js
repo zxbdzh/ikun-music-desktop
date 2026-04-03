@@ -86,7 +86,7 @@ export default ({
       },
     ]
 
-    // 网易云歌曲显示喜欢/不喜欢按钮，替换原来的本地不喜欢按钮
+    // 只有网易云歌曲显示喜欢/不喜欢按钮
     if (isWySource && hasWyCookie && currentMusicInfo.value) {
       const songId = currentMusicInfo.value.meta?.songId
       const liked = songId ? isLiked(songId) : false
@@ -94,13 +94,6 @@ export default ({
         name: liked ? t('list__dislike') : t('list__like'),
         action: 'like',
         disabled: !itemMenuControl.like,
-      })
-    } else {
-      // 非网易云歌曲显示原来的本地不喜欢按钮
-      menuList.push({
-        name: t('list__dislike'),
-        action: 'dislike',
-        disabled: !itemMenuControl.dislike,
       })
     }
 
