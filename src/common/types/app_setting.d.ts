@@ -73,6 +73,11 @@ declare global {
       'common.wy_cookie': string
 
       /**
+       * 启用网易云听歌记录同步
+       */
+      'common.wy_enableScrobble': boolean
+
+      /**
        * 启用透明窗口
        */
       'common.transparentWindow': boolean
