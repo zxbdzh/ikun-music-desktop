@@ -3,8 +3,6 @@ import { playMusicInfo } from '@renderer/store/player/state'
 import { appSetting } from '@renderer/store/setting'
 import wyScrobble from '@renderer/utils/musicSdk/wy/scrobble'
 import musicSdk from '@renderer/utils/musicSdk'
-import type { MusicInfo } from '@common/types/music'
-import type { ListItem } from '@common/types/download_list'
 
 export default () => {
   let playStartTime = 0
@@ -22,16 +20,16 @@ export default () => {
     const cookie = appSetting['common.wy_cookie']
     if (!cookie) return
 
-    const music = playMusicInfo.musicInfo
+    const music = playMusicInfo.musicInfo as any
     if (!music || !music.id) return
 
     // 解析歌曲信息 - ListItem 将信息存储在 metadata.musicInfo 中
     const isListItem = 'metadata' in music
     const songId = music.id
-    const songName = isListItem ? (music as ListItem).metadata.musicInfo.name : (music as MusicInfo).name
-    const singer = isListItem ? (music as ListItem).metadata.musicInfo.singer : (music as MusicInfo).singer
-    const source = isListItem ? (music as ListItem).metadata.musicInfo.source : (music as MusicInfo).source
-    const interval = isListItem ? (music as ListItem).metadata.musicInfo.interval : (music as MusicInfo).interval
+    const songName = isListItem ? music.metadata.musicInfo.name : music.name
+    const singer = isListItem ? music.metadata.musicInfo.singer : music.singer
+    const source = isListItem ? music.metadata.musicInfo.source : music.source
+    const interval = isListItem ? music.metadata.musicInfo.interval : music.interval
 
     // 计算播放时长
     const duration = Date.now() - playStartTime
@@ -54,9 +52,10 @@ export default () => {
 
     // 如果不是网易云歌曲，搜索匹配的网易云歌曲
     try {
-      const results = await musicSdk.findMusic({
+      const results: any[] = await musicSdk.findMusic({
         name: songName,
         singer: singer,
+        albumName: '',
         interval: interval || undefined,
       })
 
