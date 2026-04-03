@@ -24,6 +24,18 @@
       </ul>
     </div>
     <div ref="dom_content_ref" class="scroll" :class="$style.content">
+      <!-- 内容区顶部按钮 -->
+      <div :class="$style.contentHeader">
+        <button
+          v-if="activeTab === 'simi'"
+          :class="$style.refreshBtn"
+          :aria-label="$t('refresh')"
+          :disabled="isLoading || !currentSongId"
+          @click="handleRefreshSimi"
+        >
+          <svg-icon name="refresh" style="transform: rotate(45deg)" />
+        </button>
+      </div>
       <!-- 每日推荐 -->
       <template v-if="activeTab === 'daily'">
         <div v-if="isLoading" :class="$style.loading">{{ $t('loading') }}</div>
@@ -246,6 +258,11 @@ export default {
       void playList(LIST_IDS.TEMP, index)
     }
 
+    const handleRefreshSimi = () => {
+      if (activeTab.value !== 'simi' || !currentSongId.value || isLoading.value) return
+      void loadData('simi')
+    }
+
     const formatDuration = (ms) => {
       if (!ms) return ''
       const seconds = Math.floor(ms / 1000)
@@ -271,6 +288,7 @@ export default {
       dom_content_ref,
       switchTab,
       handlePlay,
+      handleRefreshSimi,
     }
   },
 }
@@ -332,6 +350,38 @@ export default {
   flex: 1;
   overflow-y: auto;
   padding: 15px;
+  display: flex;
+  flex-direction: column;
+}
+
+.contentHeader {
+  flex: none;
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 10px;
+}
+
+.refreshBtn {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--color-button-font);
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s;
+
+  &:hover:not(:disabled) {
+    color: var(--color-primary);
+    background: var(--color-primary-alpha-100);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
 }
 
 .loading {
@@ -347,6 +397,7 @@ export default {
 }
 
 .songList {
+  flex: 1;
   padding: 0;
 }
 
