@@ -57,6 +57,7 @@ export default () => {
         singer: singer,
         albumName: '',
         interval: interval || undefined,
+        source: undefined,
       })
 
       // 找到匹配的网易云歌曲（取第一个结果）
