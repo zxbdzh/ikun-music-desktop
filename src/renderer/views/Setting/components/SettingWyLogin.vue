@@ -12,6 +12,11 @@ dd
       base-btn(min @click="showManualInput") {{ $t('setting__wy_login_manual') }}
     .p.gap-top
       span(:class="$style.tip") {{ $t('setting__wy_login_tip') }}
+    .p.gap-top(v-if="appSetting['common.wy_cookie']")
+      base-checkbox(:model-value="appSetting['common.wy_enableScrobble']" @change="handleToggleScrobble")
+      span {{ $t('setting__wy_enable_scrobble') }}
+    .p(v-if="appSetting['common.wy_cookie'] && appSetting['common.wy_enableScrobble']")
+      span(:class="$style.tip") {{ $t('setting__wy_enable_scrobble_tip') }}
 
   //- Cookie 输入弹窗
   material-modal(:show="isShowInputModal" bg-close teleport="#view" @close="closeModal")
@@ -102,6 +107,10 @@ export default {
       })
     }
 
+    const handleToggleScrobble = (checked: boolean) => {
+      updateSetting({ 'common.wy_enableScrobble': checked })
+    }
+
     return {
       appSetting,
       loginStatus,
@@ -111,6 +120,7 @@ export default {
       closeModal,
       handleSaveCookie,
       handleLogout,
+      handleToggleScrobble,
     }
   },
 }
