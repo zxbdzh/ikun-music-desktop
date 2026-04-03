@@ -785,7 +785,7 @@
   "setting__wy_login_btn": "登录",
   "setting__wy_login_logout": "退出登录",
   "setting__wy_login_manual": "手动输入 Cookie",
-  "setting__wy_login_tip": "登录后可获取 VIP 歌曲、每日推荐等功能",
+  "setting__wy_login_tip": "登录后可同步播放记录、添加喜欢音乐、每日推荐等功能",
   "setting__wy_login_input_title": "输入网易云 Cookie",
   "setting__wy_login_input_desc": "请从浏览器中复制完整的 Cookie 内容并粘贴到下方。Cookie 通常以 'NMTID=' 或 'S_INFO=' 开头。",
   "setting__wy_login_input_placeholder": "请粘贴 Cookie...",

@@ -18,39 +18,48 @@ const getCsrfToken = (cookie: string): string => {
 export default {
   /**
    * 听歌历史同步（播放完成后上报）
-   * @param songId 歌曲ID
+   * @param songId 歌曲ID（纯数字）
+   * @param sourceId 来源歌单/专辑ID
    * @param duration 播放时长（秒）
    * @param cookie 网易云Cookie
    */
   async scrobble(
     songId: string | number,
+    sourceId: string | number,
     duration: number,
     cookie: string
   ): Promise<boolean> {
     const csrfToken = getCsrfToken(cookie)
+    console.log('[Scrobble API] Request:', { songId, sourceId, duration, csrfToken: csrfToken ? 'present' : 'missing' })
 
     const response: any = httpFetch('https://music.163.com/weapi/feedback/weblog', {
       method: 'post',
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36 Edg/108.0.1462.54',
         origin: 'https://music.163.com',
-        Referer: 'https://music.163.com/',
+        Referer: 'https://music.163.com',
         cookie,
       },
       form: weapi({
         logs: JSON.stringify([{
           action: 'play',
           json: {
-            ids: `[${songId}]`,
-            time: Math.floor(duration / 1000),
+            id: songId,
+            download: 0,
+            type: 'song',
+            sourceId: String(sourceId),
+            time: Math.floor(duration),
+            end: 'playend',
+            wifi: 0,
           },
         }]),
-        csrf_token: csrfToken,
+        csrf_token: csrfToken || '',
       }),
     })
 
     const { body, statusCode } = await response.promise
 
+    console.log('[Scrobble API] Response:', { statusCode, body })
     return statusCode === 200 && body.code === 200
   },
 
@@ -193,14 +202,14 @@ export default {
       async onEnd(endSongId: string | number, playlistId?: string | number) {
         if (!isPlaying || currentSongId !== endSongId) return
 
-        const duration = Date.now() - playStartTime
+        const duration = Math.floor((Date.now() - playStartTime) / 1000)
         isPlaying = false
 
         const cookie = getCookie()
         const targetSongId: string | number | undefined = currentSongId ?? undefined
         if (cookie && targetSongId !== undefined) {
           try {
-            await scrobble.scrobble(targetSongId as string | number, duration, cookie)
+            await scrobble.scrobble(targetSongId as string | number, '', duration, cookie)
           } catch (e) {
             console.error('Scrobble failed:', e)
           }
@@ -239,26 +248,31 @@ export default {
 
 // 导出模块方法供 createScrobbleTracker 使用
 const scrobble = {
-  async scrobble(songId: string | number, duration: number, cookie: string): Promise<boolean> {
+  async scrobble(songId: string | number, sourceId: string | number, duration: number, cookie: string): Promise<boolean> {
     const csrfToken = getCsrfToken(cookie)
 
     const response: any = httpFetch('https://music.163.com/weapi/feedback/weblog', {
       method: 'post',
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36 Edg/108.0.1462.54',
         origin: 'https://music.163.com',
-        Referer: 'https://music.163.com/',
+        Referer: 'https://music.163.com',
         cookie,
       },
       form: weapi({
         logs: JSON.stringify([{
           action: 'play',
           json: {
-            ids: `[${songId}]`,
-            time: Math.floor(duration / 1000),
+            id: songId,
+            download: 0,
+            type: 'song',
+            sourceId: String(sourceId),
+            time: Math.floor(duration),
+            end: 'playend',
+            wifi: 0,
           },
         }]),
-        csrf_token: csrfToken,
+        csrf_token: csrfToken || '',
       }),
     })
 
