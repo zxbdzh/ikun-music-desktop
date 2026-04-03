@@ -7,7 +7,7 @@
     "pack": "node build-config/pack.js && npm run pack:win:setup:x64",
     "pack:win": "node build-config/pack.js && npm run pack:win:setup:x64 && npm run pack:win:setup:x86 && npm run pack:win:setup:arm64 && npm run pack:win:setup:x86_64 && npm run pack:win:7z",
     "pack:win:setup:x86_64": "node build-config/build-pack.js target=win arch=x86_64 type=setup",
-    "pack:win:setup:x64": "node build-config/build-pack.js target=win arch=x64 type=setup",
+    "pack:win:setup:x64": "pnpm build && node build-config/build-pack.js target=win arch=x64 type=setup",
     "pack:win:setup:x86": "node build-config/build-pack.js target=win arch=x86 type=setup",
     "pack:win:setup:arm64": "node build-config/build-pack.js target=win arch=arm64 type=setup",
     "pack:win:portable": "npm run pack:win:portable:x86_64 && npm run pack:win:portable:x64 && npm run pack:win:portable:x86",
