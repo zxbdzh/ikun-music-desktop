@@ -802,5 +802,9 @@
   "list__like_multiple": "批量喜欢 ({num}首)",
   "wy_like_multiple_confirm": "确定将选中的 {num} 首歌曲添加到「我喜欢」？",
   "wy_like_multiple_success": "已成功喜欢 {count}/{total} 首歌曲",
-  "wy_like_all_already_liked": "所选歌曲都已在「我喜欢」歌单中"
+  "wy_like_all_already_liked": "所选歌曲都已在「我喜欢」歌单中",
+  "list__dislike_multiple": "批量取消喜欢 ({num}首)",
+  "wy_unlike_multiple_confirm": "确定将选中的 {num} 首歌曲从「我喜欢」移除？",
+  "wy_unlike_multiple_success": "已成功取消喜欢 {count}/{total} 首歌曲",
+  "wy_unlike_all_already_not_liked": "所选歌曲都不在「我喜欢」歌单中"
 }
