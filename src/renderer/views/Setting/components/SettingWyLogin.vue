@@ -107,7 +107,7 @@ export default {
       })
     }
 
-    const handleToggleScrobble = (checked: boolean) => {
+    const handleToggleScrobble = (checked) => {
       updateSetting({ 'common.wy_enableScrobble': checked })
     }
 
