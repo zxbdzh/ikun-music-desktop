@@ -60,43 +60,6 @@
         </template>
       </template>
 
-      <!-- 心动模式 -->
-      <template v-else-if="activeTab === 'heartbeat'">
-        <div v-if="!currentSongId" :class="$style.empty">{{ $t('setting__wy_heartbeat_mode') }}: {{ $t('wy_need_play_song') }}</div>
-        <div v-else-if="isLoading" :class="$style.loading">{{ $t('loading') }}</div>
-        <template v-else>
-          <div v-if="songs.length === 0" :class="$style.empty">{{ $t('list__empty') }}</div>
-          <div :class="$style.songList">
-            <div
-              v-for="(song, index) in songs"
-              :key="song.id"
-              :class="[$style.songItem, { [$style.playing]: playingIndex === index }]"
-              @dblclick="handlePlay(index)"
-            >
-              <span :class="$style.index">{{ index + 1 }}</span>
-              <div :class="$style.info">
-                <span :class="$style.name">{{ song.name }}</span>
-                <span :class="$style.singer">{{ song.singer }}</span>
-              </div>
-              <div :class="$style.actions">
-                <button :class="$style.playBtn" @click.stop="handlePlay(index)">
-                  <svg
-                    version="1.1"
-                    xmlns="http://www.w3.org/2000/svg"
-                    xlink="http://www.w3.org/1999/xlink"
-                    height="60%"
-                    viewBox="0 0 512 512"
-                    space="preserve"
-                  >
-                    <use xlink:href="#icon-play" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-          </div>
-        </template>
-      </template>
-
       <!-- 相似歌曲 -->
       <template v-else-if="activeTab === 'simi'">
         <div v-if="!currentSongId" :class="$style.empty">{{ $t('setting__wy_simi_songs') }}: {{ $t('wy_need_play_song') }}</div>
@@ -140,7 +103,7 @@
 <script>
 import { ref, computed, watch, nextTick, toRaw, markRawList } from '@common/utils/vueTools'
 import { appSetting } from '@renderer/store/setting'
-import { musicInfo } from '@renderer/store/player/state'
+import { playMusicInfo } from '@renderer/store/player/state'
 import { dialog } from '@renderer/plugins/Dialog'
 import wyDailyRec from '@renderer/utils/musicSdk/wy/dailyRec'
 import wyUser from '@renderer/utils/musicSdk/wy/user'
@@ -164,15 +127,18 @@ export default {
 
     const tabs = computed(() => [
       { id: 'daily', title: t('setting__wy_daily_rec') },
-      { id: 'heartbeat', title: t('setting__wy_heartbeat_mode') },
       { id: 'simi', title: t('setting__wy_simi_songs') },
     ])
 
     const currentSongId = computed(() => {
-      const info = musicInfo.musicInfo
+      const info = playMusicInfo.musicInfo
+      console.log('currentSongId info:', info)
       if (!info || !info.meta || !info.meta.songId) return null
       // 心动模式和相似歌曲只支持网易云歌曲
-      if (info.source !== 'wy') return null
+      if (info.source !== 'wy') {
+        console.log('not wy source, source:', info.source)
+        return null
+      }
       return info.meta.songId
     })
 
@@ -243,30 +209,10 @@ export default {
             types: [],
             _types: {},
           }))
-        } else if (tabId === 'heartbeat') {
-          if (!currentSongId.value) return
-          // 获取当前播放歌曲所属歌单ID（如果有的话）
-          const playlistId = musicInfo.musicInfo?.meta?.playlistId || 0
-          const result = await wyDailyRec.getHeartbeatSongs(
-            currentSongId.value,
-            playlistId,
-            cookie
-          )
-          songs.value = result.map(song => ({
-            songmid: String(song.songId),
-            name: song.songName,
-            singer: (song.artists || []).map(a => a.name || a.nickname || '').join('、'),
-            source: 'wy',
-            interval: formatDuration(song.duration),
-            albumName: song.albumName || '',
-            albumId: song.albumId || 0,
-            img: song.albumId ? `https://p3.music.126.net/${song.albumId}/300.jpg` : '',
-            types: [],
-            _types: {},
-          }))
         } else if (tabId === 'simi') {
           if (!currentSongId.value) return
           const result = await wyDailyRec.getSimiSongs(currentSongId.value)
+          console.log('simi songs result:', result)
           songs.value = result.map(song => ({
             songmid: String(song.id),
             name: song.name,
