@@ -3,6 +3,7 @@ import musicSdk from '@renderer/utils/musicSdk'
 import { useI18n } from '@renderer/plugins/i18n'
 import { hasDislike } from '@renderer/core/dislikeList'
 import { appSetting } from '@renderer/store/setting'
+import { openShareMusicCard } from '@renderer/store/shareMusicCard'
 
 export default ({
   props,
@@ -17,7 +18,9 @@ export default ({
   handleOpenMusicDetail,
   handleCopyMusicLink,
   handleDislikeMusic,
-  handleLikeMusic,
+  handleToggleLike,
+  likeList,
+  isLiked,
 }) => {
   const itemMenuControl = reactive({
     play: true,
@@ -27,14 +30,19 @@ export default ({
     search: true,
     sourceDetail: true,
     copyLink: true,
+    shareCard: true,
     dislike: true,
     like: true,
   })
   const t = useI18n()
   const menuLocation = reactive({ x: 0, y: 0 })
   const isShowItemMenu = ref(false)
+  const currentMusicInfo = ref(null)
 
   const menus = computed(() => {
+    const isWySource = currentMusicInfo.value?.source === 'wy'
+    const hasWyCookie = !!appSetting['common.wy_cookie']
+
     const menuList = [
       {
         name: t('list__play'),
@@ -72,18 +80,27 @@ export default ({
         disabled: !itemMenuControl.copyLink,
       },
       {
-        name: t('list__dislike'),
-        action: 'dislike',
-        disabled: !itemMenuControl.dislike,
+        name: t('list__share_card'),
+        action: 'shareCard',
+        disabled: !itemMenuControl.shareCard,
       },
     ]
 
-    // 如果已登录网易云，添加喜欢按钮
-    if (appSetting['common.wy_cookie']) {
+    // 网易云歌曲显示喜欢/不喜欢按钮，替换原来的本地不喜欢按钮
+    if (isWySource && hasWyCookie && currentMusicInfo.value) {
+      const songId = currentMusicInfo.value.meta?.songId
+      const liked = songId ? isLiked(songId) : false
       menuList.push({
-        name: t('list__like'),
+        name: liked ? t('list__dislike') : t('list__like'),
         action: 'like',
         disabled: !itemMenuControl.like,
+      })
+    } else {
+      // 非网易云歌曲显示原来的本地不喜欢按钮
+      menuList.push({
+        name: t('list__dislike'),
+        action: 'dislike',
+        disabled: !itemMenuControl.dislike,
       })
     }
 
@@ -91,10 +108,9 @@ export default ({
   })
 
   const showMenu = (event, musicInfo) => {
+    currentMusicInfo.value = musicInfo
     itemMenuControl.sourceDetail = !!musicSdk[musicInfo.source]?.getMusicDetailPageUrl
     itemMenuControl.copyLink = !!musicSdk[musicInfo.source]?.getMusicDetailPageUrl
-    // this.listMenu.itemMenuControl.play =
-    //   this.listMenu.itemMenuControl.playLater =
     itemMenuControl.download = assertApiSupport(musicInfo.source)
 
     itemMenuControl.dislike = !hasDislike(musicInfo)
@@ -115,10 +131,10 @@ export default ({
 
   const hideMenu = () => {
     isShowItemMenu.value = false
+    currentMusicInfo.value = null
   }
 
   const menuClick = (action, index) => {
-    // console.log(action)
     hideMenu()
     if (!action) return
 
@@ -144,11 +160,16 @@ export default ({
       case 'copyLink':
         handleCopyMusicLink(index)
         break
+      case 'shareCard':
+        if (currentMusicInfo.value) {
+          openShareMusicCard(currentMusicInfo.value)
+        }
+        break
       case 'dislike':
         handleDislikeMusic(index)
         break
       case 'like':
-        handleLikeMusic(index)
+        handleToggleLike(index)
         break
     }
   }

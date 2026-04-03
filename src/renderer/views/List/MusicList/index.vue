@@ -385,7 +385,10 @@ export default {
       handleRemoveMusic,
     } = useMusicActions({ props, list, removeAllSelect, selectedList })
 
-    const { handleLikeMusic } = useLikeMusic({ props })
+    const { likeList, fetchLikeList, isLiked, handleToggleLike } = useLikeMusic({ list })
+
+    // 获取网易云喜欢列表
+    void fetchLikeList()
 
     const { menus, menuLocation, isShowItemMenu, showMenu, menuClick } = useMenu({
       assertApiSupport,
@@ -405,7 +408,9 @@ export default {
       handleShareCard,
       handleDislikeMusic,
       handleRemoveMusic,
-      handleLikeMusic,
+      handleToggleLike,
+      likeList,
+      isLiked,
     })
 
     const { isShowSearchBar, searchList, handleMusicSearchAction } = useSearch({

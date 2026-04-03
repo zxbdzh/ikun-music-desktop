@@ -32,7 +32,7 @@ export default {
           Referer: 'https://music.163.com/',
           cookie,
         },
-        body: weapi({}),
+        form: weapi({}),
       })
 
       const { body, statusCode } = await response.promise

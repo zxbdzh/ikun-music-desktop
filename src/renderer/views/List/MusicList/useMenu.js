@@ -22,7 +22,9 @@ export default ({
   handleShareCard,
   handleDislikeMusic,
   handleRemoveMusic,
-  handleLikeMusic,
+  handleToggleLike,
+  likeList,
+  isLiked,
 }) => {
   const itemMenuControl = reactive({
     play: true,
@@ -44,8 +46,12 @@ export default ({
   const t = useI18n()
   const menuLocation = shallowReactive({ x: 0, y: 0 })
   const isShowItemMenu = ref(false)
+  const currentMusicInfo = ref(null)
 
   const menus = computed(() => {
+    const isWySource = currentMusicInfo.value?.source === 'wy'
+    const hasWyCookie = !!appSetting['common.wy_cookie']
+
     const menuList = [
       {
         name: t('list__play'),
@@ -107,19 +113,23 @@ export default ({
         action: 'search',
         disabled: !itemMenuControl.search,
       },
-      {
+    ]
+
+    // 网易云歌曲显示喜欢/不喜欢按钮，替换原来的本地不喜欢按钮
+    if (isWySource && hasWyCookie && currentMusicInfo.value) {
+      const songId = currentMusicInfo.value.meta?.songId
+      const liked = songId ? isLiked(songId) : false
+      menuList.push({
+        name: liked ? t('list__dislike') : t('list__like'),
+        action: 'like',
+        disabled: !itemMenuControl.like,
+      })
+    } else {
+      // 非网易云歌曲显示原来的本地不喜欢按钮
+      menuList.push({
         name: t('list__dislike'),
         action: 'dislike',
         disabled: !itemMenuControl.dislike,
-      },
-    ]
-
-    // 如果已登录网易云，添加喜欢按钮
-    if (appSetting['common.wy_cookie']) {
-      menuList.push({
-        name: t('list__like'),
-        action: 'like',
-        disabled: !itemMenuControl.like,
       })
     }
 
@@ -133,6 +143,7 @@ export default ({
   })
 
   const showMenu = (event, musicInfo) => {
+    currentMusicInfo.value = musicInfo
     itemMenuControl.sourceDetail = !!musicSdk[musicInfo.source]?.getMusicDetailPageUrl
     itemMenuControl.copyLink = !!musicSdk[musicInfo.source]?.getMusicDetailPageUrl
     itemMenuControl.download = assertApiSupport(musicInfo.source) && musicInfo.source != 'local'
@@ -152,6 +163,7 @@ export default ({
 
   const hideMenu = () => {
     isShowItemMenu.value = false
+    currentMusicInfo.value = null
   }
 
   const menuClick = (action, index) => {
@@ -201,7 +213,7 @@ export default ({
         handleOpenMusicDetail(index)
         break
       case 'like':
-        handleLikeMusic(index)
+        handleToggleLike(index)
         break
     }
   }

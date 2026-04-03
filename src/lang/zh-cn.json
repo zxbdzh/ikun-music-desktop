@@ -797,5 +797,6 @@
   "setting__wy_login_window_blocked": "请允许弹出窗口以便进行登录",
   "list__like": "喜欢",
   "wy_like_success": "已添加到「我喜欢」歌单",
+  "wy_unlike_success": "已从「我喜欢」歌单移除",
   "wy_like_failed": "添加到「我喜欢」失败，请重试"
 }
