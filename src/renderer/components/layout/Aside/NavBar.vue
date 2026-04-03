@@ -70,6 +70,15 @@ export default {
           enable: true,
         },
         {
+          to: '/wy',
+          tips: t('wy_cloud'),
+          icon: '#icon-thumbs-up',
+          iconSize: '0 0 512 512',
+          size,
+          name: 'WyCloud',
+          enable: true,
+        },
+        {
           to: '/list',
           tips: t('my_list'),
           icon: '#icon-love',

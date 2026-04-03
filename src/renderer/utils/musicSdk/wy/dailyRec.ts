@@ -11,18 +11,18 @@ import { weapi } from './utils/crypto'
 // 每日推荐模块
 export default {
   /**
-   * 获取每日推荐歌曲
+   * 获取每日推荐歌曲（使用风格化推荐接口）
    * @param cookie 网易云Cookie
    */
   async getDailySongs(cookie: string): Promise<any> {
     const csrfToken = (cookie.match(/_csrf=([^(;|$)]+)/) || [])[1] || ''
 
-    const response: any = httpFetch('https://music.163.com/weapi/v3/discover/recommend/songs', {
+    const response: any = httpFetch(`https://music.163.com/weapi/homepage/category/daily/song/list?csrf_token=${csrfToken}`, {
       method: 'post',
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Edg/124.0.0.0',
         origin: 'https://music.163.com',
-        Referer: 'https://music.163.com/',
+        Referer: 'https://music.163.com',
         cookie,
       },
       form: weapi({
@@ -32,12 +32,17 @@ export default {
 
     const { body, statusCode } = await response.promise
 
-    if (statusCode !== 200 || body.code !== 200) {
-      throw new Error('获取每日推荐失败')
+    if (statusCode !== 200) {
+      throw new Error(`HTTP ${statusCode}: 获取每日推荐失败`)
+    }
+    if (body.code !== 200 || !body.data) {
+      console.error('Daily songs API error:', body)
+      const msg = body.message || body.msg || JSON.stringify(body)
+      throw new Error(`API error ${body.code}: ${msg}`)
     }
 
     return {
-      recommend: (body.data || []).map((song: any) => ({
+      recommend: (body.data.dailySongs || []).map((song: any) => ({
         id: song.id,
         name: song.name,
         ar: song.ar || [],
@@ -66,18 +71,20 @@ export default {
   ): Promise<any[]> {
     const csrfToken = (cookie.match(/_csrf=([^(;|$)]+)/) || [])[1] || ''
 
-    const response: any = httpFetch('https://music.163.com/weapi/playmode/intelligence/list', {
+    const response: any = httpFetch(`https://music.163.com/weapi/playmode/intelligence/list?csrf_token=${csrfToken}`, {
       method: 'post',
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Edg/124.0.0.0',
         origin: 'https://music.163.com',
-        Referer: 'https://music.163.com/',
+        Referer: 'https://music.163.com',
         cookie,
       },
       form: weapi({
-        songId,
         playlistId,
-        type: 'fromPlayList',
+        songId,
+        type: 'fromPlayOne',
+        startMusicId: songId,
+        count: 150,
         csrf_token: csrfToken,
       }),
     })
@@ -89,12 +96,12 @@ export default {
     }
 
     return (body.data || []).map((item: any) => ({
-      songId: item.songId,
-      songName: item.songName,
-      artists: item.artists || [],
-      albumId: item.albumId,
-      albumName: item.albumName,
-      duration: item.duration,
+      songId: item.id || item.songInfo?.id,
+      songName: item.name || item.songInfo?.name,
+      artists: item.ar || item.artists || [],
+      albumId: item.al?.id || item.albumId || item.songInfo?.album?.id,
+      albumName: item.al?.name || item.albumName || item.songInfo?.album?.name,
+      duration: item.dt || item.duration || item.songInfo?.dt,
       score: item.score,
     }))
   },
@@ -147,13 +154,13 @@ export default {
    * @param songId 歌曲ID
    * @param limit 每页数量
    */
-  async getSimiSongs(songId: string | number, limit: number = 50): Promise<any[]> {
+  async getSimiSongs(songId: string | number, limit: number = 10): Promise<any[]> {
     const response: any = httpFetch('https://music.163.com/weapi/v1/discovery/simiSong', {
       method: 'post',
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Edg/124.0.0.0',
         origin: 'https://music.163.com',
-        Referer: 'https://music.163.com/',
+        Referer: 'https://music.163.com',
       },
       form: weapi({
         songid: songId,

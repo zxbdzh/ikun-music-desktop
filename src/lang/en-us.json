@@ -808,5 +808,11 @@
   "list__dislike_multiple": "Batch Dislike ({num})",
   "wy_unlike_multiple_confirm": "Remove {num} selected songs from 'My Favorites'?",
   "wy_unlike_multiple_success": "Successfully unliked {count}/{total} songs",
-  "wy_unlike_all_already_not_liked": "All selected songs are not in 'My Favorites'"
+  "wy_unlike_all_already_not_liked": "All selected songs are not in 'My Favorites'",
+  "setting__wy_daily_rec": "Daily Recommendations",
+  "setting__wy_daily_rec_load_failed": "Failed to load daily recommendations. Please check your network and login status.",
+  "setting__wy_heartbeat_mode": "Heartbeat Mode",
+  "setting__wy_simi_songs": "Similar Songs",
+  "wy_cloud": "WyCloud",
+  "wy_need_play_song": "Please play a WyCloud song first"
 }
