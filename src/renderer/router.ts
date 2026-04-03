@@ -60,6 +60,14 @@ const router = createRouter({
         name: 'Setting',
       },
     },
+    {
+      path: '/wy',
+      name: 'WyCloud',
+      component: require('./views/WyCloud/index.vue').default,
+      meta: {
+        name: 'WyCloud',
+      },
+    },
     { path: '/:pathMatch(.*)*', redirect: '/search' },
   ],
   linkActiveClass: 'active-link',
