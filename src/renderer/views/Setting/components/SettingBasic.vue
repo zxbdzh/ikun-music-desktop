@@ -109,7 +109,6 @@ ThemeSelectorModal(v-model="isShowThemeSelectorModal")
 ThemeEditModal(v-model="isShowThemeEditModal" :theme-id="editThemeId" @submit="handleRefreshTheme")
 play-timeout-modal(v-model="isShowPlayTimeoutModal")
 user-api-modal(v-model="isShowUserApiModal")
-SettingWyLogin
 </template>
 
 <script>
@@ -125,7 +124,6 @@ import ThemeSelectorModal from './ThemeSelectorModal.vue'
 import ThemeEditModal from './ThemeEditModal/index.vue'
 import PlayTimeoutModal from './PlayTimeoutModal.vue'
 import UserApiModal from './UserApiModal.vue'
-import SettingWyLogin from './SettingWyLogin.vue'
 import { appSetting, updateSetting } from '@renderer/store/setting'
 import { getThemes, applyTheme, findTheme, buildBgUrl } from '@renderer/store/utils'
 
@@ -136,7 +134,6 @@ export default {
     ThemeEditModal,
     PlayTimeoutModal,
     UserApiModal,
-    SettingWyLogin,
   },
   setup() {
     const t = useI18n()
