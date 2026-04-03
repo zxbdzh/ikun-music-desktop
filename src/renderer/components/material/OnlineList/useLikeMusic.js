@@ -82,10 +82,63 @@ export default ({ list }) => {
     }
   }
 
+  // 批量切换喜欢状态
+  const handleToggleLikeMultiple = async (selectedList) => {
+    const cookie = appSetting['common.wy_cookie']
+    if (!cookie) {
+      void dialog({
+        message: t('setting__wy_login_not_logged_in'),
+        confirmButtonText: t('ok'),
+      })
+      return
+    }
+
+    // 筛选出可喜欢的网易云歌曲（未喜欢的）
+    const wySongsToLike = selectedList
+      .filter(s => s.source === 'wy' && s.meta?.songId && !isLiked(s.meta.songId))
+      .map(s => ({ songId: s.meta.songId, name: s.name }))
+
+    if (wySongsToLike.length === 0) {
+      void dialog({
+        message: t('wy_like_all_already_liked'),
+        confirmButtonText: t('ok'),
+      })
+      return
+    }
+
+    // 确认对话框
+    const confirmed = await dialog.confirm({
+      message: t('wy_like_multiple_confirm', { num: wySongsToLike.length }),
+      confirmButtonText: t('ok'),
+      cancelButtonText: t('cancel_button_text_2'),
+    })
+    if (!confirmed) return
+
+    // 批量执行喜欢
+    let successCount = 0
+    for (const song of wySongsToLike) {
+      try {
+        await wyUser.likeSong(song.songId, true, cookie)
+        successCount++
+      } catch (err) {
+        console.error(`Failed to like song ${song.songId}:`, err)
+      }
+    }
+
+    // 刷新喜欢列表缓存
+    await fetchLikeList()
+
+    void dialog({
+      message: t('wy_like_multiple_success', { count: successCount, total: wySongsToLike.length }),
+      confirmButtonText: t('ok'),
+    })
+  }
+
   return {
     likeList,
     fetchLikeList,
     isLiked,
     handleToggleLike,
+    handleToggleLikeMultiple,
   }
 }
