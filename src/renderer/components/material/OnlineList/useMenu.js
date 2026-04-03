@@ -9,6 +9,7 @@ export default ({
   props,
   assertApiSupport,
   emit,
+  selectedList,
 
   handleShowDownloadModal,
   handlePlayMusic,
@@ -19,6 +20,7 @@ export default ({
   handleCopyMusicLink,
   handleDislikeMusic,
   handleToggleLike,
+  handleToggleLikeMultiple,
   likeList,
   isLiked,
 }) => {
@@ -97,6 +99,21 @@ export default ({
       })
     }
 
+    // 批量喜欢选项（仅在多选且存在可喜欢的网易云歌曲时显示）
+    if (selectedList.value.length > 1) {
+      const wySongs = selectedList.value.filter(s => s.source === 'wy' && s.meta?.songId)
+      if (wySongs.length > 0 && hasWyCookie) {
+        const wySongsNotLiked = wySongs.filter(s => !isLiked(s.meta.songId))
+        if (wySongsNotLiked.length > 0) {
+          menuList.push({
+            name: t('list__like_multiple', { num: wySongsNotLiked.length }),
+            action: 'likeMultiple',
+            disabled: false,
+          })
+        }
+      }
+    }
+
     return menuList
   })
 
@@ -163,6 +180,9 @@ export default ({
         break
       case 'like':
         handleToggleLike(index)
+        break
+      case 'likeMultiple':
+        handleToggleLikeMultiple(selectedList.value)
         break
     }
   }
