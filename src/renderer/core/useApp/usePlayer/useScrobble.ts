@@ -21,23 +21,32 @@ export default () => {
 
     // 解析歌曲信息 - ListItem 将信息存储在 metadata.musicInfo 中
     const isListItem = 'metadata' in music
-    const songId = music.id
     const songName = isListItem ? music.metadata.musicInfo.name : music.name
     const singer = isListItem ? music.metadata.musicInfo.singer : music.singer
     const source = isListItem ? music.metadata.musicInfo.source : music.source
     const interval = isListItem ? music.metadata.musicInfo.interval : music.interval
+    // 获取纯数字歌曲ID（wy API需要纯数字ID）
+    const getWySongId = () => {
+      if (source !== 'wy') return null
+      if (isListItem) {
+        return music.metadata.musicInfo.meta?.songId || null
+      }
+      return music.meta?.songId || null
+    }
 
     // 如果是网易云歌曲，直接上报
     if (source === 'wy') {
+      const wySongId = getWySongId()
+      if (!wySongId) return
       // 避免重复上报同一首歌
-      if (lastScrobbledSongId === songId) return
-      lastScrobbledSongId = songId
+      if (lastScrobbledSongId === wySongId) return
+      lastScrobbledSongId = wySongId
 
       try {
-        // 播放时长使用歌曲的 interval（分钟转换为秒）
-        const duration = interval ? parseIntervalToSeconds(interval) * 1000 : 300000 // 默认5分钟
-        await wyScrobble.scrobble(songId, duration, cookie)
-        console.log(`[Scrobble] Reported wy song: ${songName}, duration: ${duration}ms`)
+        // 播放时长使用歌曲的 interval（秒）
+        const duration = interval ? parseIntervalToSeconds(interval) : 300 // 默认5分钟
+        await wyScrobble.scrobble(wySongId, '', duration, cookie)
+        console.log(`[Scrobble] Reported wy song: ${songName}, id:${wySongId}, duration: ${duration}s`)
       } catch (e) {
         console.error('[Scrobble] Failed to report wy song:', e)
       }
@@ -63,8 +72,8 @@ export default () => {
           if (lastScrobbledSongId === matchedSong.songmid) return
           lastScrobbledSongId = matchedSong.songmid
 
-          const duration = interval ? parseIntervalToSeconds(interval) * 1000 : 300000
-          await wyScrobble.scrobble(matchedSong.songmid, duration, cookie)
+          const duration = interval ? parseIntervalToSeconds(interval) : 300
+          await wyScrobble.scrobble(matchedSong.songmid, '', duration, cookie)
           console.log(`[Scrobble] Matched and reported: ${songName} -> wy:${matchedSong.songmid}`)
         }
       } else {
@@ -85,12 +94,14 @@ export default () => {
     return minutes * 60 + seconds
   }
 
-  // 监听播放结束和停止事件
+  // 监听播放结束、停止和清空事件
   window.app_event.on('playerEnded', handleScrobble)
   window.app_event.on('stop', handleScrobble)
+  window.app_event.on('playerEmptied', handleScrobble)
 
   onBeforeUnmount(() => {
     window.app_event.off('playerEnded', handleScrobble)
     window.app_event.off('stop', handleScrobble)
+    window.app_event.off('playerEmptied', handleScrobble)
   })
 }
