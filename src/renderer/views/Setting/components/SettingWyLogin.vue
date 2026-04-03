@@ -13,8 +13,7 @@ dd
     .p.gap-top
       span(:class="$style.tip") {{ $t('setting__wy_login_tip') }}
     .p.gap-top(v-if="appSetting['common.wy_cookie']")
-      base-checkbox(:model-value="appSetting['common.wy_enableScrobble']" @change="handleToggleScrobble")
-      span {{ $t('setting__wy_enable_scrobble') }}
+      base-checkbox(id="setting_wy_enable_scrobble" :model-value="appSetting['common.wy_enableScrobble']" :label="$t('setting__wy_enable_scrobble')" @update:model-value="handleToggleScrobble")
     .p(v-if="appSetting['common.wy_cookie'] && appSetting['common.wy_enableScrobble']")
       span(:class="$style.tip") {{ $t('setting__wy_enable_scrobble_tip') }}
 
