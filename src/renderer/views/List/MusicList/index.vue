@@ -65,6 +65,20 @@
               <div v-else class="num">{{ index + 1 }}</div>
             </transition>
           </div>
+          <div class="list-item-cell" :class="$style.pic" style="flex: 0 0 40px">
+            <img
+              v-if="item.meta.picUrl"
+              loading="lazy"
+              decoding="async"
+              :src="item.meta.picUrl"
+              :class="$style.picImg"
+            />
+            <span v-else :class="$style.picPlaceholder">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="50%" height="50%">
+                <path fill="currentColor" d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+              </svg>
+            </span>
+          </div>
           <div class="list-item-cell auto name" :aria-label="item.name">
             <span class="select name" :aria-label="item.name">{{ item.name }}</span>
             <span
@@ -166,6 +180,20 @@
               </div>
               <div v-else class="num">{{ index + 1 }}</div>
             </transition>
+          </div>
+          <div class="list-item-cell" :class="$style.pic" style="flex: 0 0 40px">
+            <img
+              v-if="item.meta.picUrl"
+              loading="lazy"
+              decoding="async"
+              :src="item.meta.picUrl"
+              :class="$style.picImg"
+            />
+            <span v-else :class="$style.picPlaceholder">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="50%" height="50%">
+                <path fill="currentColor" d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+              </svg>
+            </span>
           </div>
           <div class="list-item-cell auto name">
             <span class="select name" :aria-label="item.name">{{ item.name }}</span>
@@ -273,6 +301,7 @@
 <script>
 import { clipboardWriteText } from '@common/utils/electron'
 import { assertApiSupport } from '@renderer/store/utils'
+import { preloadImage } from '@common/utils/imageCache'
 import SearchList from './components/SearchList.vue'
 import MusicSortModal from './components/MusicSortModal.vue'
 import MusicToggleModal from './components/MusicToggleModal.vue'
@@ -416,6 +445,18 @@ export default {
       list,
       handleRestoreScroll,
     })
+
+    // 预加载前几张可见歌曲的封面
+    const preloadVisibleCovers = () => {
+      const preloadCount = 30
+      for (let i = 0; i < Math.min(preloadCount, list.value.length); i++) {
+        const picUrl = list.value[i]?.meta?.picUrl
+        if (picUrl) preloadImage(picUrl)
+      }
+    }
+
+    // 初始预加载封面
+    setTimeout(preloadVisibleCovers, 1000)
 
     const handleListItemClick = (event, index) => {
       if (rightClickSelectedIndex.value > -1) return
@@ -561,6 +602,32 @@ export default {
   align-items: center;
   justify-content: center;
   position: relative;
+}
+
+.pic {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.picImg {
+  width: 36px;
+  height: 36px;
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+.picPlaceholder {
+  width: 36px;
+  height: 36px;
+  border-radius: 4px;
+  background: var(--color-song-item-background);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-font-label);
 }
 
 .playIcon {
