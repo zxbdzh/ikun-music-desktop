@@ -2,10 +2,12 @@ import { computed, ref, shallowReactive, reactive, nextTick } from '@common/util
 import musicSdk from '@renderer/utils/musicSdk'
 import { useI18n } from '@renderer/plugins/i18n'
 import { hasDislike } from '@renderer/core/dislikeList'
+import { appSetting } from '@renderer/store/setting'
 
 export default ({
   assertApiSupport,
   emit,
+  selectedList,
 
   handleShowDownloadModal,
   handlePlayMusic,
@@ -21,6 +23,11 @@ export default ({
   handleShareCard,
   handleDislikeMusic,
   handleRemoveMusic,
+  handleToggleLike,
+  handleToggleLikeMultiple,
+  handleToggleUnlikeMultiple,
+  likeList,
+  isLiked,
 }) => {
   const itemMenuControl = reactive({
     play: true,
@@ -37,13 +44,18 @@ export default ({
     dislike: true,
     remove: true,
     sourceDetail: true,
+    like: true,
   })
   const t = useI18n()
   const menuLocation = shallowReactive({ x: 0, y: 0 })
   const isShowItemMenu = ref(false)
+  const currentMusicInfo = ref(null)
 
   const menus = computed(() => {
-    return [
+    const isWySource = currentMusicInfo.value?.source === 'wy'
+    const hasWyCookie = !!appSetting['common.wy_cookie']
+
+    const menuList = [
       {
         name: t('list__play'),
         action: 'play',
@@ -104,20 +116,53 @@ export default ({
         action: 'search',
         disabled: !itemMenuControl.search,
       },
-      {
-        name: t('list__dislike'),
-        action: 'dislike',
-        disabled: !itemMenuControl.dislike,
-      },
-      {
-        name: t('list__remove'),
-        action: 'remove',
-        disabled: !itemMenuControl.remove,
-      },
     ]
+
+    // 只有网易云歌曲显示喜欢/不喜欢按钮
+    if (isWySource && hasWyCookie && currentMusicInfo.value) {
+      const songId = currentMusicInfo.value.meta?.songId
+      const liked = songId ? isLiked(songId) : false
+      menuList.push({
+        name: liked ? t('list__dislike') : t('list__like'),
+        action: 'like',
+        disabled: !itemMenuControl.like,
+      })
+    }
+
+    // 批量喜欢/取消喜欢选项（仅在多选且存在可喜欢的网易云歌曲时显示）
+    if (selectedList.value.length > 1) {
+      const wySongs = selectedList.value.filter(s => s.source === 'wy' && s.meta?.songId)
+      if (wySongs.length > 0 && hasWyCookie) {
+        const wySongsNotLiked = wySongs.filter(s => !isLiked(s.meta.songId))
+        const wySongsLiked = wySongs.filter(s => isLiked(s.meta.songId))
+        if (wySongsNotLiked.length > 0) {
+          menuList.push({
+            name: t('list__like_multiple', { num: wySongsNotLiked.length }),
+            action: 'likeMultiple',
+            disabled: false,
+          })
+        }
+        if (wySongsLiked.length > 0) {
+          menuList.push({
+            name: t('list__dislike_multiple', { num: wySongsLiked.length }),
+            action: 'unlikeMultiple',
+            disabled: false,
+          })
+        }
+      }
+    }
+
+    menuList.push({
+      name: t('list__remove'),
+      action: 'remove',
+      disabled: !itemMenuControl.remove,
+    })
+
+    return menuList
   })
 
   const showMenu = (event, musicInfo) => {
+    currentMusicInfo.value = musicInfo
     itemMenuControl.sourceDetail = !!musicSdk[musicInfo.source]?.getMusicDetailPageUrl
     itemMenuControl.copyLink = !!musicSdk[musicInfo.source]?.getMusicDetailPageUrl
     itemMenuControl.download = assertApiSupport(musicInfo.source) && musicInfo.source != 'local'
@@ -137,6 +182,7 @@ export default ({
 
   const hideMenu = () => {
     isShowItemMenu.value = false
+    currentMusicInfo.value = null
   }
 
   const menuClick = (action, index) => {
@@ -184,6 +230,16 @@ export default ({
         break
       case 'sourceDetail':
         handleOpenMusicDetail(index)
+        break
+      case 'like':
+        handleToggleLike(index)
+        break
+      case 'likeMultiple':
+        handleToggleLikeMultiple(selectedList.value)
+        break
+      case 'unlikeMultiple':
+        handleToggleUnlikeMultiple(selectedList.value)
+        break
     }
   }
 

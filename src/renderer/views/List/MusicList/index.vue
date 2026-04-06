@@ -316,6 +316,7 @@ import useMusicActions from './useMusicActions'
 import useSearch from './useSearch'
 import useListScroll from './useListScroll'
 import useMusicToggle from './useMusicToggle'
+import useLikeMusic from './useLikeMusic'
 import { appSetting } from '@renderer/store/setting'
 export default {
   name: 'MusicList',
@@ -413,9 +414,15 @@ export default {
       handleRemoveMusic,
     } = useMusicActions({ props, list, removeAllSelect, selectedList })
 
+    const { likeList, fetchLikeList, isLiked, handleToggleLike, handleToggleLikeMultiple, handleToggleUnlikeMultiple } = useLikeMusic({ list })
+
+    // 获取网易云喜欢列表
+    void fetchLikeList()
+
     const { menus, menuLocation, isShowItemMenu, showMenu, menuClick } = useMenu({
       assertApiSupport,
       emit,
+      selectedList,
 
       handleShowDownloadModal,
       handlePlayMusic,
@@ -431,6 +438,11 @@ export default {
       handleShareCard,
       handleDislikeMusic,
       handleRemoveMusic,
+      handleToggleLike,
+      handleToggleLikeMultiple,
+      handleToggleUnlikeMultiple,
+      likeList,
+      isLiked,
     })
 
     const { isShowSearchBar, searchList, handleMusicSearchAction } = useSearch({

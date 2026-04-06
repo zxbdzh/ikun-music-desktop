@@ -235,11 +235,13 @@ const refreshLyricData = async () => {
   let sourceLyric = ''
   let sourceTlyric = ''
 
-  if (playerMusicInfo.id && playerMusicInfo.id == mInfo.id) {
+  // 如果正在播放这首歌，优先使用播放器的歌词
+  if (playerMusicInfo.id && playerMusicInfo.id == mInfo.id && playerMusicInfo.lrc) {
     sourceLyric = playerMusicInfo.lxlrc || playerMusicInfo.lrc || ''
     sourceTlyric = playerMusicInfo.tlrc || ''
   }
 
+  // 如果没有歌词，从播放器获取
   if (!sourceLyric) {
     const playerLyric = await getPlayerLyric(mInfo).catch(() => null)
     sourceLyric = playerLyric?.lyric || ''
