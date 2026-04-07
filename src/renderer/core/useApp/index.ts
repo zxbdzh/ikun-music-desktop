@@ -2,6 +2,8 @@ import { checkUpdate, getEnvParams, getViewPrevState, sendInited } from '@render
 
 import { proxy, isFullscreen, themeId } from '@renderer/store'
 import { appSetting } from '@renderer/store/setting'
+import wyUtil from '@renderer/utils/musicSdk/wy/wyUtil'
+import { dialog } from '@renderer/plugins/Dialog'
 
 import useSync from './useSync'
 import useOpenAPI from './useOpenAPI'
@@ -38,6 +40,20 @@ export default () => {
   useUpdate()
   useSettingSync()
 
+  // 网易云每日签到
+  const handleSignin = async () => {
+    const cookie = appSetting['common.wy_cookie']
+    if (!cookie) return
+    const result = await wyUtil.dailySignin(cookie, 1)
+    if (result.success) {
+      void dialog({
+        // @ts-ignore
+        message: `签到成功，获得 ${result.point} 经验值`,
+        confirmButtonText: '确定',
+      })
+    }
+  }
+
   void getEnvParams().then((envParams) => {
     // 移除代理相关的环境变量设置，防止请求库自动应用它们
     // const processEnv = ENVIRONMENT
@@ -70,6 +86,9 @@ export default () => {
 
       handleListAutoUpdate()
       if (window.lx.isProd && appSetting['common.isAgreePact']) checkUpdate()
+
+      // 网易云每日签到
+      void handleSignin()
     })
   })
 }

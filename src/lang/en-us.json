@@ -807,6 +807,7 @@
   "wy_like_success": "Added to 'My Favorites' playlist",
   "wy_unlike_success": "Removed from 'My Favorites' playlist",
   "wy_like_failed": "Failed to add to favorites, please try again",
+  "wy_signin_success": "Sign in successful, earned {point} experience points",
   "list__like": "Like",
   "list__like_multiple": "Batch Like ({num})",
   "wy_like_multiple_confirm": "Add {num} selected songs to 'My Favorites'?",
