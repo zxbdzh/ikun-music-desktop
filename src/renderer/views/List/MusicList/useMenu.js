@@ -54,7 +54,7 @@ export default ({
 
   // 构建基础菜单
   const buildBaseMenu = () => {
-    return [
+    const list = [
       {
         name: t('list__play'),
         action: 'play',
@@ -115,7 +115,26 @@ export default ({
         action: 'search',
         disabled: !itemMenuControl.search,
       },
+      {
+        name: t('list__remove'),
+        action: 'remove',
+        disabled: !itemMenuControl.remove,
+      },
     ]
+
+    // 如果是网易云歌曲，先添加带 loading 的喜欢按钮
+    const isWySource = currentMusicInfo.value?.source === 'wy'
+    const hasWyCookie = !!appSetting['common.wy_cookie']
+    if (isWySource && hasWyCookie) {
+      list.push({
+        name: t('list__like'),
+        action: 'like',
+        disabled: true,
+        loading: true,
+      })
+    }
+
+    return list
   }
 
   // 构建完整菜单（异步检查喜欢状态）
@@ -123,18 +142,19 @@ export default ({
     const isWySource = currentMusicInfo.value?.source === 'wy'
     const hasWyCookie = !!appSetting['common.wy_cookie']
 
-    const list = buildBaseMenu()
-
-    // 只有网易云歌曲显示喜欢/不喜欢按钮
+    // 找到已存在的喜欢按钮并更新状态
     if (isWySource && hasWyCookie && currentMusicInfo.value) {
       const songId = currentMusicInfo.value.meta?.songId
-      const liked = songId ? await isLiked(songId) : false
-      currentLikeStatus.value = liked
-      list.push({
-        name: liked ? t('list__dislike') : t('list__like'),
-        action: 'like',
-        disabled: !itemMenuControl.like,
-      })
+      const likeItem = menuList.value.find(item => item.action === 'like')
+      if (likeItem) {
+        // 异步检查喜欢状态
+        const liked = songId ? await isLiked(songId) : false
+        currentLikeStatus.value = liked
+        // 更新菜单项
+        likeItem.name = liked ? t('list__dislike') : t('list__like')
+        likeItem.disabled = !itemMenuControl.like
+        likeItem.loading = false
+      }
     }
 
     // 批量喜欢/取消喜欢选项（仅在多选且存在可喜欢的网易云歌曲时显示）
@@ -153,14 +173,14 @@ export default ({
           }
         }
         if (notLiked.length > 0) {
-          list.push({
+          menuList.value.push({
             name: t('list__like_multiple', { num: notLiked.length }),
             action: 'likeMultiple',
             disabled: false,
           })
         }
         if (liked.length > 0) {
-          list.push({
+          menuList.value.push({
             name: t('list__dislike_multiple', { num: liked.length }),
             action: 'unlikeMultiple',
             disabled: false,
@@ -168,14 +188,6 @@ export default ({
         }
       }
     }
-
-    list.push({
-      name: t('list__remove'),
-      action: 'remove',
-      disabled: !itemMenuControl.remove,
-    })
-
-    return list
   }
 
   const showMenu = async (event, musicInfo) => {
@@ -193,11 +205,13 @@ export default ({
 
     emit('show-menu')
 
-    // 异步构建菜单
-    menuList.value = await buildMenu()
+    // 先构建不含喜欢状态的基础菜单并显示
+    menuList.value = buildBaseMenu()
 
     nextTick(() => {
       isShowItemMenu.value = true
+      // 再异步构建完整菜单（更新喜欢状态）
+      void buildMenu()
     })
   }
 
