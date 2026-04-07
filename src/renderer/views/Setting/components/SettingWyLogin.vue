@@ -68,8 +68,8 @@ export default {
       isLoading.value = true
       try {
         // 验证 Cookie
-        const wyUser = await import('@renderer/utils/musicSdk/wy/user')
-        const result = await wyUser.default.verifyCookie(cookie)
+        const wyUtilImport = await import('@renderer/utils/musicSdk/wy/wyUtil')
+        const result = await wyUtilImport.default.verifyCookie(cookie)
 
         // 保存 Cookie（即使无法获取 UID，只要 Cookie 格式正确就保存）
         if (result.valid) {
