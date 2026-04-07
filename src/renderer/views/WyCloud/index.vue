@@ -160,7 +160,6 @@ import { appSetting } from '@renderer/store/setting'
 import { playMusicInfo } from '@renderer/store/player/state'
 import { dialog } from '@renderer/plugins/Dialog'
 import wyUtil from '@renderer/utils/musicSdk/wy/wyUtil'
-import wyUser from '@renderer/utils/musicSdk/wy/user'
 import { playList } from '@renderer/core/player'
 import { setTempList } from '@renderer/store/list/action'
 import { LIST_IDS } from '@common/constants'
@@ -199,7 +198,7 @@ export default {
         return false
       }
       try {
-        const result = await wyUser.verifyCookie(cookie)
+        const result = await wyUtil.verifyCookie(cookie)
         cookieValid.value = result.valid
         return result.valid
       } catch {

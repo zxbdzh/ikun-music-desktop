@@ -353,10 +353,7 @@ export default {
 
     const { handleSearch, handleOpenMusicDetail, handleCopyMusicLink, handleDislikeMusic } = useMusicActions({ props })
 
-    const { likeList, fetchLikeList, isLiked, handleToggleLike, handleToggleLikeMultiple, handleToggleUnlikeMultiple } = useLikeMusic({ list: props.list })
-
-    // 获取网易云喜欢列表
-    void fetchLikeList()
+    const { handleToggleLike, handleToggleLikeMultiple, handleToggleUnlikeMultiple } = useLikeMusic({ list: props.list })
 
     const { menus, menuLocation, isShowItemMenu, showMenu, menuClick } = useMenu({
       props,
@@ -375,8 +372,6 @@ export default {
       handleToggleLike,
       handleToggleLikeMultiple,
       handleToggleUnlikeMultiple,
-      likeList,
-      isLiked,
     })
 
     const handleListItemClick = (event, index) => {

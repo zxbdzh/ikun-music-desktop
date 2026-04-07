@@ -130,8 +130,8 @@ export default {
       const phone = phoneNumber.value.trim()
       if (!phone || phone.length !== 11) return
 
-      const wyUser = await import('@renderer/utils/musicSdk/wy/wyUtil')
-      const result = await wyUser.default.sendCaptcha(phone)
+      const wyUtilImport = await import('@renderer/utils/musicSdk/wy/wyUtil')
+      const result = await wyUtilImport.default.sendCaptcha(phone)
 
       if (result.success) {
         void dialog({
@@ -163,8 +163,8 @@ export default {
 
       isLoading.value = true
       try {
-        const wyUser = await import('@renderer/utils/musicSdk/wy/wyUtil')
-        const result = await wyUser.default.loginByCaptcha(phone, captcha)
+        const wyUtilImport = await import('@renderer/utils/musicSdk/wy/wyUtil')
+        const result = await wyUtilImport.default.loginByCaptcha(phone, captcha)
 
         if (result.success) {
           updateSetting({ 'common.wy_cookie': result.cookie })
@@ -203,8 +203,8 @@ export default {
 
       isLoading.value = true
       try {
-        const wyUser = await import('@renderer/utils/musicSdk/wy/user')
-        const result = await wyUser.default.verifyCookie(cookie)
+        const wyUtilImport = await import('@renderer/utils/musicSdk/wy/wyUtil')
+        const result = await wyUtilImport.default.verifyCookie(cookie)
 
         if (result.valid) {
           updateSetting({ 'common.wy_cookie': cookie })

@@ -22,7 +22,7 @@ import comment from './comment'
 
 // 新增模块
 // @ts-ignore
-import user from './user'
+import wyUtil from './wyUtil'
 // @ts-ignore
 import album from './album'
 // @ts-ignore
@@ -43,7 +43,7 @@ const wy = {
   comment,
 
   // 新增模块
-  user,
+  wyUtil,
   album,
   singer,
   mv,
