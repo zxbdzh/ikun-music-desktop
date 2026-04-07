@@ -106,10 +106,95 @@ const scrobble = async (
   }
 }
 
+// 获取相似歌曲
+const getSimiSongs = async (songId: string | number): Promise<any[]> => {
+  try {
+    const response: any = httpFetch(`${API_BASE_URL}/simi/song?id=${songId}`, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      },
+    })
+
+    const { body, statusCode } = await response.promise
+
+    if (statusCode !== 200) {
+      throw new Error(`HTTP ${statusCode}: 获取相似歌曲失败`)
+    }
+
+    if (body.code !== 200) {
+      console.error('Simi songs API error:', body)
+      throw new Error(body.message || '获取相似歌曲失败')
+    }
+
+    // 格式化返回数据
+    const getAlbum = (song: any) => {
+      if (song.al) return song.al
+      if (song.album) return song.album
+      return { id: 0, name: '', picUrl: '' }
+    }
+    return (body.songs || []).map((song: any) => ({
+      id: song.id,
+      name: song.name,
+      ar: song.ar || song.artists || [],
+      al: getAlbum(song),
+      dt: song.dt || song.duration || 0,
+      fee: song.fee || 0,
+    }))
+  } catch (err: any) {
+    console.error('Get simi songs error:', err)
+    throw err
+  }
+}
+
+// 获取每日推荐歌曲
+const getDailySongs = async (cookie: string): Promise<any[]> => {
+  try {
+    const response: any = httpFetch(`${API_BASE_URL}/recommend/songs`, {
+      method: 'POST',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        cookie,
+      },
+    })
+
+    const { body, statusCode } = await response.promise
+
+    if (statusCode !== 200) {
+      throw new Error(`HTTP ${statusCode}: 获取每日推荐失败`)
+    }
+
+    if (body.code !== 200) {
+      console.error('Daily songs API error:', body)
+      throw new Error(body.message || '获取每日推荐失败')
+    }
+
+    // 格式化返回数据
+    const getAlbum = (song: any) => {
+      if (song.al) return song.al
+      if (song.album) return song.album
+      return { id: 0, name: '', picUrl: '' }
+    }
+    return (body.data.dailySongs || []).map((song: any) => ({
+      id: song.id,
+      name: song.name,
+      ar: song.ar || song.artists || [],
+      al: getAlbum(song),
+      dt: song.dt || song.duration || 0,
+      fee: song.fee || 0,
+    }))
+  } catch (err: any) {
+    console.error('Get daily songs error:', err)
+    throw err
+  }
+}
+
 export default {
   API_BASE_URL,
   getCsrfToken,
   sendCaptcha,
   loginByCaptcha,
   scrobble,
+  getDailySongs,
+  getSimiSongs,
 }

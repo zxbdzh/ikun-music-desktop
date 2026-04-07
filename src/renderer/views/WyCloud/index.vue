@@ -41,31 +41,52 @@
         <div v-if="isLoading" :class="$style.loading">{{ $t('loading') }}</div>
         <template v-else>
           <div v-if="songs.length === 0" :class="$style.empty">{{ $t('list__empty') }}</div>
-          <div :class="$style.songList">
-            <div
-              v-for="(song, index) in songs"
-              :key="song.id"
-              :class="[$style.songItem, { [$style.playing]: playingIndex === index }]"
-              @dblclick="handlePlay(index)"
-            >
-              <span :class="$style.index">{{ index + 1 }}</span>
-              <div :class="$style.info">
-                <span :class="$style.name">{{ song.name }}</span>
-                <span :class="$style.singer">{{ song.singer }}</span>
-              </div>
-              <div :class="$style.actions">
-                <button :class="$style.playBtn" @click.stop="handlePlay(index)">
-                  <svg
-                    version="1.1"
-                    xmlns="http://www.w3.org/2000/svg"
-                    xlink="http://www.w3.org/1999/xlink"
-                    height="60%"
-                    viewBox="0 0 512 512"
-                    space="preserve"
-                  >
-                    <use xlink:href="#icon-play" />
-                  </svg>
-                </button>
+          <div v-else :class="$style.songList">
+            <!-- 表头 -->
+            <div class="thead">
+              <table>
+                <thead>
+                  <tr>
+                    <th class="num" style="width: 5%">#</th>
+                    <th class="nobreak">{{ $t('music_name') }}</th>
+                    <th class="nobreak" style="width: 24%">{{ $t('music_singer') }}</th>
+                    <th class="nobreak" style="width: 27%">{{ $t('music_album') }}</th>
+                    <th class="nobreak" style="width: 10%">{{ $t('music_time') }}</th>
+                  </tr>
+                </thead>
+              </table>
+            </div>
+            <!-- 列表内容 -->
+            <div :class="$style.listContent">
+              <div
+                v-for="(song, index) in songs"
+                :key="song.id"
+                :class="[$style.songItem, { [$style.playing]: playingIndex === index }]"
+                @dblclick="handlePlay(index)"
+              >
+                <div class="num" :class="$style.index">{{ index + 1 }}</div>
+                <div :class="$style.pic">
+                  <img v-if="song.al?.picUrl" :src="song.al.picUrl" :class="$style.picImg" />
+                  <span v-else :class="$style.picPlaceholder">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="50%" height="50%">
+                      <path fill="currentColor" d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+                    </svg>
+                  </span>
+                </div>
+                <div :class="$style.name">
+                  <span class="select" :class="$style.songName">{{ song.name }}</span>
+                  <span v-if="song.fee === 1" class="no-select badge badge-theme-secondary">{{ $t('tag__vip') }}</span>
+                  <span v-else-if="song.fee === 4" class="no-select badge badge-theme-secondary">{{ $t('tag__付费') }}</span>
+                </div>
+                <div :class="$style.singer">
+                  <span class="select">{{ song.singer }}</span>
+                </div>
+                <div :class="$style.album">
+                  <span class="select">{{ song.al?.name }}</span>
+                </div>
+                <div :class="$style.time">
+                  <span class="no-select">{{ song.interval }}</span>
+                </div>
               </div>
             </div>
           </div>
@@ -78,31 +99,52 @@
         <div v-else-if="isLoading" :class="$style.loading">{{ $t('loading') }}</div>
         <template v-else>
           <div v-if="songs.length === 0" :class="$style.empty">{{ $t('list__empty') }}</div>
-          <div :class="$style.songList">
-            <div
-              v-for="(song, index) in songs"
-              :key="song.id"
-              :class="[$style.songItem, { [$style.playing]: playingIndex === index }]"
-              @dblclick="handlePlay(index)"
-            >
-              <span :class="$style.index">{{ index + 1 }}</span>
-              <div :class="$style.info">
-                <span :class="$style.name">{{ song.name }}</span>
-                <span :class="$style.singer">{{ song.singer }}</span>
-              </div>
-              <div :class="$style.actions">
-                <button :class="$style.playBtn" @click.stop="handlePlay(index)">
-                  <svg
-                    version="1.1"
-                    xmlns="http://www.w3.org/2000/svg"
-                    xlink="http://www.w3.org/1999/xlink"
-                    height="60%"
-                    viewBox="0 0 512 512"
-                    space="preserve"
-                  >
-                    <use xlink:href="#icon-play" />
-                  </svg>
-                </button>
+          <div v-else :class="$style.songList">
+            <!-- 表头 -->
+            <div class="thead">
+              <table>
+                <thead>
+                  <tr>
+                    <th class="num" style="width: 5%">#</th>
+                    <th class="nobreak">{{ $t('music_name') }}</th>
+                    <th class="nobreak" style="width: 24%">{{ $t('music_singer') }}</th>
+                    <th class="nobreak" style="width: 27%">{{ $t('music_album') }}</th>
+                    <th class="nobreak" style="width: 10%">{{ $t('music_time') }}</th>
+                  </tr>
+                </thead>
+              </table>
+            </div>
+            <!-- 列表内容 -->
+            <div :class="$style.listContent">
+              <div
+                v-for="(song, index) in songs"
+                :key="song.id"
+                :class="[$style.songItem, { [$style.playing]: playingIndex === index }]"
+                @dblclick="handlePlay(index)"
+              >
+                <div class="num" :class="$style.index">{{ index + 1 }}</div>
+                <div :class="$style.pic">
+                  <img v-if="song.al?.picUrl" :src="song.al.picUrl" :class="$style.picImg" />
+                  <span v-else :class="$style.picPlaceholder">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="50%" height="50%">
+                      <path fill="currentColor" d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+                    </svg>
+                  </span>
+                </div>
+                <div :class="$style.name">
+                  <span class="select" :class="$style.songName">{{ song.name }}</span>
+                  <span v-if="song.fee === 1" class="no-select badge badge-theme-secondary">{{ $t('tag__vip') }}</span>
+                  <span v-else-if="song.fee === 4" class="no-select badge badge-theme-secondary">{{ $t('tag__付费') }}</span>
+                </div>
+                <div :class="$style.singer">
+                  <span class="select">{{ song.singer }}</span>
+                </div>
+                <div :class="$style.album">
+                  <span class="select">{{ song.al?.name }}</span>
+                </div>
+                <div :class="$style.time">
+                  <span class="no-select">{{ song.interval }}</span>
+                </div>
               </div>
             </div>
           </div>
@@ -117,7 +159,7 @@ import { ref, computed, watch, nextTick, toRaw, markRawList } from '@common/util
 import { appSetting } from '@renderer/store/setting'
 import { playMusicInfo } from '@renderer/store/player/state'
 import { dialog } from '@renderer/plugins/Dialog'
-import wyDailyRec from '@renderer/utils/musicSdk/wy/dailyRec'
+import wyUtil from '@renderer/utils/musicSdk/wy/wyUtil'
 import wyUser from '@renderer/utils/musicSdk/wy/user'
 import { playList } from '@renderer/core/player'
 import { setTempList } from '@renderer/store/list/action'
@@ -144,13 +186,8 @@ export default {
 
     const currentSongId = computed(() => {
       const info = playMusicInfo.musicInfo
-      console.log('currentSongId info:', info)
       if (!info || !info.meta || !info.meta.songId) return null
-      // 心动模式和相似歌曲只支持网易云歌曲
-      if (info.source !== 'wy') {
-        console.log('not wy source, source:', info.source)
-        return null
-      }
+      if (info.source !== 'wy') return null
       return info.meta.songId
     })
 
@@ -207,10 +244,10 @@ export default {
       isLoading.value = true
       try {
         if (tabId === 'daily') {
-          const result = await wyDailyRec.getDailySongs(cookie)
-          // 格式化为 toNewMusicInfo 期望的格式
-          songs.value = result.recommend.map(song => ({
-            songmid: String(song.id),
+          // 使用 wyUtil 获取每日推荐
+          const result = await wyUtil.getDailySongs(cookie)
+          songs.value = result.map(song => ({
+            id: song.id,
             name: song.name,
             singer: (song.ar || []).map(a => a.name).join('、'),
             source: 'wy',
@@ -218,15 +255,14 @@ export default {
             albumName: song.al?.name || '',
             albumId: song.al?.id || 0,
             img: song.al?.picUrl || '',
-            types: [],
-            _types: {},
+            al: song.al,
+            fee: song.fee || 0,
           }))
         } else if (tabId === 'simi') {
           if (!currentSongId.value) return
-          const result = await wyDailyRec.getSimiSongs(currentSongId.value)
-          console.log('simi songs result:', result)
+          const result = await wyUtil.getSimiSongs(currentSongId.value)
           songs.value = result.map(song => ({
-            songmid: String(song.id),
+            id: song.id,
             name: song.name,
             singer: (song.ar || []).map(a => a.name).join('、'),
             source: 'wy',
@@ -234,8 +270,8 @@ export default {
             albumName: song.al?.name || '',
             albumId: song.al?.id || 0,
             img: song.al?.picUrl || '',
-            types: [],
-            _types: {},
+            al: song.al,
+            fee: song.fee || 0,
           }))
         }
       } catch (e) {
@@ -252,8 +288,25 @@ export default {
 
     const handlePlay = async (index) => {
       playingIndex.value = index
-      // 使用 toNewMusicInfo 转换格式，并用 toRaw + markRawList 去除响应式
-      const formattedSongs = markRawList(songs.value.map(s => toNewMusicInfo(toRaw(s))))
+      const formattedSongs = markRawList(songs.value.map(s => toNewMusicInfo(toRaw({
+        ...s,
+        songmid: String(s.id),
+        name: s.name,
+        singer: s.singer,
+        source: 'wy',
+        interval: s.interval,
+        albumName: s.albumName,
+        albumId: s.albumId,
+        img: s.img,
+        types: s.types || [],
+        _types: s._types || {},
+        meta: {
+          songId: String(s.id),
+          albumName: s.albumName || '',
+          picUrl: s.img || '',
+          albumId: s.albumId || '',
+        },
+      }))))
       await setTempList('wy_cloud_' + activeTab.value, formattedSongs)
       void playList(LIST_IDS.TEMP, index)
     }
@@ -264,7 +317,7 @@ export default {
     }
 
     const formatDuration = (ms) => {
-      if (!ms) return ''
+      if (!ms) return '--:--'
       const seconds = Math.floor(ms / 1000)
       const min = Math.floor(seconds / 60)
       const sec = seconds % 60
@@ -398,14 +451,26 @@ export default {
 
 .songList {
   flex: 1;
-  padding: 0;
+  display: flex;
+  flex-direction: column;
+  font-size: 14px;
+  overflow: hidden;
+  height: 100%;
+}
+
+.listContent {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .songItem {
   display: flex;
   align-items: center;
-  padding: 8px 15px;
+  padding: 8px 0;
   cursor: pointer;
+  border-radius: 4px;
+  transition: background-color 0.2s;
 
   &:hover {
     background: var(--color-primary-background-hover);
@@ -417,58 +482,95 @@ export default {
 }
 
 .index {
-  width: 30px;
+  width: 5%;
   text-align: center;
   color: var(--color-font-label);
   font-size: 13px;
   flex: none;
 }
 
-.info {
-  flex: 1;
-  min-width: 0;
+.pic {
+  flex: none;
+  width: 40px;
+  height: 40px;
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  justify-content: center;
+  margin: 0 10px;
+}
+
+.picImg {
+  width: 36px;
+  height: 36px;
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+.picPlaceholder {
+  width: 36px;
+  height: 36px;
+  border-radius: 4px;
+  background: var(--color-song-item-background);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-font-label);
 }
 
 .name {
-  font-size: 14px;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.songName {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 
 .singer {
-  font-size: 12px;
-  color: var(--color-font-label);
+  flex: 0 0 24%;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+  color: var(--color-font-label);
 }
 
-.actions {
+.album {
+  flex: 0 0 27%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--color-font-label);
+}
+
+.time {
+  flex: 0 0 10%;
+  text-align: center;
+  color: var(--color-font-label);
+}
+
+// 表头样式
+.thead {
   flex: none;
-  width: 60px;
-  display: flex;
-  justify-content: center;
-  opacity: 0;
-  transition: opacity 0.2s;
+  padding: 0 0 8px 0;
+  border-bottom: 1px solid var(--color-border);
 
-  .songItem:hover & {
-    opacity: 1;
+  table {
+    width: 100%;
+    border-collapse: collapse;
   }
-}
 
-.playBtn {
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  color: var(--color-button-font);
-  padding: 4px;
-
-  &:hover {
-    color: var(--color-primary);
+  th {
+    font-weight: normal;
+    font-size: 13px;
+    color: var(--color-font-label);
+    text-align: left;
+    padding: 4px 0;
+    user-select: none;
   }
 }
 </style>
