@@ -190,23 +190,6 @@ export default {
       return info.meta.songId
     })
 
-    // 验证 Cookie 是否有效
-    const validateCookie = async () => {
-      const cookie = appSetting['common.wy_cookie']
-      if (!cookie) {
-        cookieValid.value = false
-        return false
-      }
-      try {
-        const result = await wyUtil.verifyCookie(cookie)
-        cookieValid.value = result.valid
-        return result.valid
-      } catch {
-        cookieValid.value = false
-        return false
-      }
-    }
-
     const switchTab = (tabId) => {
       activeTab.value = tabId
       songs.value = []
@@ -225,16 +208,6 @@ export default {
       if (!cookie) {
         void dialog.confirm({
           message: t('setting__wy_login_not_logged_in'),
-          confirmButtonText: t('ok'),
-        })
-        return
-      }
-
-      // 先验证 Cookie 是否有效
-      const isValid = await validateCookie()
-      if (!isValid) {
-        void dialog.confirm({
-          message: t('setting__wy_login_invalid_cookie'),
           confirmButtonText: t('ok'),
         })
         return

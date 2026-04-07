@@ -4,7 +4,7 @@
  */
 
 // @ts-ignore
-import { httpFetch } from '../../request'
+import {httpFetch} from '../../request'
 
 const API_BASE_URL = 'https://music.zxbdwy.online'
 
@@ -26,16 +26,16 @@ const sendCaptcha = async (phone: string): Promise<{ success: boolean; message: 
       body: `phone=${encodeURIComponent(phone)}`,
     })
 
-    const { body, statusCode } = await response.promise
+    const {body, statusCode} = await response.promise
 
     if (statusCode === 200 && body.code === 200) {
-      return { success: true, message: '验证码已发送' }
+      return {success: true, message: '验证码已发送'}
     }
 
-    return { success: false, message: body.message || '发送验证码失败' }
+    return {success: false, message: body.message || '发送验证码失败'}
   } catch (err: any) {
     console.error('Send captcha error:', err)
-    return { success: false, message: err.message || '网络错误' }
+    return {success: false, message: err.message || '网络错误'}
   }
 }
 
@@ -56,22 +56,22 @@ const loginByCaptcha = async (phone: string, captcha: string): Promise<{
       body: `phone=${encodeURIComponent(phone)}&captcha=${encodeURIComponent(captcha)}`,
     })
 
-    const { body, statusCode } = await response.promise
+    const {body, statusCode} = await response.promise
 
     if (statusCode === 200) {
       if (body.code === 200) {
         const cookie = body.cookie || ''
         const uid = body.profile?.userId || body.account?.id || 0
-        return { success: true, cookie, uid, message: '登录成功' }
+        return {success: true, cookie, uid, message: '登录成功'}
       } else if (body.code === 400) {
-        return { success: false, cookie: '', uid: 0, message: body.message || '验证码错误' }
+        return {success: false, cookie: '', uid: 0, message: body.message || '验证码错误'}
       }
     }
 
-    return { success: false, cookie: '', uid: 0, message: body.message || '登录失败' }
+    return {success: false, cookie: '', uid: 0, message: body.message || '登录失败'}
   } catch (err: any) {
     console.error('Login by captcha error:', err)
-    return { success: false, cookie: '', uid: 0, message: err.message || '网络错误' }
+    return {success: false, cookie: '', uid: 0, message: err.message || '网络错误'}
   }
 }
 
@@ -88,17 +88,16 @@ const scrobble = async (
       url += `&sourceid=${sourceId}`
     }
 
-    const response: any = httpFetch(url, {
+    const response: any = httpFetch(`${url}?cookie=${encodeURIComponent(cookie)}`, {
       method: 'POST',
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        cookie,
       },
     })
 
-    const { body, statusCode } = await response.promise
+    const {body, statusCode} = await response.promise
 
-    console.log('[Scrobble API] Response:', { statusCode, body })
+    console.log('[Scrobble API] Response:', {statusCode, body})
     return statusCode === 200 && body.code === 200
   } catch (err: any) {
     console.error('Scrobble error:', err)
@@ -116,7 +115,7 @@ const getSimiSongs = async (songId: string | number): Promise<any[]> => {
       },
     })
 
-    const { body, statusCode } = await response.promise
+    const {body, statusCode} = await response.promise
 
     if (statusCode !== 200) {
       throw new Error(`HTTP ${statusCode}: 获取相似歌曲失败`)
@@ -131,7 +130,7 @@ const getSimiSongs = async (songId: string | number): Promise<any[]> => {
     const getAlbum = (song: any) => {
       if (song.al) return song.al
       if (song.album) return song.album
-      return { id: 0, name: '', picUrl: '' }
+      return {id: 0, name: '', picUrl: ''}
     }
     return (body.songs || []).map((song: any) => ({
       id: song.id,
@@ -150,15 +149,14 @@ const getSimiSongs = async (songId: string | number): Promise<any[]> => {
 // 获取每日推荐歌曲
 const getDailySongs = async (cookie: string): Promise<any[]> => {
   try {
-    const response: any = httpFetch(`${API_BASE_URL}/recommend/songs`, {
+    const response: any = httpFetch(`${API_BASE_URL}/recommend/songs?cookie=${encodeURIComponent(cookie)}`, {
       method: 'POST',
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        cookie,
       },
     })
 
-    const { body, statusCode } = await response.promise
+    const {body, statusCode} = await response.promise
 
     if (statusCode !== 200) {
       throw new Error(`HTTP ${statusCode}: 获取每日推荐失败`)
@@ -173,7 +171,7 @@ const getDailySongs = async (cookie: string): Promise<any[]> => {
     const getAlbum = (song: any) => {
       if (song.al) return song.al
       if (song.album) return song.album
-      return { id: 0, name: '', picUrl: '' }
+      return {id: 0, name: '', picUrl: ''}
     }
     return (body.data.dailySongs || []).map((song: any) => ({
       id: song.id,
@@ -189,6 +187,122 @@ const getDailySongs = async (cookie: string): Promise<any[]> => {
   }
 }
 
+// 验证 Cookie 是否有效
+const verifyCookie = async (cookie: string): Promise<{ valid: boolean; message?: string }> => {
+  try {
+    const response: any = httpFetch(`${API_BASE_URL}/login/status?cookie=${encodeURIComponent(cookie)}`, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      },
+    })
+    const {body, statusCode} = await response.promise
+    if (statusCode === 200 && body.data?.code === 0) {
+      return {valid: true}
+    }
+    return {valid: false, message: body.message || 'Cookie无效'}
+  } catch (err: any) {
+    console.error('Verify cookie error:', err)
+    return {valid: false, message: err.message || '验证失败'}
+  }
+}
+
+// 获取用户uid
+const getUid = async (cookie: string): Promise<number> => {
+  try {
+    console.log('[getUid] 请求参数:', {url: `${API_BASE_URL}/login/status?cookie=${cookie}`})
+    const response: any = httpFetch(`${API_BASE_URL}/login/status?cookie=${encodeURIComponent(cookie)}`, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      },
+    })
+    const {body, statusCode} = await response.promise
+    console.log('[getUid] 响应:', {statusCode, body})
+    if (statusCode === 200) {
+      // data.code == 0 表示登录有效，!= 0 表示登录失效
+      if (body.data?.account.status !== 0) {
+        console.warn('[getUid] 登录已失效:', body.data?.code)
+        return 0
+      }
+      return body.data.account?.id || body.data.profile?.userId || 0
+    }
+    return 0
+  } catch (err: any) {
+    console.error('Get uid error:', err)
+    return 0
+  }
+}
+
+// 喜欢/取消喜欢歌曲
+const likeSong = async (
+  songId: string | number,
+  uid: string | number,
+  like: boolean,
+  cookie: string
+): Promise<{ success: boolean; message: string }> => {
+  try {
+    const t = Date.now()
+    console.log('[likeSong] 请求参数:', {
+      songId,
+      uid,
+      like,
+      url: `${API_BASE_URL}/song/like?id=${songId}&uid=${uid}&like=${like}&cookie=${cookie}&t=${t}`
+    })
+    const response: any = httpFetch(
+      `${API_BASE_URL}/song/like?id=${songId}&uid=${uid}&like=${like}&cookie=${encodeURIComponent(cookie)}&t=${t}`,
+      {
+        method: 'GET',
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Cache-Control': 'no-cache',
+        },
+      }
+    )
+    const {body, statusCode} = await response.promise
+    console.log('[likeSong] 响应:', {statusCode, body})
+    if (statusCode === 200 && body.code === 200) {
+      return {success: true, message: 'success'}
+    }
+    return {success: false, message: body.message || '操作失败'}
+  } catch (err: any) {
+    console.error('Like song error:', err)
+    return {success: false, message: err.message || '网络错误'}
+  }
+}
+
+// 检查歌曲是否已喜爱（不使用缓存）
+const checkIsLiked = async (
+  ids: (string | number)[],
+  cookie: string
+): Promise<{ success: boolean; likedIds: Set<string | number>; message: string }> => {
+  try {
+    const idsStr = JSON.stringify(ids)  // [123] -> "[123]"
+    const t = Date.now()
+    console.log('[checkIsLiked] 请求参数:', {
+      ids,
+      idsStr,
+      url: `${API_BASE_URL}/song/like/check?ids=${idsStr}&cookie=${cookie}&t=${t}`
+    })
+    const response: any = httpFetch(`${API_BASE_URL}/song/like/check?ids=${idsStr}&cookie=${encodeURIComponent(cookie)}&t=${t}`, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Cache-Control': 'no-cache',
+      },
+    })
+    const {body, statusCode} = await response.promise
+    console.log('[checkIsLiked] 响应:', {statusCode, body})
+    if (statusCode === 200 && body.code === 200) {
+      return {success: true, likedIds: new Set(body.ids || []), message: 'success'}
+    }
+    return {success: false, likedIds: new Set(), message: body.message || '查询失败'}
+  } catch (err: any) {
+    console.error('Check is liked error:', err)
+    return {success: false, likedIds: new Set(), message: err.message || '网络错误'}
+  }
+}
+
 export default {
   API_BASE_URL,
   getCsrfToken,
@@ -197,4 +311,8 @@ export default {
   scrobble,
   getDailySongs,
   getSimiSongs,
+  getUid,
+  verifyCookie,
+  likeSong,
+  checkIsLiked,
 }

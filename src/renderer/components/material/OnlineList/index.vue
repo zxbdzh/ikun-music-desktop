@@ -353,7 +353,7 @@ export default {
 
     const { handleSearch, handleOpenMusicDetail, handleCopyMusicLink, handleDislikeMusic } = useMusicActions({ props })
 
-    const { handleToggleLike, handleToggleLikeMultiple, handleToggleUnlikeMultiple } = useLikeMusic({ list: props.list })
+    const { isChecking, isLiked, handleToggleLike, handleToggleLikeMultiple, handleToggleUnlikeMultiple } = useLikeMusic({ list: props.list })
 
     const { menus, menuLocation, isShowItemMenu, showMenu, menuClick } = useMenu({
       props,
@@ -372,6 +372,7 @@ export default {
       handleToggleLike,
       handleToggleLikeMultiple,
       handleToggleUnlikeMultiple,
+      isLiked,
     })
 
     const handleListItemClick = (event, index) => {
