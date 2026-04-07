@@ -1,4 +1,4 @@
-import { computed, ref, shallowReactive, reactive, nextTick } from '@common/utils/vueTools'
+import { ref, shallowReactive, reactive, nextTick } from '@common/utils/vueTools'
 import musicSdk from '@renderer/utils/musicSdk'
 import { useI18n } from '@renderer/plugins/i18n'
 import { hasDislike } from '@renderer/core/dislikeList'
@@ -26,7 +26,6 @@ export default ({
   handleToggleLike,
   handleToggleLikeMultiple,
   handleToggleUnlikeMultiple,
-  likeList,
   isLiked,
 }) => {
   const itemMenuControl = reactive({
@@ -50,12 +49,12 @@ export default ({
   const menuLocation = shallowReactive({ x: 0, y: 0 })
   const isShowItemMenu = ref(false)
   const currentMusicInfo = ref(null)
+  const currentLikeStatus = ref(false)
+  const menuList = ref([])
 
-  const menus = computed(() => {
-    const isWySource = currentMusicInfo.value?.source === 'wy'
-    const hasWyCookie = !!appSetting['common.wy_cookie']
-
-    const menuList = [
+  // 构建基础菜单
+  const buildBaseMenu = () => {
+    return [
       {
         name: t('list__play'),
         action: 'play',
@@ -117,12 +116,21 @@ export default ({
         disabled: !itemMenuControl.search,
       },
     ]
+  }
+
+  // 构建完整菜单（异步检查喜欢状态）
+  const buildMenu = async () => {
+    const isWySource = currentMusicInfo.value?.source === 'wy'
+    const hasWyCookie = !!appSetting['common.wy_cookie']
+
+    const list = buildBaseMenu()
 
     // 只有网易云歌曲显示喜欢/不喜欢按钮
     if (isWySource && hasWyCookie && currentMusicInfo.value) {
       const songId = currentMusicInfo.value.meta?.songId
-      const liked = songId ? isLiked(songId) : false
-      menuList.push({
+      const liked = songId ? await isLiked(songId) : false
+      currentLikeStatus.value = liked
+      list.push({
         name: liked ? t('list__dislike') : t('list__like'),
         action: 'like',
         disabled: !itemMenuControl.like,
@@ -133,18 +141,27 @@ export default ({
     if (selectedList.value.length > 1) {
       const wySongs = selectedList.value.filter(s => s.source === 'wy' && s.meta?.songId)
       if (wySongs.length > 0 && hasWyCookie) {
-        const wySongsNotLiked = wySongs.filter(s => !isLiked(s.meta.songId))
-        const wySongsLiked = wySongs.filter(s => isLiked(s.meta.songId))
-        if (wySongsNotLiked.length > 0) {
-          menuList.push({
-            name: t('list__like_multiple', { num: wySongsNotLiked.length }),
+        // 异步检查每个歌曲的喜欢状态
+        const notLiked = []
+        const liked = []
+        for (const song of wySongs) {
+          const isSongLiked = await isLiked(song.meta.songId)
+          if (isSongLiked) {
+            liked.push(song)
+          } else {
+            notLiked.push(song)
+          }
+        }
+        if (notLiked.length > 0) {
+          list.push({
+            name: t('list__like_multiple', { num: notLiked.length }),
             action: 'likeMultiple',
             disabled: false,
           })
         }
-        if (wySongsLiked.length > 0) {
-          menuList.push({
-            name: t('list__dislike_multiple', { num: wySongsLiked.length }),
+        if (liked.length > 0) {
+          list.push({
+            name: t('list__dislike_multiple', { num: liked.length }),
             action: 'unlikeMultiple',
             disabled: false,
           })
@@ -152,16 +169,16 @@ export default ({
       }
     }
 
-    menuList.push({
+    list.push({
       name: t('list__remove'),
       action: 'remove',
       disabled: !itemMenuControl.remove,
     })
 
-    return menuList
-  })
+    return list
+  }
 
-  const showMenu = (event, musicInfo) => {
+  const showMenu = async (event, musicInfo) => {
     currentMusicInfo.value = musicInfo
     itemMenuControl.sourceDetail = !!musicSdk[musicInfo.source]?.getMusicDetailPageUrl
     itemMenuControl.copyLink = !!musicSdk[musicInfo.source]?.getMusicDetailPageUrl
@@ -175,6 +192,10 @@ export default ({
     if (isShowItemMenu.value) return
 
     emit('show-menu')
+
+    // 异步构建菜单
+    menuList.value = await buildMenu()
+
     nextTick(() => {
       isShowItemMenu.value = true
     })
@@ -244,7 +265,7 @@ export default ({
   }
 
   return {
-    menus,
+    menus: menuList,
     menuLocation,
     isShowItemMenu,
     showMenu,

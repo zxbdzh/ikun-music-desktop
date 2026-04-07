@@ -414,7 +414,7 @@ export default {
       handleRemoveMusic,
     } = useMusicActions({ props, list, removeAllSelect, selectedList })
 
-    const { handleToggleLike, handleToggleLikeMultiple, handleToggleUnlikeMultiple } = useLikeMusic({ list })
+    const { isChecking, isLiked, handleToggleLike, handleToggleLikeMultiple, handleToggleUnlikeMultiple } = useLikeMusic({ list })
 
     const { menus, menuLocation, isShowItemMenu, showMenu, menuClick } = useMenu({
       assertApiSupport,
@@ -438,6 +438,7 @@ export default {
       handleToggleLike,
       handleToggleLikeMultiple,
       handleToggleUnlikeMultiple,
+      isLiked,
     })
 
     const { isShowSearchBar, searchList, handleMusicSearchAction } = useSearch({

@@ -29,10 +29,6 @@ import album from './album'
 import singer from './singer'
 // @ts-ignore
 import mv from './mv'
-// @ts-ignore
-import dailyRec from './dailyRec'
-// @ts-ignore
-import scrobble from './scrobble'
 
 const wy = {
   // 现有模块
@@ -47,8 +43,6 @@ const wy = {
   album,
   singer,
   mv,
-  dailyRec,
-  scrobble,
 
   // 核心方法
   getMusicUrl(songInfo: any, type?: any) {

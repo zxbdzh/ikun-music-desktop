@@ -1,52 +1,68 @@
 import { ref } from '@common/utils/vueTools'
 import { appSetting } from '@renderer/store/setting'
-import wyUser from '@renderer/utils/musicSdk/wy/user'
+import wyUtil from '@renderer/utils/musicSdk/wy/wyUtil'
 import { dialog } from '@renderer/plugins/Dialog'
 import { useI18n } from '@renderer/plugins/i18n'
 
 export default ({ list }) => {
   const t = useI18n()
 
-  // 缓存用户喜欢的歌曲ID列表
-  const likeList = ref(new Set())
-  const isLikeListFetching = ref(false)
+  // 当前用户的 uid
+  const userUid = ref(0)
+  const isChecking = ref(false)
 
-  // 获取喜欢列表并存入缓存
-  const fetchLikeList = async () => {
+  // 获取用户 uid
+  const fetchUid = async () => {
     const cookie = appSetting['common.wy_cookie']
-    if (!cookie || isLikeListFetching.value) return
-
-    isLikeListFetching.value = true
-    try {
-      const uid = await wyUser.getUid(cookie)
-      if (uid > 0) {
-        const ids = await wyUser.getLikeList(uid, cookie)
-        // 确保所有 ID 都是数字类型
-        likeList.value = new Set(ids.map(id => Number(id)))
-      }
-    } catch (err) {
-      console.error('Failed to fetch like list:', err)
-    } finally {
-      isLikeListFetching.value = false
-    }
+    if (!cookie || userUid.value) return
+    userUid.value = await wyUtil.getUid(cookie)
   }
 
-  // 判断歌曲是否已喜欢
-  const isLiked = (songId) => {
-    if (!songId) return false
-    return likeList.value.has(Number(songId))
-  }
-
-  // 切换喜欢状态
-  const handleToggleLike = async (index) => {
+  // 确保已登录并获取 uid，返回 cookie
+  const requireLogin = async () => {
     const cookie = appSetting['common.wy_cookie']
     if (!cookie) {
       void dialog({
         message: t('setting__wy_login_not_logged_in'),
         confirmButtonText: t('ok'),
       })
-      return
+      return null
     }
+    if (!userUid.value) {
+      await fetchUid()
+    }
+    if (!userUid.value) {
+      void dialog({
+        message: t('setting__wy_login_expired') || '登录已失效，请重新登录',
+        confirmButtonText: t('ok'),
+      })
+      return null
+    }
+    return cookie
+  }
+
+  // 判断歌曲是否已喜欢（直接调用 API，不使用缓存）
+  const isLiked = async (songId) => {
+    if (!songId) return false
+    const cookie = appSetting['common.wy_cookie']
+    if (!cookie) return false
+
+    isChecking.value = true
+    try {
+      const result = await wyUtil.checkIsLiked([songId], cookie)
+      return result.likedIds.has(Number(songId))
+    } catch (err) {
+      console.error('Check is liked error:', err)
+      return false
+    } finally {
+      isChecking.value = false
+    }
+  }
+
+  // 切换喜欢状态
+  const handleToggleLike = async (index) => {
+    const cookie = await requireLogin()
+    if (!cookie) return
 
     const musicInfo = list[index]
     if (!musicInfo) {
@@ -60,19 +76,23 @@ export default ({ list }) => {
       return
     }
 
-    const liked = isLiked(songId)
+    const liked = await isLiked(songId)
 
     try {
       // liked=true表示已喜欢，需要取消；liked=false表示未喜欢，需要添加
-      await wyUser.likeSong(songId, !liked, cookie)
+      const result = await wyUtil.likeSong(songId, userUid.value, !liked, cookie)
 
-      // 操作成功后重新获取列表更新缓存
-      await fetchLikeList()
-
-      void dialog({
-        message: liked ? t('wy_unlike_success') : t('wy_like_success'),
-        confirmButtonText: t('ok'),
-      })
+      if (result.success) {
+        void dialog({
+          message: liked ? t('wy_unlike_success') : t('wy_like_success'),
+          confirmButtonText: t('ok'),
+        })
+      } else {
+        void dialog({
+          message: t('wy_like_failed'),
+          confirmButtonText: t('ok'),
+        })
+      }
     } catch (err) {
       console.error('Toggle like failed:', err)
       void dialog({
@@ -84,18 +104,12 @@ export default ({ list }) => {
 
   // 批量切换喜欢状态
   const handleToggleLikeMultiple = async (selectedList) => {
-    const cookie = appSetting['common.wy_cookie']
-    if (!cookie) {
-      void dialog({
-        message: t('setting__wy_login_not_logged_in'),
-        confirmButtonText: t('ok'),
-      })
-      return
-    }
+    const cookie = await requireLogin()
+    if (!cookie) return
 
-    // 筛选出可喜欢的网易云歌曲（未喜欢的）
+    // 筛选出可喜欢的网易云歌曲
     const wySongsToLike = selectedList
-      .filter(s => s.source === 'wy' && s.meta?.songId && !isLiked(s.meta.songId))
+      .filter(s => s.source === 'wy' && s.meta?.songId)
       .map(s => ({ songId: s.meta.songId, name: s.name }))
 
     if (wySongsToLike.length === 0) {
@@ -118,15 +132,12 @@ export default ({ list }) => {
     let successCount = 0
     for (const song of wySongsToLike) {
       try {
-        await wyUser.likeSong(song.songId, true, cookie)
-        successCount++
+        const result = await wyUtil.likeSong(song.songId, userUid.value, true, cookie)
+        if (result.success) successCount++
       } catch (err) {
         console.error(`Failed to like song ${song.songId}:`, err)
       }
     }
-
-    // 刷新喜欢列表缓存
-    await fetchLikeList()
 
     void dialog({
       message: t('wy_like_multiple_success', { count: successCount, total: wySongsToLike.length }),
@@ -136,18 +147,12 @@ export default ({ list }) => {
 
   // 批量取消喜欢
   const handleToggleUnlikeMultiple = async (selectedList) => {
-    const cookie = appSetting['common.wy_cookie']
-    if (!cookie) {
-      void dialog({
-        message: t('setting__wy_login_not_logged_in'),
-        confirmButtonText: t('ok'),
-      })
-      return
-    }
+    const cookie = await requireLogin()
+    if (!cookie) return
 
     // 筛选出已喜欢的网易云歌曲
     const wySongsToUnlike = selectedList
-      .filter(s => s.source === 'wy' && s.meta?.songId && isLiked(s.meta.songId))
+      .filter(s => s.source === 'wy' && s.meta?.songId)
       .map(s => ({ songId: s.meta.songId, name: s.name }))
 
     if (wySongsToUnlike.length === 0) {
@@ -170,15 +175,12 @@ export default ({ list }) => {
     let successCount = 0
     for (const song of wySongsToUnlike) {
       try {
-        await wyUser.likeSong(song.songId, false, cookie)
-        successCount++
+        const result = await wyUtil.likeSong(song.songId, userUid.value, false, cookie)
+        if (result.success) successCount++
       } catch (err) {
         console.error(`Failed to unlike song ${song.songId}:`, err)
       }
     }
-
-    // 刷新喜欢列表缓存
-    await fetchLikeList()
 
     void dialog({
       message: t('wy_unlike_multiple_success', { count: successCount, total: wySongsToUnlike.length }),
@@ -186,9 +188,11 @@ export default ({ list }) => {
     })
   }
 
+  // 初始化获取 uid
+  void fetchUid()
+
   return {
-    likeList,
-    fetchLikeList,
+    isChecking,
     isLiked,
     handleToggleLike,
     handleToggleLikeMultiple,

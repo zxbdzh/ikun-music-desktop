@@ -203,26 +203,15 @@ export default {
 
       isLoading.value = true
       try {
-        const wyUtilImport = await import('@renderer/utils/musicSdk/wy/wyUtil')
-        const result = await wyUtilImport.default.verifyCookie(cookie)
-
-        if (result.valid) {
-          updateSetting({ 'common.wy_cookie': cookie })
-          void dialog({
-            message: result.uid > 0
-              ? t('setting__wy_login_success')
-              : t('setting__wy_login_success_no_uid'),
-            confirmButtonText: t('ok'),
-          })
-          closeModal()
-        } else {
-          void dialog({
-            message: t('setting__wy_login_invalid_cookie'),
-            confirmButtonText: t('ok'),
-          })
-        }
+        // 直接保存 Cookie，不在校验，真实请求时会自动校验
+        updateSetting({ 'common.wy_cookie': cookie })
+        void dialog({
+          message: t('setting__wy_login_success'),
+          confirmButtonText: t('ok'),
+        })
+        closeModal()
       } catch (err) {
-        console.error('Cookie verification error:', err)
+        console.error('Save cookie error:', err)
         void dialog({
           message: t('setting__wy_login_failed'),
           confirmButtonText: t('ok'),
