@@ -19,7 +19,8 @@
         :disabled="item.disabled ? true : null"
         @click="menuClick(item)"
       >
-        {{ item[itemName] }}
+        <span v-if="item.loading" :class="$style.loading">...</span>
+        <span v-else>{{ item[itemName] }}</span>
       </li>
     </ul>
   </teleport>
@@ -130,5 +131,14 @@ export default {
       background: none !important;
     }
   }
+}
+.loading {
+  opacity: 0.6;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
 }
 </style>
