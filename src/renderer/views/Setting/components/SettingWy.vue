@@ -130,7 +130,7 @@ export default {
       const phone = phoneNumber.value.trim()
       if (!phone || phone.length !== 11) return
 
-      const wyUser = await import('@renderer/utils/musicSdk/wy/user')
+      const wyUser = await import('@renderer/utils/musicSdk/wy/wyUtil')
       const result = await wyUser.default.sendCaptcha(phone)
 
       if (result.success) {
@@ -163,7 +163,7 @@ export default {
 
       isLoading.value = true
       try {
-        const wyUser = await import('@renderer/utils/musicSdk/wy/user')
+        const wyUser = await import('@renderer/utils/musicSdk/wy/wyUtil')
         const result = await wyUser.default.loginByCaptcha(phone, captcha)
 
         if (result.success) {

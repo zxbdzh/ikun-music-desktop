@@ -1,7 +1,7 @@
 import { onBeforeUnmount } from '@common/utils/vueTools'
 import { playMusicInfo } from '@renderer/store/player/state'
 import { appSetting } from '@renderer/store/setting'
-import wyScrobble from '@renderer/utils/musicSdk/wy/scrobble'
+import wyUtil from '@renderer/utils/musicSdk/wy/wyUtil'
 import musicSdk from '@renderer/utils/musicSdk'
 
 export default () => {
@@ -45,7 +45,7 @@ export default () => {
       try {
         // 播放时长使用歌曲的 interval（秒）
         const duration = interval ? parseIntervalToSeconds(interval) : 300 // 默认5分钟
-        await wyScrobble.scrobble(wySongId, '', duration, cookie)
+        await wyUtil.scrobble(wySongId, undefined, duration, cookie)
         console.log(`[Scrobble] Reported wy song: ${songName}, id:${wySongId}, duration: ${duration}s`)
       } catch (e) {
         console.error('[Scrobble] Failed to report wy song:', e)
@@ -73,7 +73,7 @@ export default () => {
           lastScrobbledSongId = matchedSong.songmid
 
           const duration = interval ? parseIntervalToSeconds(interval) : 300
-          await wyScrobble.scrobble(matchedSong.songmid, '', duration, cookie)
+          await wyUtil.scrobble(matchedSong.songmid, undefined, duration, cookie)
           console.log(`[Scrobble] Matched and reported: ${songName} -> wy:${matchedSong.songmid}`)
         }
       } else {
