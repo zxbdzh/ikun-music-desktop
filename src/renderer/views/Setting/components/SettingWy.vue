@@ -6,12 +6,58 @@ dd
     .p.gap-top
       span {{ $t('setting__wy_login_status') }}:
       span(:class="$style.status") {{ loginStatus }}
-    .p.gap-top(v-if="appSetting['common.wy_cookie']")
-      base-btn(min @click="handleLogout") {{ $t('setting__wy_login_logout') }}
-    .p.gap-top(v-else)
-      base-btn(min @click="showManualInput") {{ $t('setting__wy_login_manual') }}
+    .p.gap-top(v-if="!appSetting['common.wy_cookie']")
+      //- 登录方式切换
+      div(:class="$style.tabContainer")
+        button(
+          :class="[$style.tabBtn, { [$style.active]: loginMethod === 'captcha' }]"
+          @click="loginMethod = 'captcha'"
+        ) {{ $t('setting__wy_login_method_captcha') }}
+        button(
+          :class="[$style.tabBtn, { [$style.active]: loginMethod === 'cookie' }]"
+          @click="loginMethod = 'cookie'"
+        ) {{ $t('setting__wy_login_method_cookie') }}
+
+      //- 验证码登录表单
+      div(v-if="loginMethod === 'captcha'" :class="$style.formContainer")
+        div(:class="$style.inputGroup")
+          base-input(
+            v-model="phoneNumber"
+            :placeholder="$t('setting__wy_login_phone_placeholder')"
+            type="tel"
+            maxlength="11"
+            :class="$style.input"
+          )
+          base-btn(
+            min
+            :disabled="!canSendCaptcha"
+            @click="handleSendCaptcha"
+          )
+            span(v-if="captchaCooldown > 0") {{ $t('setting__wy_login_send_captcha_retry', { seconds: captchaCooldown }) }}
+            span(v-else) {{ $t('setting__wy_login_send_captcha') }}
+        div(:class="$style.inputGroup")
+          base-input(
+            v-model="captchaCode"
+            :placeholder="$t('setting__wy_login_captcha_placeholder')"
+            type="tel"
+            maxlength="6"
+            :class="$style.input"
+          )
+        div(:class="$style.inputGroup")
+          base-btn(
+            min
+            :disabled="isLoading || !isCaptchaValid"
+            @click="handleCaptchaLogin"
+          ) {{ $t('setting__wy_login_btn') }}
+
+      //- Cookie 登录按钮
+      div(v-if="loginMethod === 'cookie'")
+        base-btn(min @click="showManualInput") {{ $t('setting__wy_login_manual') }}
+
     .p.gap-top
       span(:class="$style.tip") {{ $t('setting__wy_login_tip') }}
+    .p.gap-top(v-if="appSetting['common.wy_cookie']")
+      base-btn(min @click="handleLogout") {{ $t('setting__wy_login_logout') }}
     .p.gap-top(v-if="appSetting['common.wy_cookie']")
       base-checkbox(id="setting_wy_enable_scrobble" :model-value="appSetting['common.wy_enableScrobble']" :label="$t('setting__wy_enable_scrobble')" @update:model-value="handleToggleScrobble")
     .p(v-if="appSetting['common.wy_cookie'] && appSetting['common.wy_enableScrobble']")
@@ -45,6 +91,25 @@ export default {
     const isLoading = ref(false)
     const isShowInputModal = ref(false)
     const cookieInput = ref('')
+    const loginMethod = ref('captcha')
+
+    // 验证码登录
+    const phoneNumber = ref('')
+    const captchaCode = ref('')
+    const captchaCooldown = ref(0)
+    let captchaTimer = null
+
+    const isCaptchaValid = computed(() => {
+      return captchaCode.value && captchaCode.value.length >= 4
+    })
+
+    const isPhoneValid = computed(() => {
+      return phoneNumber.value && phoneNumber.value.length === 11
+    })
+
+    const canSendCaptcha = computed(() => {
+      return captchaCooldown.value === 0 && isPhoneValid.value
+    })
 
     const loginStatus = computed(() => {
       return appSetting['common.wy_cookie']
@@ -61,17 +126,86 @@ export default {
       cookieInput.value = ''
     }
 
+    const handleSendCaptcha = async () => {
+      const phone = phoneNumber.value.trim()
+      if (!phone || phone.length !== 11) return
+
+      const wyUser = await import('@renderer/utils/musicSdk/wy/user')
+      const result = await wyUser.default.sendCaptcha(phone)
+
+      if (result.success) {
+        void dialog({
+          message: '验证码已发送',
+          confirmButtonText: t('ok'),
+        })
+        // 开始倒计时
+        captchaCooldown.value = 60
+        if (captchaTimer) clearInterval(captchaTimer)
+        captchaTimer = setInterval(() => {
+          captchaCooldown.value--
+          if (captchaCooldown.value <= 0) {
+            if (captchaTimer) clearInterval(captchaTimer)
+            captchaTimer = null
+          }
+        }, 1000)
+      } else {
+        void dialog({
+          message: result.message || t('setting__wy_login_failed'),
+          confirmButtonText: t('ok'),
+        })
+      }
+    }
+
+    const handleCaptchaLogin = async () => {
+      const phone = phoneNumber.value.trim()
+      const captcha = captchaCode.value.trim()
+      if (!phone || !captcha) return
+
+      isLoading.value = true
+      try {
+        const wyUser = await import('@renderer/utils/musicSdk/wy/user')
+        const result = await wyUser.default.loginByCaptcha(phone, captcha)
+
+        if (result.success) {
+          updateSetting({ 'common.wy_cookie': result.cookie })
+          void dialog({
+            message: t('setting__wy_login_success'),
+            confirmButtonText: t('ok'),
+          })
+          // 清空表单
+          phoneNumber.value = ''
+          captchaCode.value = ''
+          if (captchaTimer) {
+            clearInterval(captchaTimer)
+            captchaTimer = null
+          }
+          captchaCooldown.value = 0
+        } else {
+          void dialog({
+            message: result.message || t('setting__wy_login_failed'),
+            confirmButtonText: t('ok'),
+          })
+        }
+      } catch (err) {
+        console.error('Captcha login error:', err)
+        void dialog({
+          message: t('setting__wy_login_failed'),
+          confirmButtonText: t('ok'),
+        })
+      } finally {
+        isLoading.value = false
+      }
+    }
+
     const handleSaveCookie = async () => {
       const cookie = cookieInput.value.trim()
       if (!cookie) return
 
       isLoading.value = true
       try {
-        // 验证 Cookie
         const wyUser = await import('@renderer/utils/musicSdk/wy/user')
         const result = await wyUser.default.verifyCookie(cookie)
 
-        // 保存 Cookie（即使无法获取 UID，只要 Cookie 格式正确就保存）
         if (result.valid) {
           updateSetting({ 'common.wy_cookie': cookie })
           void dialog({
@@ -113,10 +247,20 @@ export default {
     return {
       appSetting,
       loginStatus,
+      loginMethod,
+      phoneNumber,
+      captchaCode,
+      captchaCooldown,
+      isCaptchaValid,
+      isPhoneValid,
+      canSendCaptcha,
+      isLoading,
       isShowInputModal,
       cookieInput,
       showManualInput,
       closeModal,
+      handleSendCaptcha,
+      handleCaptchaLogin,
       handleSaveCookie,
       handleLogout,
       handleToggleScrobble,
@@ -134,6 +278,50 @@ export default {
 .tip {
   font-size: 12px;
   color: var(--color-font-label);
+}
+
+.tabContainer {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.tabBtn {
+  padding: 6px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-secondary-background);
+  color: var(--color-font-label);
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s;
+
+  &:hover {
+    border-color: var(--color-primary);
+    color: var(--color-font);
+  }
+
+  &.active {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: #fff;
+  }
+}
+
+.formContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.inputGroup {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.input {
+  flex: 1;
 }
 
 .modalMain {
