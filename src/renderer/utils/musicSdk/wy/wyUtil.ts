@@ -303,6 +303,32 @@ const checkIsLiked = async (
   }
 }
 
+// 每日签到
+const dailySignin = async (cookie: string, type: number = 1): Promise<{ success: boolean; point?: number; message: string }> => {
+  try {
+    console.log('[dailySignin] 请求参数:', { type, url: `${API_BASE_URL}/daily_signin?type=${type}&cookie=${cookie}` })
+    const response: any = httpFetch(`${API_BASE_URL}/daily_signin?type=${type}&cookie=${encodeURIComponent(cookie)}`, {
+      method: 'POST',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      },
+    })
+    const {body, statusCode} = await response.promise
+    console.log('[dailySignin] 响应:', {statusCode, body})
+    if (statusCode === 200) {
+      if (body.code === 200) {
+        return {success: true, point: body.point, message: '签到成功'}
+      } else if (body.code === -2) {
+        return {success: false, message: '重复签到'}
+      }
+    }
+    return {success: false, message: body.message || '签到失败'}
+  } catch (err: any) {
+    console.error('Daily signin error:', err)
+    return {success: false, message: err.message || '签到失败'}
+  }
+}
+
 export default {
   API_BASE_URL,
   getCsrfToken,
@@ -315,4 +341,5 @@ export default {
   verifyCookie,
   likeSong,
   checkIsLiked,
+  dailySignin,
 }
