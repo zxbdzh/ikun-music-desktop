@@ -98,10 +98,13 @@ export default () => {
   window.app_event.on('playerEnded', handleScrobble)
   window.app_event.on('stop', handleScrobble)
   window.app_event.on('playerEmptied', handleScrobble)
+  // 监听播放开始事件，确保启动时播放的歌曲也能同步
+  window.app_event.on('playerPlaying', handleScrobble)
 
   onBeforeUnmount(() => {
     window.app_event.off('playerEnded', handleScrobble)
     window.app_event.off('stop', handleScrobble)
     window.app_event.off('playerEmptied', handleScrobble)
+    window.app_event.off('playerPlaying', handleScrobble)
   })
 }

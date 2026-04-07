@@ -23,6 +23,20 @@
     >
       <div :class="$style.listItem">
         <div :class="$style.num">{{ item.index + 1 }}</div>
+        <div :class="$style.pic">
+          <img
+            v-if="item.musicInfo.meta.picUrl"
+            loading="lazy"
+            decoding="async"
+            :src="item.musicInfo.meta.picUrl"
+            :class="$style.picImg"
+          />
+          <span v-else :class="$style.picPlaceholder">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="50%" height="50%">
+              <path fill="currentColor" d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+            </svg>
+          </span>
+        </div>
         <div :class="$style.textContent">
           <h3
             :class="$style.text"
@@ -79,6 +93,7 @@
 <script>
 import { ref, watch, computed, markRawList } from '@common/utils/vueTools'
 import { playList } from '@renderer/core/player'
+import { preloadImage } from '@common/utils/imageCache'
 import { getListMusics, removeListMusics } from '@renderer/store/list/action'
 import { isFullscreen } from '@renderer/store'
 import { appSetting } from '@renderer/store/setting'
@@ -148,6 +163,18 @@ export default {
       }
     })
 
+    // 预加载前几张可见歌曲的封面
+    const preloadVisibleCovers = () => {
+      const preloadCount = 30
+      for (let i = 0; i < Math.min(preloadCount, duplicateList.value.length); i++) {
+        const picUrl = duplicateList.value[i]?.musicInfo?.meta?.picUrl
+        if (picUrl) preloadImage(picUrl)
+      }
+    }
+
+    // 初始预加载封面
+    setTimeout(preloadVisibleCovers, 1000)
+
     return {
       listItemHeight,
       duplicateList,
@@ -212,6 +239,32 @@ export default {
   font-size: 12px;
   width: 30px;
   text-align: center;
+  color: var(--color-font-label);
+}
+
+.pic {
+  flex: none;
+  width: 40px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+}
+.picImg {
+  width: 36px;
+  height: 36px;
+  border-radius: 4px;
+  object-fit: cover;
+}
+.picPlaceholder {
+  width: 36px;
+  height: 36px;
+  border-radius: 4px;
+  background: var(--color-song-item-background);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--color-font-label);
 }
 
