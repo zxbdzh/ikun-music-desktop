@@ -7,86 +7,11 @@
 import { httpFetch } from '../../request'
 // @ts-ignore
 import { weapi } from './utils/crypto'
-
-// API Base URL
-const API_BASE_URL = 'https://music.zxbdwy.online'
-
-// CSRF Token提取
-const getCsrfToken = (cookie: string): string => {
-  const match = cookie.match(/_csrf=([^(;|$)]+)/)
-  return match ? match[1] : ''
-}
+// @ts-ignore
+import wyUtil from './wyUtil'
 
 // 用户操作模块
 export default {
-  /**
-   * 发送手机验证码
-   * @param phone 手机号
-   */
-  async sendCaptcha(phone: string): Promise<{ success: boolean; message: string }> {
-    try {
-      const response: any = httpFetch(`${API_BASE_URL}/captcha/sent`, {
-        method: 'POST',
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: `phone=${encodeURIComponent(phone)}`,
-      })
-
-      const { body, statusCode } = await response.promise
-
-      if (statusCode === 200 && body.code === 200) {
-        return { success: true, message: '验证码已发送' }
-      }
-
-      return { success: false, message: body.message || '发送验证码失败' }
-    } catch (err: any) {
-      console.error('Send captcha error:', err)
-      return { success: false, message: err.message || '网络错误' }
-    }
-  },
-
-  /**
-   * 验证码登录
-   * @param phone 手机号
-   * @param captcha 验证码
-   */
-  async loginByCaptcha(phone: string, captcha: string): Promise<{
-    success: boolean
-    cookie: string
-    uid: number
-    message: string
-  }> {
-    try {
-      const response: any = httpFetch(`${API_BASE_URL}/login/cellphone`, {
-        method: 'POST',
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: `phone=${encodeURIComponent(phone)}&captcha=${encodeURIComponent(captcha)}`,
-      })
-
-      const { body, statusCode } = await response.promise
-
-      if (statusCode === 200) {
-        if (body.code === 200) {
-          const cookie = body.cookie || ''
-          const uid = body.profile?.userId || body.account?.id || 0
-          return { success: true, cookie, uid, message: '登录成功' }
-        } else if (body.code === 400) {
-          return { success: false, cookie: '', uid: 0, message: body.message || '验证码错误' }
-        }
-      }
-
-      return { success: false, cookie: '', uid: 0, message: body.message || '登录失败' }
-    } catch (err: any) {
-      console.error('Login by captcha error:', err)
-      return { success: false, cookie: '', uid: 0, message: err.message || '网络错误' }
-    }
-  },
-
   /**
    * 获取用户UID
    * @param cookie 网易云Cookie
@@ -179,7 +104,7 @@ export default {
    * @param cookie 网易云Cookie
    */
   async likeSong(songId: string | number, isLike: boolean, cookie: string): Promise<boolean> {
-    const csrfToken = getCsrfToken(cookie)
+    const csrfToken = wyUtil.getCsrfToken(cookie)
     // 确保 songId 是数字类型
     const trackId = Number(songId)
 
@@ -224,7 +149,7 @@ export default {
    * @param cookie 网易云Cookie
    */
   async getLikeList(uid: number, cookie: string): Promise<number[]> {
-    const csrfToken = getCsrfToken(cookie)
+    const csrfToken = wyUtil.getCsrfToken(cookie)
 
     const response: any = httpFetch('https://music.163.com/weapi/song/like/get', {
       method: 'post',
@@ -256,7 +181,7 @@ export default {
    * @param privacy 隐私设置 0=公开, 10=隐私
    */
   async createPlaylist(name: string, cookie: string, privacy: number = 0): Promise<number> {
-    const csrfToken = getCsrfToken(cookie)
+    const csrfToken = wyUtil.getCsrfToken(cookie)
 
     const response: any = httpFetch('https://music.163.com/weapi/playlist/create', {
       method: 'post',
@@ -288,7 +213,7 @@ export default {
    * @param cookie 网易云Cookie
    */
   async deletePlaylist(id: string | number, cookie: string): Promise<boolean> {
-    const csrfToken = getCsrfToken(cookie)
+    const csrfToken = wyUtil.getCsrfToken(cookie)
 
     const response: any = httpFetch('https://music.163.com/weapi/playlist/remove', {
       method: 'post',
@@ -326,7 +251,7 @@ export default {
     desc: string,
     cookie: string
   ): Promise<boolean> {
-    const csrfToken = getCsrfToken(cookie)
+    const csrfToken = wyUtil.getCsrfToken(cookie)
 
     const response: any = httpFetch('https://music.163.com/weapi/batch', {
       method: 'post',
@@ -359,7 +284,7 @@ export default {
    * @param cookie 网易云Cookie
    */
   async subscribePlaylist(id: string | number, isSubscribe: boolean, cookie: string): Promise<boolean> {
-    const csrfToken = getCsrfToken(cookie)
+    const csrfToken = wyUtil.getCsrfToken(cookie)
     const endpoint = isSubscribe ? '/weapi/playlist/subscribe' : '/weapi/playlist/unsubscribe'
 
     const response: any = httpFetch(`https://music.163.com${endpoint}`, {
@@ -392,7 +317,7 @@ export default {
    * @param cookie 网易云Cookie
    */
   async subscribeArtist(artistId: string | number, isSubscribe: boolean, cookie: string): Promise<boolean> {
-    const csrfToken = getCsrfToken(cookie)
+    const csrfToken = wyUtil.getCsrfToken(cookie)
     const endpoint = isSubscribe ? '/weapi/artist/sub' : '/weapi/artist/unsub'
 
     const response: any = httpFetch(`https://music.163.com${endpoint}`, {
@@ -426,7 +351,7 @@ export default {
    * @param cookie 网易云Cookie
    */
   async subscribeAlbum(id: string | number, isSubscribe: boolean, cookie: string): Promise<boolean> {
-    const csrfToken = getCsrfToken(cookie)
+    const csrfToken = wyUtil.getCsrfToken(cookie)
     const endpoint = isSubscribe ? '/weapi/album/sub' : '/weapi/album/unsub'
 
     const response: any = httpFetch(`https://music.163.com${endpoint}`, {
@@ -465,7 +390,7 @@ export default {
     offset: number = 0,
     cookie: string
   ): Promise<{ albums: any[]; total: number }> {
-    const csrfToken = getCsrfToken(cookie)
+    const csrfToken = wyUtil.getCsrfToken(cookie)
 
     const response: any = httpFetch('https://music.163.com/weapi/album/sublist', {
       method: 'post',
@@ -508,7 +433,7 @@ export default {
     offset: number = 0,
     cookie: string
   ): Promise<{ artists: any[]; total: number }> {
-    const csrfToken = getCsrfToken(cookie)
+    const csrfToken = wyUtil.getCsrfToken(cookie)
 
     const response: any = httpFetch('https://music.163.com/weapi/artist/sublist', {
       method: 'post',
