@@ -41,6 +41,9 @@ export default ({
   const isShowItemMenu = ref(false)
   const currentMusicInfo = ref(null)
   const menuList = ref([])
+  // 保存批量操作的歌曲列表
+  const batchLikeList = ref([])
+  const batchUnlikeList = ref([])
 
   // 构建基础菜单
   const buildBaseMenu = () => {
@@ -87,10 +90,10 @@ export default ({
       },
     ]
 
-    // 如果是网易云歌曲，先添加带 loading 的喜欢按钮
+    // 如果是网易云歌曲且不是多选，先添加带 loading 的喜欢按钮
     const isWySource = currentMusicInfo.value?.source === 'wy'
     const hasWyCookie = !!appSetting['common.wy_cookie']
-    if (isWySource && hasWyCookie) {
+    if (isWySource && hasWyCookie && selectedList.value.length <= 1) {
       list.push({
         name: t('list__like'),
         action: 'like',
@@ -102,50 +105,47 @@ export default ({
     return list
   }
 
-  // 构建完整菜单（异步检查喜欢状态）
-  const buildMenu = async () => {
+  // 更新菜单中的喜欢状态和批量选项
+  const updateMenuLikeStatus = async () => {
     const isWySource = currentMusicInfo.value?.source === 'wy'
     const hasWyCookie = !!appSetting['common.wy_cookie']
 
-    // 找到已存在的喜欢按钮并更新状态
+    // 更新单个歌曲的喜欢按钮
     if (isWySource && hasWyCookie && currentMusicInfo.value) {
       const songId = currentMusicInfo.value.meta?.songId
       const likeItem = menuList.value.find(item => item.action === 'like')
       if (likeItem) {
-        // 异步检查喜欢状态
         const liked = songId ? await isLiked(songId) : false
-        // 更新菜单项
         likeItem.name = liked ? t('list__dislike') : t('list__like')
         likeItem.disabled = !itemMenuControl.like
         likeItem.loading = false
       }
     }
 
-    // 批量喜欢/取消喜欢选项（仅在多选且存在可喜欢的网易云歌曲时显示）
+    // 批量喜欢/取消喜欢选项
     if (selectedList.value.length > 1) {
       const wySongs = selectedList.value.filter(s => s.source === 'wy' && s.meta?.songId)
       if (wySongs.length > 0 && hasWyCookie) {
-        // 异步检查每个歌曲的喜欢状态
-        const notLiked = []
-        const liked = []
+        batchLikeList.value = []
+        batchUnlikeList.value = []
         for (const song of wySongs) {
           const isSongLiked = await isLiked(song.meta.songId)
           if (isSongLiked) {
-            liked.push(song)
+            batchUnlikeList.value.push(song)
           } else {
-            notLiked.push(song)
+            batchLikeList.value.push(song)
           }
         }
-        if (notLiked.length > 0) {
+        if (batchLikeList.value.length > 0) {
           menuList.value.push({
-            name: t('list__like_multiple', { num: notLiked.length }),
+            name: t('list__like_multiple', { num: batchLikeList.value.length }),
             action: 'likeMultiple',
             disabled: false,
           })
         }
-        if (liked.length > 0) {
+        if (batchUnlikeList.value.length > 0) {
           menuList.value.push({
-            name: t('list__dislike_multiple', { num: liked.length }),
+            name: t('list__dislike_multiple', { num: batchUnlikeList.value.length }),
             action: 'unlikeMultiple',
             disabled: false,
           })
@@ -177,8 +177,8 @@ export default ({
 
     nextTick(() => {
       isShowItemMenu.value = true
-      // 再异步构建完整菜单（更新喜欢状态）
-      void buildMenu()
+      // 异步更新喜欢状态和批量选项
+      void updateMenuLikeStatus()
     })
   }
 
@@ -225,10 +225,10 @@ export default ({
         handleToggleLike(index)
         break
       case 'likeMultiple':
-        handleToggleLikeMultiple(selectedList.value)
+        handleToggleLikeMultiple(batchLikeList.value)
         break
       case 'unlikeMultiple':
-        handleToggleUnlikeMultiple(selectedList.value)
+        handleToggleUnlikeMultiple(batchUnlikeList.value)
         break
     }
   }
