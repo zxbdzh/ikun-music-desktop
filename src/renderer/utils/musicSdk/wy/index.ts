@@ -29,6 +29,8 @@ import album from './album'
 import singer from './singer'
 // @ts-ignore
 import mv from './mv'
+// @ts-ignore
+import heartbeat from './heartbeat'
 
 const wy = {
   // 现有模块
@@ -43,6 +45,7 @@ const wy = {
   album,
   singer,
   mv,
+  heartbeat,
 
   // 核心方法
   getMusicUrl(songInfo: any, type?: any) {

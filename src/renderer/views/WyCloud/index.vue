@@ -27,10 +27,10 @@
       <!-- 内容区顶部按钮 -->
       <div :class="$style.contentHeader">
         <button
-          v-if="activeTab === 'simi' || activeTab === 'playlist'"
+          v-if="activeTab === 'simi' || activeTab === 'playlist' || activeTab === 'heartbeat'"
           :class="$style.refreshBtn"
           :aria-label="$t('refresh')"
-          :disabled="isLoading || (activeTab === 'simi' && !currentSongId) || (activeTab === 'playlist' && !currentSongId)"
+          :disabled="isLoading || (activeTab === 'simi' && !currentSongId) || (activeTab === 'playlist' && !currentSongId) || (activeTab === 'heartbeat' && !currentSongId)"
           @click="handleRefresh"
         >
           <svg-icon name="refresh" style="transform: rotate(45deg)" />
@@ -187,6 +187,89 @@
           </div>
         </template>
       </template>
+
+      <!-- 心动模式 -->
+      <template v-else-if="activeTab === 'heartbeat'">
+        <div v-if="!currentSongId" :class="$style.empty">{{ $t('setting__wy_heartbeat') }}: {{ $t('wy_need_play_song') }}</div>
+        <template v-else>
+          <!-- 歌单选择器 -->
+          <div v-if="isLoadingPlaylists" :class="$style.loading">{{ $t('loading') }}</div>
+          <div v-else-if="userPlaylists.length === 0" :class="$style.empty">{{ $t('list__empty') }}</div>
+          <template v-else>
+            <!-- 歌单选择下拉框 -->
+            <div :class="$style.playlistSelector">
+              <select
+                :class="$style.select"
+                :value="selectedPlaylistId || ''"
+                @change="handleHeartbeatPlaylistSelect(Number($event.target.value))"
+              >
+                <option value="" disabled>请选择歌单</option>
+                <option
+                  v-for="playlist in userPlaylists"
+                  :key="playlist.id"
+                  :value="playlist.id"
+                >
+                  {{ playlist.name }} ({{ playlist.trackCount }})
+                </option>
+              </select>
+            </div>
+            <!-- 歌曲列表 -->
+            <div v-if="isLoading" :class="$style.loading">{{ $t('loading') }}</div>
+            <div v-else-if="songs.length === 0 && selectedPlaylistId" :class="$style.empty">{{ $t('list__empty') }}</div>
+            <template v-else-if="songs.length > 0">
+              <div :class="$style.songList">
+            <!-- 表头 -->
+            <div class="thead">
+              <table>
+                <thead>
+                  <tr>
+                    <th class="num" style="width: 5%">#</th>
+                    <th class="nobreak">{{ $t('music_name') }}</th>
+                    <th class="nobreak" style="width: 24%">{{ $t('music_singer') }}</th>
+                    <th class="nobreak" style="width: 27%">{{ $t('music_album') }}</th>
+                    <th class="nobreak" style="width: 10%">{{ $t('music_time') }}</th>
+                  </tr>
+                </thead>
+              </table>
+            </div>
+            <!-- 列表内容 -->
+            <div :class="$style.listContent">
+              <div
+                v-for="(song, index) in songs"
+                :key="song.id"
+                :class="[$style.songItem, { [$style.playing]: playingIndex === index }]"
+                @dblclick="handlePlay(index)"
+              >
+                <div class="num" :class="$style.index">{{ index + 1 }}</div>
+                <div :class="$style.pic">
+                  <img v-if="song.al?.picUrl" :src="song.al.picUrl" :class="$style.picImg" />
+                  <span v-else :class="$style.picPlaceholder">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="50%" height="50%">
+                      <path fill="currentColor" d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+                    </svg>
+                  </span>
+                </div>
+                <div :class="$style.name">
+                  <span class="select" :class="$style.songName">{{ song.name }}</span>
+                  <span v-if="song.fee === 1" class="no-select badge badge-theme-secondary">{{ $t('tag__vip') }}</span>
+                  <span v-else-if="song.fee === 4" class="no-select badge badge-theme-secondary">{{ $t('tag__付费') }}</span>
+                </div>
+                <div :class="$style.singer">
+                  <span class="select">{{ song.singer }}</span>
+                </div>
+                <div :class="$style.album">
+                  <span class="select">{{ song.al?.name }}</span>
+                </div>
+                <div :class="$style.time">
+                  <span class="no-select">{{ song.interval }}</span>
+                </div>
+              </div>
+            </div>
+              </div>
+            </template>
+          </template>
+        </template>
+      </template>
     </div>
   </div>
 </template>
@@ -197,6 +280,7 @@ import { appSetting } from '@renderer/store/setting'
 import { playMusicInfo } from '@renderer/store/player/state'
 import { dialog } from '@renderer/plugins/Dialog'
 import wyUtil from '@renderer/utils/musicSdk/wy/wyUtil'
+import heartbeat from '@renderer/utils/musicSdk/wy/heartbeat'
 import { playList } from '@renderer/core/player'
 import { setTempList } from '@renderer/store/list/action'
 import { LIST_IDS } from '@common/constants'
@@ -216,11 +300,16 @@ export default {
     const playlists = ref([])
     const isLoading = ref(false)
     const playingIndex = ref(-1)
+    // 心动模式相关状态
+    const userPlaylists = ref([])
+    const selectedPlaylistId = ref(null)
+    const isLoadingPlaylists = ref(false)
 
     const tabs = computed(() => [
       { id: 'daily', title: t('setting__wy_daily_rec') },
       { id: 'simi', title: t('setting__wy_simi_songs') },
       { id: 'playlist', title: t('setting__wy_simi_playlist') },
+      { id: 'heartbeat', title: t('setting__wy_heartbeat') },
     ])
 
     const currentSongId = computed(() => {
@@ -242,6 +331,52 @@ export default {
         })
       })
       void loadData(tabId)
+    }
+
+    // 加载用户歌单列表
+    const loadUserPlaylists = async () => {
+      const cookie = appSetting['common.wy_cookie']
+      if (!cookie) return []
+      try {
+        const uid = await wyUtil.getUid(cookie)
+        return await wyUtil.getUserPlaylist(cookie, uid)
+      } catch (e) {
+        console.error('加载用户歌单失败:', e)
+        return []
+      }
+    }
+
+    // 处理心动模式歌单选择
+    const handleHeartbeatPlaylistSelect = async (playlistId) => {
+      selectedPlaylistId.value = playlistId
+      if (!currentSongId.value || !playlistId) return
+      const cookie = appSetting['common.wy_cookie']
+      if (!cookie) return
+      isLoading.value = true
+      try {
+        const result = await heartbeat.getHeartbeatModeList(cookie, playlistId, currentSongId.value)
+        songs.value = result.list.map(song => ({
+          id: song.id,
+          name: song.name,
+          singer: (song.ar || []).map(a => a.name).join('、'),
+          source: 'wy',
+          interval: formatDuration(song.dt),
+          albumName: song.al?.name || '',
+          albumId: song.al?.id || 0,
+          img: song.al?.picUrl || '',
+          al: song.al,
+          fee: song.fee || 0,
+        }))
+      } catch (e) {
+        console.error('Failed to load heartbeat data:', e)
+        const errorMsg = e instanceof Error ? e.message : ''
+        void dialog.confirm({
+          message: `${t('setting__wy_heartbeat_load_failed')}${errorMsg ? ': ' + errorMsg : ''}`,
+          confirmButtonText: t('ok'),
+        })
+      } finally {
+        isLoading.value = false
+      }
     }
 
     const loadData = async (tabId) => {
@@ -289,14 +424,36 @@ export default {
           if (!currentSongId.value) return
           const result = await wyUtil.getSimiPlaylist(currentSongId.value)
           playlists.value = result
+        } else if (tabId === 'heartbeat') {
+          if (!currentSongId.value) return
+          // 加载用户歌单列表供选择
+          isLoadingPlaylists.value = true
+          try {
+            userPlaylists.value = await loadUserPlaylists()
+            selectedPlaylistId.value = null
+            songs.value = []
+          } catch (e) {
+            console.error('加载用户歌单失败:', e)
+          } finally {
+            isLoadingPlaylists.value = false
+          }
+          // 不在这里调用心跳API，等用户选择歌单后再调用
+          return
         }
       } catch (e) {
         console.error('Failed to load data:', e)
-        const errorMsg = e instanceof Error ? e.message : t('setting__wy_daily_rec_load_failed')
-        void dialog.confirm({
-          message: `${t('setting__wy_daily_rec_load_failed')}: ${errorMsg}`,
-          confirmButtonText: t('ok'),
-        })
+        let errorMsg = e instanceof Error ? e.message : ''
+        if (tabId === 'heartbeat') {
+          void dialog.confirm({
+            message: `${t('setting__wy_heartbeat_load_failed')}${errorMsg ? ': ' + errorMsg : ''}`,
+            confirmButtonText: t('ok'),
+          })
+        } else {
+          void dialog.confirm({
+            message: `${t('setting__wy_daily_rec_load_failed')}${errorMsg ? ': ' + errorMsg : ''}`,
+            confirmButtonText: t('ok'),
+          })
+        }
       } finally {
         isLoading.value = false
       }
@@ -331,6 +488,16 @@ export default {
       if (isLoading.value) return
       if (activeTab.value === 'simi' && !currentSongId.value) return
       if (activeTab.value === 'playlist' && !currentSongId.value) return
+      if (activeTab.value === 'heartbeat') {
+        if (!currentSongId.value) return
+        // 如果已选择歌单，刷新心动歌曲；否则重新加载歌单列表
+        if (selectedPlaylistId.value) {
+          void handleHeartbeatPlaylistSelect(selectedPlaylistId.value)
+        } else {
+          void loadData(activeTab.value)
+        }
+        return
+      }
       void loadData(activeTab.value)
     }
 
@@ -378,6 +545,11 @@ export default {
       handlePlay,
       handleRefresh,
       handlePlaylistClick,
+      // 心动模式
+      userPlaylists,
+      selectedPlaylistId,
+      isLoadingPlaylists,
+      handleHeartbeatPlaylistSelect,
     }
   },
 }
@@ -690,5 +862,38 @@ export default {
   text-align: justify;
   line-height: 1.3;
   color: var(--color-font-label);
+}
+
+// 心动模式歌单选择器
+.playlistSelector {
+  padding: 10px 0 15px 0;
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: 10px;
+}
+
+.select {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-button-background);
+  color: var(--color-font);
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 36px;
+  transition: border-color 0.2s;
+
+  &:hover {
+    border-color: var(--color-primary);
+  }
+
+  &:focus {
+    outline: none;
+    border-color: var(--color-primary);
+  }
 }
 </style>
