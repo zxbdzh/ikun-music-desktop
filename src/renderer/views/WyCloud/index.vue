@@ -27,11 +27,11 @@
       <!-- 内容区顶部按钮 -->
       <div :class="$style.contentHeader">
         <button
-          v-if="activeTab === 'simi'"
+          v-if="activeTab === 'simi' || activeTab === 'playlist'"
           :class="$style.refreshBtn"
           :aria-label="$t('refresh')"
-          :disabled="isLoading || !currentSongId"
-          @click="handleRefreshSimi"
+          :disabled="isLoading || (activeTab === 'simi' && !currentSongId) || (activeTab === 'playlist' && !currentSongId)"
+          @click="handleRefresh"
         >
           <svg-icon name="refresh" style="transform: rotate(45deg)" />
         </button>
@@ -150,6 +150,43 @@
           </div>
         </template>
       </template>
+
+      <!-- 相似歌单 -->
+      <template v-else-if="activeTab === 'playlist'">
+        <div v-if="!currentSongId" :class="$style.empty">{{ $t('setting__wy_simi_playlist') }}: {{ $t('wy_need_play_song') }}</div>
+        <div v-else-if="isLoading" :class="$style.loading">{{ $t('loading') }}</div>
+        <template v-else>
+          <div v-if="playlists.length === 0" :class="$style.empty">{{ $t('list__empty') }}</div>
+          <div v-else :class="$style.playlistContainer">
+            <ul :class="$style.playlistList">
+              <li
+                v-for="item in playlists"
+                :key="item.id"
+                :class="$style.playlistItem"
+                @click="handlePlaylistClick(item)"
+              >
+                <div :class="$style.playlistImage">
+                  <img :class="$style.playlistImg" loading="lazy" decoding="async" :src="item.img" />
+                </div>
+                <div :class="$style.playlistDesc">
+                  <h4 :class="$style.playlistName">{{ item.name }}</h4>
+                  <div :class="$style.playlistInfo">
+                    <span><svg-icon name="music" />{{ item.total }}</span>
+                    <span><svg-icon name="headphones" />{{ item.playCount }}</span>
+                  </div>
+                  <p :class="$style.playlistAuthor">{{ item.author }}</p>
+                </div>
+              </li>
+              <li
+                v-for="(i, index) in 6"
+                :key="'placeholder_' + index"
+                :class="$style.playlistItem"
+                style="margin-bottom: 0; height: 0"
+              />
+            </ul>
+          </div>
+        </template>
+      </template>
     </div>
   </div>
 </template>
@@ -165,22 +202,25 @@ import { setTempList } from '@renderer/store/list/action'
 import { LIST_IDS } from '@common/constants'
 import { useI18n } from '@root/lang'
 import { toNewMusicInfo } from '@common/utils/tools'
+import { useRouter } from '@common/utils/vueRouter'
 
 export default {
   name: 'WyCloud',
   setup() {
     const t = useI18n()
+    const router = useRouter()
     const dom_content_ref = ref(null)
 
     const activeTab = ref('daily')
     const songs = ref([])
+    const playlists = ref([])
     const isLoading = ref(false)
     const playingIndex = ref(-1)
-    const cookieValid = ref(false)
 
     const tabs = computed(() => [
       { id: 'daily', title: t('setting__wy_daily_rec') },
       { id: 'simi', title: t('setting__wy_simi_songs') },
+      { id: 'playlist', title: t('setting__wy_simi_playlist') },
     ])
 
     const currentSongId = computed(() => {
@@ -193,6 +233,7 @@ export default {
     const switchTab = (tabId) => {
       activeTab.value = tabId
       songs.value = []
+      playlists.value = []
       playingIndex.value = -1
       void nextTick(() => {
         dom_content_ref.value?.scrollTo({
@@ -216,7 +257,6 @@ export default {
       isLoading.value = true
       try {
         if (tabId === 'daily') {
-          // 使用 wyUtil 获取每日推荐
           const result = await wyUtil.getDailySongs(cookie)
           songs.value = result.map(song => ({
             id: song.id,
@@ -245,9 +285,13 @@ export default {
             al: song.al,
             fee: song.fee || 0,
           }))
+        } else if (tabId === 'playlist') {
+          if (!currentSongId.value) return
+          const result = await wyUtil.getSimiPlaylist(currentSongId.value)
+          playlists.value = result
         }
       } catch (e) {
-        console.error('Failed to load songs:', e)
+        console.error('Failed to load data:', e)
         const errorMsg = e instanceof Error ? e.message : t('setting__wy_daily_rec_load_failed')
         void dialog.confirm({
           message: `${t('setting__wy_daily_rec_load_failed')}: ${errorMsg}`,
@@ -283,9 +327,23 @@ export default {
       void playList(LIST_IDS.TEMP, index)
     }
 
-    const handleRefreshSimi = () => {
-      if (activeTab.value !== 'simi' || !currentSongId.value || isLoading.value) return
-      void loadData('simi')
+    const handleRefresh = () => {
+      if (isLoading.value) return
+      if (activeTab.value === 'simi' && !currentSongId.value) return
+      if (activeTab.value === 'playlist' && !currentSongId.value) return
+      void loadData(activeTab.value)
+    }
+
+    const handlePlaylistClick = (item) => {
+      void router.push({
+        path: '/songList/detail',
+        query: {
+          source: 'wy',
+          id: String(item.id),
+          picUrl: item.img,
+          fromName: 'WyCloud',
+        },
+      })
     }
 
     const formatDuration = (ms) => {
@@ -298,7 +356,11 @@ export default {
 
     // 初始化加载
     watch(activeTab, (tabId) => {
-      if (songs.value.length === 0) {
+      if (tabId === 'daily' && songs.value.length === 0) {
+        void loadData(tabId)
+      } else if (tabId === 'simi' && songs.value.length === 0 && currentSongId.value) {
+        void loadData(tabId)
+      } else if (tabId === 'playlist' && playlists.value.length === 0 && currentSongId.value) {
         void loadData(tabId)
       }
     }, { immediate: true })
@@ -307,13 +369,15 @@ export default {
       tabs,
       activeTab,
       songs,
+      playlists,
       isLoading,
       playingIndex,
       currentSongId,
       dom_content_ref,
       switchTab,
       handlePlay,
-      handleRefreshSimi,
+      handleRefresh,
+      handlePlaylistClick,
     }
   },
 }
@@ -544,5 +608,87 @@ export default {
     padding: 4px 0;
     user-select: none;
   }
+}
+
+// 相似歌单样式
+.playlistContainer {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.playlistList {
+  display: flex;
+  flex-flow: row wrap;
+  justify-content: space-between;
+}
+
+.playlistItem {
+  max-width: 360px;
+  width: 32%;
+  box-sizing: border-box;
+  display: flex;
+  margin-bottom: 20px;
+  cursor: pointer;
+  transition: opacity @transition-normal;
+  &:hover {
+    opacity: 0.7;
+  }
+}
+
+.playlistImage {
+  flex: none;
+  width: 40%;
+  display: flex;
+  background-position: center;
+  background-size: cover;
+  border-radius: 4px;
+  overflow: hidden;
+  opacity: 0.9;
+  aspect-ratio: 1 / 1;
+  box-shadow: 0 0 2px 0 rgba(0, 0, 0, 0.2);
+}
+
+.playlistImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.playlistDesc {
+  flex: auto;
+  padding: 2px 15px 2px 7px;
+  overflow: hidden;
+}
+
+.playlistName {
+  font-size: 14px;
+  text-align: justify;
+  line-height: 1.3;
+  .mixin-ellipsis-2();
+}
+
+.playlistInfo {
+  display: flex;
+  flex-flow: row nowrap;
+  gap: 15px;
+  margin-top: 8px;
+  font-size: 12px;
+  .mixin-ellipsis-1();
+  text-align: justify;
+  line-height: 1.2;
+  color: var(--color-font-label);
+  svg {
+    margin-right: 2px;
+  }
+}
+
+.playlistAuthor {
+  margin-top: 6px;
+  font-size: 12px;
+  .mixin-ellipsis-1();
+  text-align: justify;
+  line-height: 1.3;
+  color: var(--color-font-label);
 }
 </style>

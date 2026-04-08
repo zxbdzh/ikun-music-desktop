@@ -821,6 +821,7 @@
   "setting__wy_daily_rec_load_failed": "Failed to load daily recommendations. Please check your network and login status.",
   "setting__wy_heartbeat_mode": "Heartbeat Mode",
   "setting__wy_simi_songs": "Similar Songs",
+  "setting__wy_simi_playlist": "Similar Playlists",
   "wy_cloud": "WyCloud",
   "wy_need_play_song": "Please play a WyCloud song first"
 }
