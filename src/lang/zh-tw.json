@@ -791,5 +791,6 @@
   "setting__wy_daily_rec": "每日推薦",
   "setting__wy_daily_rec_load_failed": "獲取每日推薦失敗，請檢查網絡和登錄狀態",
   "setting__wy_heartbeat_mode": "心動模式",
-  "setting__wy_simi_songs": "相似歌曲"
+  "setting__wy_simi_songs": "相似歌曲",
+  "setting__wy_simi_playlist": "相似歌單"
 }

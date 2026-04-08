@@ -105,6 +105,46 @@ const scrobble = async (
   }
 }
 
+// 获取相似歌单
+const getSimiPlaylist = async (songId: string | number): Promise<any[]> => {
+  try {
+    const response: any = httpFetch(`${API_BASE_URL}/simi/playlist?id=${songId}`, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      },
+    })
+
+    const {body, statusCode} = await response.promise
+
+    if (statusCode !== 200) {
+      throw new Error(`HTTP ${statusCode}: 获取相似歌单失败`)
+    }
+
+    if (body.code !== 200) {
+      console.error('Simi playlist API error:', body)
+      throw new Error(body.message || '获取相似歌单失败')
+    }
+
+    return (body.playlists || []).map((item: any) => ({
+      id: item.id,
+      name: item.name,
+      author: item.creator?.nickname || '',
+      img: item.coverImgUrl || '',
+      total: item.trackCount || 0,
+      playCount: item.playCount || 0,
+      description: item.description || '',
+      tags: item.tags || [],
+      createTime: item.createTime || 0,
+      updateTime: item.updateTime || 0,
+      subscribedCount: item.subscribedCount || 0,
+    }))
+  } catch (err: any) {
+    console.error('Get simi playlist error:', err)
+    throw err
+  }
+}
+
 // 获取相似歌曲
 const getSimiSongs = async (songId: string | number): Promise<any[]> => {
   try {
@@ -337,6 +377,7 @@ export default {
   scrobble,
   getDailySongs,
   getSimiSongs,
+  getSimiPlaylist,
   getUid,
   verifyCookie,
   likeSong,
