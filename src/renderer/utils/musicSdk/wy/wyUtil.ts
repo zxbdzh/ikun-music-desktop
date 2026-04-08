@@ -5,6 +5,8 @@
 
 // @ts-ignore
 import {httpFetch} from '../../request'
+// @ts-ignore
+import { weapi } from './utils/crypto'
 
 const API_BASE_URL = 'https://music.zxbdwy.online'
 
@@ -247,6 +249,46 @@ const verifyCookie = async (cookie: string): Promise<{ valid: boolean; message?:
   }
 }
 
+// 获取用户歌单列表
+interface UserPlaylist {
+  id: number
+  name: string
+  coverImgUrl: string
+  trackCount: number
+  creatorNickname: string
+}
+
+const getUserPlaylist = async (cookie: string, uid: number): Promise<UserPlaylist[]> => {
+  try {
+    const csrfToken = getCsrfToken(cookie)
+    console.log('[getUserPlaylist] 请求参数:', { uid, csrfToken: csrfToken || '' })
+    const response: any = httpFetch(
+      `${API_BASE_URL}/user/playlist?uid=${uid}&cookie=${encodeURIComponent(cookie)}`,
+      {
+        method: 'GET',
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        },
+      }
+    )
+    const {body, statusCode} = await response.promise
+    console.log('[getUserPlaylist] 响应:', { statusCode, body })
+    if (statusCode !== 200 || body.code !== 200) {
+      throw new Error(body.message || '获取用户歌单失败')
+    }
+    return (body.playlist || []).map((item: any) => ({
+      id: item.id,
+      name: item.name,
+      coverImgUrl: item.coverImgUrl,
+      trackCount: item.trackCount,
+      creatorNickname: item.creator?.nickname || '',
+    }))
+  } catch (err: any) {
+    console.error('Get user playlist error:', err)
+    throw err
+  }
+}
+
 // 获取用户uid
 const getUid = async (cookie: string): Promise<number> => {
   try {
@@ -380,6 +422,7 @@ export default {
   getSimiPlaylist,
   getUid,
   verifyCookie,
+  getUserPlaylist,
   likeSong,
   checkIsLiked,
   dailySignin,
