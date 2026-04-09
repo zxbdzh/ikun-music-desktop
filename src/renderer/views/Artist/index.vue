@@ -132,7 +132,7 @@
 </template>
 
 <script>
-import { ref, computed, markRaw } from '@common/utils/vueTools'
+import { ref, computed, markRaw, toRaw } from '@common/utils/vueTools'
 import wyUtil from '@renderer/utils/musicSdk/wy/wyUtil'
 import { playList } from '@renderer/core/player'
 import { setTempList } from '@renderer/store/list/action'
@@ -166,6 +166,18 @@ export default {
   },
   mounted() {
     this.loadArtistInfo()
+  },
+  watch: {
+    '$route.query.id'(newId, oldId) {
+      if (newId !== oldId) {
+        this.loading = true
+        this.loadingSongs = false
+        this.songs = []
+        this.currentPage = 1
+        this.isDescExpanded = false
+        this.loadArtistInfo()
+      }
+    }
   },
   methods: {
     async loadArtistInfo() {
@@ -225,10 +237,12 @@ export default {
       }
     },
     handleSingerClick(arItem) {
+      const raw = toRaw(arItem)
+      const id = raw?.id
       // 允许跳转到其他歌手（不是当前歌手）
-      if (!arItem?.id) return
-      if (String(arItem.id) === String(this.artistId)) return
-      this.$router.push({ path: '/artist', query: { id: arItem.id } })
+      if (!id) return
+      if (String(id) === String(this.artistId)) return
+      this.$router.push({ path: '/artist', query: { id } })
     },
     nextPage() {
       if (this.currentPage < this.totalPages) {
