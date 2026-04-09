@@ -127,19 +127,16 @@ export default {
 }
 
 .backBtn {
-  position: fixed;
-  top: 20px;
-  left: 20px;
-  z-index: 100;
   padding: 8px 16px;
   background: var(--color-button-background);
   color: var(--color-button-font);
   border: 1px solid var(--color-border);
   border-radius: 4px;
   cursor: pointer;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 4px;
+  margin-bottom: 20px;
 
   &:hover {
     background: var(--color-button-background-hover);
