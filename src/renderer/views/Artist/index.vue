@@ -1,10 +1,5 @@
 <template>
   <div :class="$style.container">
-    <div :class="$style.header">
-      <button :class="$style.backBtn" @click="$router.back()">
-        <span>←</span> 返回
-      </button>
-    </div>
     <div v-if="loading" :class="$style.loading">
       <p>加载中...</p>
     </div>
@@ -13,7 +8,11 @@
       <button @click="loadArtistInfo">重试</button>
     </div>
     <template v-else-if="artistInfo">
+      <!-- 歌手头部信息 -->
       <div :class="$style.header">
+        <button :class="$style.backBtn" @click="$router.back()">
+          <span>←</span> 返回
+        </button>
         <img :src="artistInfo.artist.cover" :class="$style.cover" />
         <div :class="$style.info">
           <h1 :class="$style.name">
@@ -35,59 +34,102 @@
           </div>
         </div>
       </div>
-      <div :class="$style.content">
-        <div :class="$style.toolbar">
-          <div :class="$style.tabs">
-            <button
-              :class="[$style.tab, { [$style.active]: order === 'hot' }]"
-              @click="switchOrder('hot')"
-            >
-              热门
-            </button>
-            <button
-              :class="[$style.tab, { [$style.active]: order === 'time' }]"
-              @click="switchOrder('time')"
-            >
-              最新
-            </button>
-          </div>
-          <div :class="$style.pageInfo">
-            第{{ currentPage }}页/共{{ totalPages }}页
-          </div>
+
+      <!-- 歌曲列表工具栏 -->
+      <div :class="$style.toolbar">
+        <div :class="$style.tabs">
+          <button
+            :class="[$style.tab, { [$style.active]: order === 'hot' }]"
+            @click="switchOrder('hot')"
+          >
+            热门
+          </button>
+          <button
+            :class="[$style.tab, { [$style.active]: order === 'time' }]"
+            @click="switchOrder('time')"
+          >
+            最新
+          </button>
         </div>
-        <div v-if="loadingSongs" :class="$style.loadingSongs">
-          <p>加载歌曲中...</p>
+        <div :class="$style.pageInfo">
+          共 {{ total }} 首
         </div>
-        <div v-else-if="songs.length" :class="$style.songList">
+      </div>
+
+      <!-- 歌曲列表 -->
+      <div v-if="loadingSongs" :class="$style.loading">{{ $t('loading') }}</div>
+      <div v-else-if="songs.length === 0" :class="$style.empty">{{ $t('list__empty') }}</div>
+      <div v-else :class="$style.songList">
+        <!-- 表头 -->
+        <div class="thead">
+          <table>
+            <thead>
+              <tr>
+                <th class="num" style="width: 5%">#</th>
+                <th class="nobreak">{{ $t('music_name') }}</th>
+                <th class="nobreak" style="width: 24%">{{ $t('music_singer') }}</th>
+                <th class="nobreak" style="width: 27%">{{ $t('music_album') }}</th>
+                <th class="nobreak" style="width: 10%">{{ $t('music_time') }}</th>
+              </tr>
+            </thead>
+          </table>
+        </div>
+        <!-- 列表内容 -->
+        <div :class="$style.listContent">
           <div
             v-for="(song, index) in songs"
             :key="song.id"
-            :class="[$style.songItem, { [$style.playing]: playingSongId === song.id }]"
-            @dblclick="playSong(song, index)"
+            :class="[$style.songItem, { [$style.playing]: playingIndex === index }]"
+            @dblclick="handlePlay(index)"
           >
-            <span :class="$style.index">{{ (currentPage - 1) * limit + index + 1 }}</span>
-            <span :class="$style.songName">{{ song.name }}</span>
-            <span :class="$style.singer">{{ formatSinger(song.ar) }}</span>
-            <span :class="$style.album">{{ song.al?.name || '-' }}</span>
-            <span :class="$style.duration">{{ formatDuration(song.dt) }}</span>
+            <div class="num" :class="$style.index">{{ (currentPage - 1) * limit + index + 1 }}</div>
+            <div :class="$style.pic">
+              <img v-if="song.al?.picUrl" :src="song.al.picUrl" :class="$style.picImg" />
+              <span v-else :class="$style.picPlaceholder">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="50%" height="50%">
+                  <path fill="currentColor" d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+                </svg>
+              </span>
+            </div>
+            <div :class="$style.name">
+              <span class="select" :class="$style.songName">{{ song.name }}</span>
+              <span v-if="song.fee === 1" class="no-select badge badge-theme-secondary">{{ $t('tag__vip') }}</span>
+              <span v-else-if="song.fee === 4" class="no-select badge badge-theme-secondary">{{ $t('tag__付费') }}</span>
+            </div>
+            <div :class="$style.singer">
+              <span class="select">{{ song.singer }}</span>
+            </div>
+            <div :class="$style.album">
+              <span class="select">{{ song.al?.name }}</span>
+            </div>
+            <div :class="$style.time">
+              <span class="no-select">{{ song.interval }}</span>
+            </div>
           </div>
         </div>
-        <p v-else :class="$style.noData">暂无歌曲</p>
-        <div v-if="totalPages > 1" :class="$style.pagination">
-          <button :class="$style.pageBtn" :disabled="currentPage <= 1" @click="prevPage">
-            上一页
-          </button>
-          <button :class="$style.pageBtn" :disabled="currentPage >= totalPages" @click="nextPage">
-            下一页
-          </button>
-        </div>
+      </div>
+
+      <!-- 分页 -->
+      <div v-if="totalPages > 1" :class="$style.pagination">
+        <button :class="$style.pageBtn" :disabled="currentPage <= 1" @click="prevPage">
+          上一页
+        </button>
+        <span :class="$style.pageText">第 {{ currentPage }} / {{ totalPages }} 页</span>
+        <button :class="$style.pageBtn" :disabled="currentPage >= totalPages" @click="nextPage">
+          下一页
+        </button>
       </div>
     </template>
   </div>
 </template>
 
 <script>
+import { ref, computed, markRaw } from '@common/utils/vueTools'
 import wyUtil from '@renderer/utils/musicSdk/wy/wyUtil'
+import { playList } from '@renderer/core/player'
+import { setTempList } from '@renderer/store/list/action'
+import { LIST_IDS } from '@common/constants'
+import { toNewMusicInfo } from '@common/utils/tools'
 
 export default {
   name: 'Artist',
@@ -102,7 +144,7 @@ export default {
       order: 'hot',
       currentPage: 1,
       limit: 50,
-      playingSongId: null,
+      playingIndex: -1,
     }
   },
   computed: {
@@ -141,7 +183,18 @@ export default {
       try {
         const offset = (this.currentPage - 1) * this.limit
         const result = await wyUtil.getArtistSongs(this.artistId, this.order, this.limit, offset)
-        this.songs = result.songs
+        this.songs = result.songs.map(song => ({
+          id: song.id,
+          name: song.name,
+          singer: (song.ar || []).map(a => a.name).join('、'),
+          source: 'wy',
+          interval: this.formatDuration(song.dt),
+          albumName: song.al?.name || '',
+          albumId: song.al?.id || 0,
+          img: song.al?.picUrl || '',
+          al: song.al,
+          fee: song.fee || 0,
+        }))
         this.total = result.total
       } catch (err) {
         console.error('获取歌手歌曲失败:', err)
@@ -167,50 +220,48 @@ export default {
         this.loadSongs()
       }
     },
-    formatSinger(ar) {
-      if (!ar) return '-'
-      return ar.map(a => a.name).join(', ')
+    formatDuration(ms) {
+      if (!ms) return '--:--'
+      const seconds = Math.floor(ms / 1000)
+      const min = Math.floor(seconds / 60)
+      const sec = seconds % 60
+      return `${min}:${sec.toString().padStart(2, '0')}`
     },
-    formatDuration(dt) {
-      if (!dt) return '--:--'
-      const totalSeconds = Math.floor(dt / 1000)
-      const minutes = Math.floor(totalSeconds / 60)
-      const seconds = totalSeconds % 60
-      return `${minutes}:${seconds.toString().padStart(2, '0')}`
-    },
-    playSong(song, index) {
-      this.playingSongId = song.id
+    async handlePlay(index) {
+      this.playingIndex = index
+      const formattedSongs = markRaw(this.songs.map(s => toNewMusicInfo({
+        ...s,
+        songmid: String(s.id),
+        name: s.name,
+        singer: s.singer,
+        source: 'wy',
+        interval: s.interval,
+        albumName: s.albumName,
+        albumId: s.albumId,
+        img: s.img,
+        types: [],
+        _types: {},
+        meta: {
+          songId: String(s.id),
+          albumName: s.albumName || '',
+          picUrl: s.img || '',
+          albumId: s.albumId || '',
+        },
+      })))
+      await setTempList('wy_artist_' + this.artistId, formattedSongs)
+      void playList(LIST_IDS.TEMP, index)
     },
   },
 }
 </script>
 
 <style lang="less" module>
+@import '@renderer/assets/styles/layout.less';
+
 .container {
   height: 100%;
   overflow-y: auto;
   padding: 20px;
-}
-
-.backBtn {
-  padding: 8px 16px;
-  background: var(--color-button-background);
-  color: var(--color-button-font);
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-bottom: 20px;
-
-  &:hover {
-    background: var(--color-button-background-hover);
-  }
-
-  span {
-    font-size: 16px;
-  }
 }
 
 .loading,
@@ -233,10 +284,34 @@ export default {
   }
 }
 
-.pageHeader {
+.header {
   display: flex;
   gap: 24px;
-  margin-bottom: 30px;
+  margin-bottom: 20px;
+}
+
+.backBtn {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  padding: 8px 16px;
+  background: var(--color-button-background);
+  color: var(--color-button-font);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  z-index: 10;
+
+  &:hover {
+    background: var(--color-button-background-hover);
+  }
+
+  span {
+    font-size: 16px;
+  }
 }
 
 .cover {
@@ -244,10 +319,12 @@ export default {
   height: 200px;
   border-radius: 8px;
   object-fit: cover;
+  flex-shrink: 0;
 }
 
 .info {
   flex: 1;
+  min-width: 0;
 }
 
 .name {
@@ -289,15 +366,13 @@ export default {
   text-overflow: ellipsis;
 }
 
-.content {
-  margin-top: 20px;
-}
-
 .toolbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .tabs {
@@ -329,70 +404,144 @@ export default {
   font-size: 14px;
 }
 
-.loadingSongs {
-  text-align: center;
+.empty {
   padding: 40px;
+  text-align: center;
   color: var(--color-font-label);
 }
 
 .songList {
+  flex: 1;
   display: flex;
   flex-direction: column;
+  font-size: 14px;
+  overflow: hidden;
+  height: calc(100% - 180px);
+}
+
+.listContent {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .songItem {
-  display: grid;
-  grid-template-columns: 50px 1fr 150px 150px 80px;
+  display: flex;
   align-items: center;
-  padding: 10px 12px;
-  border-radius: 4px;
+  padding: 8px 0;
   cursor: pointer;
+  border-radius: 4px;
+  transition: background-color 0.2s;
 
   &:hover {
-    background: var(--color-song-item-background-hover);
+    background: var(--color-primary-background-hover);
   }
 
   &.playing {
-    background: var(--color-primary-light);
+    background: var(--color-primary-alpha-100);
   }
 }
 
 .index {
-  color: var(--color-font-label);
+  width: 5%;
   text-align: center;
+  color: var(--color-font-label);
+  font-size: 13px;
+  flex: none;
+}
+
+.pic {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 10px;
+}
+
+.picImg {
+  width: 36px;
+  height: 36px;
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+.picPlaceholder {
+  width: 36px;
+  height: 36px;
+  border-radius: 4px;
+  background: var(--color-song-item-background);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-font-label);
+}
+
+.name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .songName {
-  color: var(--color-font);
   overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
-.singer,
+.singer {
+  flex: 0 0 24%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--color-font-label);
+}
+
 .album {
-  color: var(--color-font-description);
+  flex: 0 0 27%;
   overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--color-font-label);
 }
 
-.duration {
-  color: var(--color-font-label);
-  text-align: right;
-}
-
-.noData {
-  color: var(--color-font-label);
+.time {
+  flex: 0 0 10%;
   text-align: center;
-  padding: 40px;
+  color: var(--color-font-label);
+}
+
+// 表头样式
+.thead {
+  flex: none;
+  padding: 0 0 8px 0;
+  border-bottom: 1px solid var(--color-border);
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  th {
+    font-weight: normal;
+    font-size: 13px;
+    color: var(--color-font-label);
+    text-align: left;
+    padding: 4px 0;
+    user-select: none;
+  }
 }
 
 .pagination {
   display: flex;
   justify-content: center;
+  align-items: center;
   gap: 16px;
   margin-top: 20px;
+  padding-bottom: 20px;
 }
 
 .pageBtn {
@@ -411,5 +560,10 @@ export default {
     opacity: 0.5;
     cursor: not-allowed;
   }
+}
+
+.pageText {
+  color: var(--color-font-label);
+  font-size: 14px;
 }
 </style>
