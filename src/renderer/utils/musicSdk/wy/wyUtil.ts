@@ -231,6 +231,30 @@ const getArtistInfo = async (artistId: string | number): Promise<ArtistInfo> => 
   }
 }
 
+// 获取歌手全部/热门歌曲
+const getArtistSongs = async (artistId: string | number, order = 'hot', limit = 50, offset = 0): Promise<{ songs: any[]; total: number }> => {
+  try {
+    const response: any = httpFetch(`${API_BASE_URL}/artist/songs?id=${artistId}&order=${order}&limit=${limit}&offset=${offset}`, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      },
+    })
+    const { body, statusCode } = await response.promise
+    if (statusCode !== 200) {
+      throw new Error(`HTTP ${statusCode}: 获取歌手歌曲失败`)
+    }
+    if (body.code !== 200) {
+      console.error('Get artist songs error:', body)
+      throw new Error(body.message || '获取歌手歌曲失败')
+    }
+    return { songs: body.songs || [], total: body.total || 0 }
+  } catch (err: any) {
+    console.error('Get artist songs error:', err)
+    throw err
+  }
+}
+
 // 获取每日推荐歌曲
 const getDailySongs = async (cookie: string): Promise<any[]> => {
   try {
@@ -470,4 +494,5 @@ export default {
   checkIsLiked,
   dailySignin,
   getArtistInfo,
+  getArtistSongs,
 }
