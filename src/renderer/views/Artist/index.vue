@@ -36,22 +36,51 @@
         </div>
       </div>
       <div :class="$style.content">
-        <h2>热门歌曲</h2>
-        <div v-if="hotSongs.length" :class="$style.songList">
+        <div :class="$style.toolbar">
+          <div :class="$style.tabs">
+            <button
+              :class="[$style.tab, { [$style.active]: order === 'hot' }]"
+              @click="switchOrder('hot')"
+            >
+              热门
+            </button>
+            <button
+              :class="[$style.tab, { [$style.active]: order === 'time' }]"
+              @click="switchOrder('time')"
+            >
+              最新
+            </button>
+          </div>
+          <div :class="$style.pageInfo">
+            第{{ currentPage }}页/共{{ totalPages }}页
+          </div>
+        </div>
+        <div v-if="loadingSongs" :class="$style.loadingSongs">
+          <p>加载歌曲中...</p>
+        </div>
+        <div v-else-if="songs.length" :class="$style.songList">
           <div
-            v-for="(song, index) in hotSongs"
+            v-for="(song, index) in songs"
             :key="song.id"
             :class="[$style.songItem, { [$style.playing]: playingSongId === song.id }]"
             @dblclick="playSong(song, index)"
           >
-            <span :class="$style.index">{{ index + 1 }}</span>
+            <span :class="$style.index">{{ (currentPage - 1) * limit + index + 1 }}</span>
             <span :class="$style.songName">{{ song.name }}</span>
             <span :class="$style.singer">{{ formatSinger(song.ar) }}</span>
             <span :class="$style.album">{{ song.al?.name || '-' }}</span>
             <span :class="$style.duration">{{ formatDuration(song.dt) }}</span>
           </div>
         </div>
-        <p v-else :class="$style.noData">暂无热门歌曲</p>
+        <p v-else :class="$style.noData">暂无歌曲</p>
+        <div v-if="totalPages > 1" :class="$style.pagination">
+          <button :class="$style.pageBtn" :disabled="currentPage <= 1" @click="prevPage">
+            上一页
+          </button>
+          <button :class="$style.pageBtn" :disabled="currentPage >= totalPages" @click="nextPage">
+            下一页
+          </button>
+        </div>
       </div>
     </template>
   </div>
@@ -59,22 +88,29 @@
 
 <script>
 import wyUtil from '@renderer/utils/musicSdk/wy/wyUtil'
-import { useRouter } from '@common/utils/vueRouter'
 
 export default {
   name: 'Artist',
   data() {
     return {
       loading: true,
+      loadingSongs: false,
       error: null,
       artistInfo: null,
-      hotSongs: [],
+      songs: [],
+      total: 0,
+      order: 'hot',
+      currentPage: 1,
+      limit: 50,
       playingSongId: null,
     }
   },
   computed: {
     artistId() {
       return this.$route.query.id
+    },
+    totalPages() {
+      return Math.ceil(this.total / this.limit) || 1
     },
   },
   mounted() {
@@ -92,13 +128,43 @@ export default {
       try {
         const data = await wyUtil.getArtistInfo(this.artistId)
         this.artistInfo = data
-        // 热门歌曲在 data.hotSongs 中
-        this.hotSongs = data.hotSongs || []
+        this.loadSongs()
       } catch (err) {
         console.error('获取歌手详情失败:', err)
         this.error = err.message || '获取歌手详情失败'
       } finally {
         this.loading = false
+      }
+    },
+    async loadSongs() {
+      this.loadingSongs = true
+      try {
+        const offset = (this.currentPage - 1) * this.limit
+        const result = await wyUtil.getArtistSongs(this.artistId, this.order, this.limit, offset)
+        this.songs = result.songs
+        this.total = result.total
+      } catch (err) {
+        console.error('获取歌手歌曲失败:', err)
+      } finally {
+        this.loadingSongs = false
+      }
+    },
+    switchOrder(newOrder) {
+      if (this.order === newOrder) return
+      this.order = newOrder
+      this.currentPage = 1
+      this.loadSongs()
+    },
+    prevPage() {
+      if (this.currentPage > 1) {
+        this.currentPage--
+        this.loadSongs()
+      }
+    },
+    nextPage() {
+      if (this.currentPage < this.totalPages) {
+        this.currentPage++
+        this.loadSongs()
       }
     },
     formatSinger(ar) {
@@ -167,7 +233,7 @@ export default {
   }
 }
 
-.header {
+.pageHeader {
   display: flex;
   gap: 24px;
   margin-bottom: 30px;
@@ -224,11 +290,49 @@ export default {
 }
 
 .content {
-  h2 {
-    font-size: 20px;
-    margin-bottom: 16px;
-    color: var(--color-font);
+  margin-top: 20px;
+}
+
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.tab {
+  padding: 8px 20px;
+  background: var(--color-button-background);
+  color: var(--color-button-font);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--color-button-background-hover);
   }
+
+  &.active {
+    background: var(--color-primary);
+    color: white;
+    border-color: var(--color-primary);
+  }
+}
+
+.pageInfo {
+  color: var(--color-font-label);
+  font-size: 14px;
+}
+
+.loadingSongs {
+  text-align: center;
+  padding: 40px;
+  color: var(--color-font-label);
 }
 
 .songList {
@@ -282,5 +386,30 @@ export default {
   color: var(--color-font-label);
   text-align: center;
   padding: 40px;
+}
+
+.pagination {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.pageBtn {
+  padding: 8px 24px;
+  background: var(--color-button-background);
+  color: var(--color-button-font);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: var(--color-button-background-hover);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
 }
 </style>
