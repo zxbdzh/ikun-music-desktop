@@ -41,6 +41,7 @@ declare namespace LX {
       _qualitys: _MusicQualityType
       albumId?: string | number // 歌曲专辑ID
       singerId?: string | number // 歌手ID（网易云）
+      ar?: Array<{ id: number | string; name: string }> // 歌手列表
     }
 
     interface MusicInfoMeta_local extends MusicInfoMetaBase {

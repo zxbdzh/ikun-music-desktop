@@ -618,6 +618,13 @@ export default {
       opacity: 0.75;
       display: inline-block;
     }
+
+    .singer-name {
+      cursor: pointer;
+      &:hover {
+        color: var(--color-primary);
+      }
+    }
   }
 }
 

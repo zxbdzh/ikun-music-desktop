@@ -35,6 +35,7 @@ export default {
           types,
           _types,
           typeUrl: {},
+          ar: item.pc.ar ?? [],
         })
       } else {
         list.push({
@@ -52,6 +53,7 @@ export default {
           types,
           _types,
           typeUrl: {},
+          ar: item.ar ?? [],
         })
       }
     })
