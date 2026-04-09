@@ -121,7 +121,25 @@
             }}</span>
           </div>
           <div class="list-item-cell singer-cell" style="flex: 0 0 22%">
-            <span class="select singer-name" :aria-label="item.singer" @click.stop="handleSingerClick(item, $event)">{{ item.singer }}</span>
+            <template v-if="item.meta.ar && item.meta.ar.length">
+              <span
+                v-for="(ar, arIndex) in item.meta.ar"
+                :key="ar.id || arIndex"
+                class="select singer-name"
+                :class="$style.singerName"
+                @click.stop="handleSingerNameClick(item, ar, arIndex)"
+              >{{ ar.name }}{{ arIndex < item.meta.ar.length - 1 ? '、' : '' }}</span>
+            </template>
+            <template v-else-if="item.singer && item.singer.includes('、')">
+              <span
+                v-for="(name, arIndex) in item.singer.split('、')"
+                :key="arIndex"
+                class="select singer-name"
+                :class="$style.singerName"
+                @click.stop="handleSingerNameClick(item, { id: undefined, name }, arIndex)"
+              >{{ name }}{{ arIndex < item.singer.split('、').length - 1 ? '、' : '' }}</span>
+            </template>
+            <span v-else class="select singer-name" :aria-label="item.singer" @click.stop="handleSingerClick(item, $event)">{{ item.singer }}</span>
           </div>
           <div class="list-item-cell" style="flex: 0 0 22%">
             <span class="select" :aria-label="item.meta.albumName">{{ item.meta.albumName }}</span>
@@ -232,7 +250,25 @@
             }}</span>
           </div>
           <div class="list-item-cell singer-cell" style="flex: 0 0 25%">
-            <span class="select singer-name" :aria-label="item.singer" @click.stop="handleSingerClick(item, $event)">{{ item.singer }}</span>
+            <template v-if="item.meta.ar && item.meta.ar.length">
+              <span
+                v-for="(ar, arIndex) in item.meta.ar"
+                :key="ar.id || arIndex"
+                class="select singer-name"
+                :class="$style.singerName"
+                @click.stop="handleSingerNameClick(item, ar, arIndex)"
+              >{{ ar.name }}{{ arIndex < item.meta.ar.length - 1 ? '、' : '' }}</span>
+            </template>
+            <template v-else-if="item.singer && item.singer.includes('、')">
+              <span
+                v-for="(name, arIndex) in item.singer.split('、')"
+                :key="arIndex"
+                class="select singer-name"
+                :class="$style.singerName"
+                @click.stop="handleSingerNameClick(item, { id: undefined, name }, arIndex)"
+              >{{ name }}{{ arIndex < item.singer.split('、').length - 1 ? '、' : '' }}</span>
+            </template>
+            <span v-else class="select singer-name" :aria-label="item.singer" @click.stop="handleSingerClick(item, $event)">{{ item.singer }}</span>
           </div>
           <div class="list-item-cell" style="flex: 0 0 28%">
             <span class="select" :aria-label="item.meta.albumName">{{ item.meta.albumName }}</span>
@@ -299,6 +335,7 @@
 </template>
 
 <script>
+import { toRaw } from '@common/utils/vueTools'
 import { clipboardWriteText } from '@common/utils/electron'
 import { assertApiSupport } from '@renderer/store/utils'
 import { preloadImage } from '@common/utils/imageCache'
@@ -318,6 +355,10 @@ import useListScroll from './useListScroll'
 import useMusicToggle from './useMusicToggle'
 import useLikeMusic from './useLikeMusic'
 import { appSetting } from '@renderer/store/setting'
+import { useRouter } from '@common/utils/vueRouter'
+import { dialog } from '@renderer/plugins/Dialog'
+import wyUtil from '@renderer/utils/musicSdk/wy/wyUtil'
+import musicSdk from '@renderer/utils/musicSdk'
 export default {
   name: 'MusicList',
   components: {
@@ -333,7 +374,43 @@ export default {
   },
   emits: ['show-menu'],
   setup(props, { emit }) {
+    const router = useRouter()
     const actionButtonsVisible = appSetting['list.actionButtonsVisible']
+
+    const handleSingerNameClick = async (item, ar, arIndex = 0) => {
+      const rawAr = toRaw(ar)
+      const id = rawAr?.id
+      const name = rawAr?.name
+
+      if (id) {
+        // 有ID直接跳转
+        if (item.source !== 'wy') return
+        router.push({ path: '/artist', query: { id } })
+      } else if (name && item.meta?.songId) {
+        // 无ID但有歌手名和歌曲ID，通过歌曲详情获取歌手信息
+        if (item.source === 'wy') {
+          try {
+            const songInfo = await musicSdk.wy.getMusicInfo(item.meta.songId).promise
+            if (songInfo?.ar?.[arIndex]?.id) {
+              router.push({ path: '/artist', query: { id: songInfo.ar[arIndex].id } })
+              return
+            }
+          } catch (e) {
+            console.error('获取歌曲详情失败:', e)
+          }
+        }
+        // 如果获取失败或不是网易云歌曲，尝试搜索
+        const results = await wyUtil.searchArtist(name)
+        if (results.length > 0) {
+          router.push({ path: '/artist', query: { id: results[0].artistId } })
+        } else {
+          void dialog.confirm({
+            message: `未找到歌手"${name}"的信息`,
+            confirmButtonText: '确定',
+          })
+        }
+      }
+    }
 
     let scrollIndex = null
     let isAnimation = false
@@ -543,6 +620,7 @@ export default {
       dom_listContent,
       listRef,
       excludeListIds,
+      handleSingerNameClick,
 
       menus,
       isShowItemMenu,
