@@ -40,7 +40,7 @@ const options = {
   publish: [
     {
       provider: 'github',
-      owner: 'ikunshare',
+      owner: 'zxbdzh',
       repo: 'ikun-music-desktop',
     },
   ],
@@ -52,7 +52,7 @@ const options = {
 const winOptions = {
   win: {
     icon: './resources/icons/icon.ico',
-    legalTrademarks: 'ikunshare',
+    legalTrademarks: 'zxbdzh',
     // artifactName: '${productName}-v${version}-${env.ARCH}-${env.TARGET}.${ext}',
   },
   nsis: {
@@ -70,7 +70,7 @@ const winOptions = {
  */
 const linuxOptions = {
   linux: {
-    maintainer: 'ikunshare <ikunshare@qq.com>',
+    maintainer: 'zxbdzh <zxbdzh@qq.com>',
     // artifactName: '${productName}-${version}.${env.ARCH}.${ext}',
     icon: './resources/icons',
     category: 'Utility;AudioVideo;Audio;Player;Music;',
