@@ -371,18 +371,19 @@ export default {
     const listRef = ref(null)
 
     const handleSingerNameClick = async (item, ar, arIndex = 0) => {
+      const rawItem = toRaw(item)
       const rawAr = toRaw(ar)
       const id = rawAr?.id
       const name = rawAr?.name
 
       if (id) {
         // 有ID直接跳转（网易云歌手页）
-        if (item.source !== 'wy') return
+        if (rawItem.source !== 'wy') return
         router.push({ path: '/artist', query: { id } })
-      } else if (name && item.meta?.songId && item.source === 'wy') {
+      } else if (name && rawItem.meta?.songId && rawItem.source === 'wy') {
         // 无ID但有歌曲ID，用歌曲详情API获取歌手ID
         try {
-          const info = await wy.getMusicInfo(item.meta.songId).promise
+          const info = await wy.getMusicInfo(rawItem.meta.songId).promise
           if (info?.ar?.[arIndex]?.id) {
             router.push({ path: '/artist', query: { id: info.ar[arIndex].id } })
           } else {

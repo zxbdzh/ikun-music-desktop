@@ -55,6 +55,25 @@ export const markRawList = <T extends any[]>(list: T) => {
   return list
 }
 
+/**
+ * 深度将响应式对象转换为普通对象，用于通过 IPC 传递数据
+ */
+export const toRawDeep = <T>(obj: T): T => {
+  if (obj === null || typeof obj !== 'object') return obj
+  if (Array.isArray(obj)) {
+    return obj.map(item => toRawDeep(item)) as unknown as T
+  }
+  const raw = toRaw(obj)
+  const result: Record<string, any> = {}
+  for (const key in raw) {
+    if (Object.prototype.hasOwnProperty.call(raw, key)) {
+      const value = raw[key]
+      result[key] = value === null || typeof value !== 'object' ? value : toRawDeep(value)
+    }
+  }
+  return result as T
+}
+
 export {
   nextTick,
   onBeforeUnmount,

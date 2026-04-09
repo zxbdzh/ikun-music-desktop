@@ -132,7 +132,7 @@
 </template>
 
 <script>
-import { ref, computed, markRaw, toRaw } from '@common/utils/vueTools'
+import { ref, computed, markRaw, toRaw, toRawDeep } from '@common/utils/vueTools'
 import wyUtil from '@renderer/utils/musicSdk/wy/wyUtil'
 import { playList } from '@renderer/core/player'
 import { setTempList } from '@renderer/store/list/action'
@@ -262,10 +262,10 @@ export default {
     },
     async handlePlay(index) {
       this.playingIndex = index
-      const formattedSongs = markRaw(this.songs.map(s => {
+      const formattedSongs = toRawDeep(markRaw(this.songs.map(s => {
         // 将ar数组转换为纯JSON对象，避免Proxy对象无法克隆
         const ar = s.ar ? s.ar.map(a => ({ id: a.id, name: a.name })) : []
-        return toNewMusicInfo({
+        return toNewMusicInfo(toRaw({
           ...s,
           ar,
           songmid: String(s.id),
@@ -287,8 +287,8 @@ export default {
             singerId: ar[0]?.id,
             ar,
           },
-        })
-      }))
+        }))
+      })))
       await setTempList('wy_artist_' + this.artistId, formattedSongs)
       void playList(LIST_IDS.TEMP, index)
     },
