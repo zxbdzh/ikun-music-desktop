@@ -1,6 +1,6 @@
 {
-  "version": "3.3.0-fix.7",
-  "desc": "修复- QQ音乐经常搜索不了",
+  "version": "1.0.0",
+  "desc": "",
   "history": [
     { "version": "3.3.0-fix.6", "desc": "修复- 网易云搜索结果错误" },
     {

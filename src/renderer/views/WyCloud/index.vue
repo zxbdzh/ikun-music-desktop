@@ -299,7 +299,7 @@
 </template>
 
 <script>
-import { ref, computed, watch, nextTick, toRaw, markRawList } from '@common/utils/vueTools'
+import { ref, computed, watch, nextTick, toRaw, markRawList, toRawDeep } from '@common/utils/vueTools'
 import { appSetting } from '@renderer/store/setting'
 import { playMusicInfo } from '@renderer/store/player/state'
 import { dialog } from '@renderer/plugins/Dialog'
@@ -488,7 +488,7 @@ export default {
 
     const handlePlay = async (index) => {
       playingIndex.value = index
-      const formattedSongs = markRawList(songs.value.map(s => toNewMusicInfo(toRaw({
+      const formattedSongs = toRawDeep(markRawList(songs.value.map(s => toNewMusicInfo(toRaw({
         ...s,
         songmid: String(s.id),
         name: s.name,
@@ -506,7 +506,7 @@ export default {
           picUrl: s.img || '',
           albumId: s.albumId || '',
         },
-      }))))
+      })))))
       await setTempList('wy_cloud_' + activeTab.value, formattedSongs)
       void playList(LIST_IDS.TEMP, index)
     }
@@ -858,7 +858,7 @@ export default {
   overflow: hidden;
   opacity: 0.9;
   aspect-ratio: 1 / 1;
-  box-shadow: 0 0 2px 0 rgba(0, 0, 0, 0.2);
+  box-shadow: 0 0 2px 0 var(--color-primary-alpha-300);
 }
 
 .playlistImg {
@@ -917,11 +917,11 @@ export default {
   font-size: 14px;
   border: 1px solid var(--color-border);
   border-radius: 4px;
-  background: var(--color-button-background);
+  background: var(--color-main-background);
   color: var(--color-font);
   cursor: pointer;
   appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 12px center;
   padding-right: 36px;
