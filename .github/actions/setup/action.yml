@@ -8,7 +8,11 @@ runs:
       uses: actions/setup-node@v4
       with:
         node-version: '22'
-        pnpm-version: '9'
+
+    - name: Setup pnpm
+      uses: pnpm/setup-pnpm@v4
+      with:
+        version: 9
 
     - name: Cache pnpm modules
       id: cache-pnpm
