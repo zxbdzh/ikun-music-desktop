@@ -1,5 +1,10 @@
 <template>
   <div :class="$style.container">
+    <div :class="$style.header">
+      <button :class="$style.backBtn" @click="$router.back()">
+        <span>←</span> 返回
+      </button>
+    </div>
     <div v-if="loading" :class="$style.loading">
       <p>加载中...</p>
     </div>
@@ -108,9 +113,7 @@ export default {
       return `${minutes}:${seconds.toString().padStart(2, '0')}`
     },
     playSong(song, index) {
-      // TODO: 实现播放功能
       this.playingSongId = song.id
-      console.log('播放歌曲:', song.name, song.id)
     },
   },
 }
@@ -121,6 +124,30 @@ export default {
   height: 100%;
   overflow-y: auto;
   padding: 20px;
+}
+
+.backBtn {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  z-index: 100;
+  padding: 8px 16px;
+  background: var(--color-button-background);
+  color: var(--color-button-font);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+
+  &:hover {
+    background: var(--color-button-background-hover);
+  }
+
+  span {
+    font-size: 16px;
+  }
 }
 
 .loading,
