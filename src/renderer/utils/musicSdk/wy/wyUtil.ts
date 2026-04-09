@@ -478,6 +478,37 @@ const dailySignin = async (cookie: string, type: number = 1): Promise<{ success:
   }
 }
 
+// 搜索歌手
+interface SearchArtistResult {
+  artistId: number
+  artistName: string
+  artistAvatarPicUrl: string
+}
+
+const searchArtist = async (keyword: string, limit = 5): Promise<SearchArtistResult[]> => {
+  try {
+    const response: any = httpFetch(`${API_BASE_URL}/ugc/artist/search?keyword=${encodeURIComponent(keyword)}&limit=${limit}`, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      },
+    })
+    const { body, statusCode } = await response.promise
+    if (statusCode !== 200 || body.code !== 200) {
+      console.error('Search artist error:', body)
+      return []
+    }
+    return (body.data?.list || []).map((item: any) => ({
+      artistId: item.artistId,
+      artistName: item.artistName,
+      artistAvatarPicUrl: item.artistAvatarPicUrl || '',
+    }))
+  } catch (err: any) {
+    console.error('Search artist error:', err)
+    return []
+  }
+}
+
 export default {
   API_BASE_URL,
   getCsrfToken,
@@ -495,4 +526,5 @@ export default {
   dailySignin,
   getArtistInfo,
   getArtistSongs,
+  searchArtist,
 }

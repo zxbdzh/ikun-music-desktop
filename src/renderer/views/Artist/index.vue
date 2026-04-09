@@ -29,8 +29,8 @@
             <span>专辑: {{ artistInfo.artist.albumSize }}</span>
             <span>MV: {{ artistInfo.artist.mvSize }}</span>
           </div>
-          <div v-if="artistInfo.artist.briefDesc" :class="$style.desc">
-            {{ artistInfo.artist.briefDesc }}
+          <div v-if="artistInfo.artist.briefDesc" :class="$style.desc" @click="toggleDescExpand" :title="isDescExpanded ? '点击收起' : '点击展开'">
+            {{ isDescExpanded ? artistInfo.artist.briefDesc : artistInfo.artist.briefDesc.slice(0, 150) + (artistInfo.artist.briefDesc.length > 150 ? '...' : '') }}
           </div>
         </div>
       </div>
@@ -97,7 +97,15 @@
               <span v-else-if="song.fee === 4" class="no-select badge badge-theme-secondary">{{ $t('tag__付费') }}</span>
             </div>
             <div :class="$style.singer">
-              <span class="select">{{ song.singer }}</span>
+              <span
+                v-for="(ar, arIndex) in song.ar"
+                :key="`${song.id}-${ar.id}`"
+                class="select"
+                :class="$style.singerName"
+                @click.stop="handleSingerClick(ar)"
+              >
+                {{ ar.name }}{{ arIndex < song.ar.length - 1 ? '、' : '' }}
+              </span>
             </div>
             <div :class="$style.album">
               <span class="select">{{ song.al?.name }}</span>
@@ -145,6 +153,7 @@ export default {
       currentPage: 1,
       limit: 50,
       playingIndex: -1,
+      isDescExpanded: false,
     }
   },
   computed: {
@@ -193,6 +202,7 @@ export default {
           albumId: song.al?.id || 0,
           img: song.al?.picUrl || '',
           al: song.al,
+          ar: song.ar || [],
           fee: song.fee || 0,
         }))
         this.total = result.total
@@ -214,11 +224,20 @@ export default {
         this.loadSongs()
       }
     },
+    handleSingerClick(arItem) {
+      // 允许跳转到其他歌手（不是当前歌手）
+      if (!arItem?.id) return
+      if (String(arItem.id) === String(this.artistId)) return
+      this.$router.push({ path: '/artist', query: { id: arItem.id } })
+    },
     nextPage() {
       if (this.currentPage < this.totalPages) {
         this.currentPage++
         this.loadSongs()
       }
+    },
+    toggleDescExpand() {
+      this.isDescExpanded = !this.isDescExpanded
     },
     formatDuration(ms) {
       if (!ms) return '--:--'
@@ -229,25 +248,33 @@ export default {
     },
     async handlePlay(index) {
       this.playingIndex = index
-      const formattedSongs = markRaw(this.songs.map(s => toNewMusicInfo({
-        ...s,
-        songmid: String(s.id),
-        name: s.name,
-        singer: s.singer,
-        source: 'wy',
-        interval: s.interval,
-        albumName: s.albumName,
-        albumId: s.albumId,
-        img: s.img,
-        types: [],
-        _types: {},
-        meta: {
-          songId: String(s.id),
-          albumName: s.albumName || '',
-          picUrl: s.img || '',
-          albumId: s.albumId || '',
-        },
-      })))
+      const formattedSongs = markRaw(this.songs.map(s => {
+        // 将ar数组转换为纯JSON对象，避免Proxy对象无法克隆
+        const ar = s.ar ? s.ar.map(a => ({ id: a.id, name: a.name })) : []
+        return toNewMusicInfo({
+          ...s,
+          ar,
+          songmid: String(s.id),
+          name: s.name,
+          singer: s.singer,
+          singerId: ar[0]?.id,
+          source: 'wy',
+          interval: s.interval,
+          albumName: s.albumName,
+          albumId: s.albumId,
+          img: s.img,
+          types: [],
+          _types: {},
+          meta: {
+            songId: String(s.id),
+            albumName: s.albumName || '',
+            picUrl: s.img || '',
+            albumId: s.albumId || '',
+            singerId: ar[0]?.id,
+            ar,
+          },
+        })
+      }))
       await setTempList('wy_artist_' + this.artistId, formattedSongs)
       void playList(LIST_IDS.TEMP, index)
     },
@@ -285,6 +312,7 @@ export default {
 }
 
 .header {
+  position: relative;
   display: flex;
   gap: 24px;
   margin-bottom: 20px;
@@ -292,8 +320,8 @@ export default {
 
 .backBtn {
   position: absolute;
-  top: 20px;
-  left: 20px;
+  top: 0;
+  left: 0;
   padding: 8px 16px;
   background: var(--color-button-background);
   color: var(--color-button-font);
@@ -303,7 +331,6 @@ export default {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  z-index: 10;
 
   &:hover {
     background: var(--color-button-background-hover);
@@ -320,15 +347,17 @@ export default {
   border-radius: 8px;
   object-fit: cover;
   flex-shrink: 0;
+  margin-top: 40px;
 }
 
 .info {
   flex: 1;
   min-width: 0;
+  margin-top: 40px;
 }
 
 .name {
-  font-size: 28px;
+  font-size: 20px;
   margin: 0 0 8px 0;
   color: var(--color-font);
 }
@@ -361,9 +390,10 @@ export default {
   color: var(--color-font-description);
   font-size: 14px;
   line-height: 1.6;
-  max-height: 120px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  cursor: pointer;
+  &:hover {
+    color: var(--color-primary);
+  }
 }
 
 .toolbar {
@@ -487,6 +517,7 @@ export default {
 }
 
 .songName {
+  font-size: 13px;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -498,6 +529,14 @@ export default {
   white-space: nowrap;
   text-overflow: ellipsis;
   color: var(--color-font-label);
+  font-size: 13px;
+}
+
+.singerName {
+  cursor: pointer;
+  &:hover {
+    color: var(--color-primary);
+  }
 }
 
 .album {
@@ -506,12 +545,14 @@ export default {
   white-space: nowrap;
   text-overflow: ellipsis;
   color: var(--color-font-label);
+  font-size: 13px;
 }
 
 .time {
   flex: 0 0 10%;
   text-align: center;
   color: var(--color-font-label);
+  font-size: 13px;
 }
 
 // 表头样式

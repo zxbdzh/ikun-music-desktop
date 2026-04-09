@@ -79,7 +79,15 @@
                   <span v-else-if="song.fee === 4" class="no-select badge badge-theme-secondary">{{ $t('tag__付费') }}</span>
                 </div>
                 <div :class="$style.singer">
-                  <span class="select">{{ song.singer }}</span>
+                  <span
+                    v-for="(ar, arIndex) in song.ar"
+                    :key="`${song.id}-${ar.id}`"
+                    class="select"
+                    :class="$style.singerName"
+                    @click.stop="handleSingerClick(ar)"
+                  >
+                    {{ ar.name }}{{ arIndex < song.ar.length - 1 ? '、' : '' }}
+                  </span>
                 </div>
                 <div :class="$style.album">
                   <span class="select">{{ song.al?.name }}</span>
@@ -137,7 +145,15 @@
                   <span v-else-if="song.fee === 4" class="no-select badge badge-theme-secondary">{{ $t('tag__付费') }}</span>
                 </div>
                 <div :class="$style.singer">
-                  <span class="select">{{ song.singer }}</span>
+                  <span
+                    v-for="(ar, arIndex) in song.ar"
+                    :key="`${song.id}-${ar.id}`"
+                    class="select"
+                    :class="$style.singerName"
+                    @click.stop="handleSingerClick(ar)"
+                  >
+                    {{ ar.name }}{{ arIndex < song.ar.length - 1 ? '、' : '' }}
+                  </span>
                 </div>
                 <div :class="$style.album">
                   <span class="select">{{ song.al?.name }}</span>
@@ -255,7 +271,15 @@
                   <span v-else-if="song.fee === 4" class="no-select badge badge-theme-secondary">{{ $t('tag__付费') }}</span>
                 </div>
                 <div :class="$style.singer">
-                  <span class="select">{{ song.singer }}</span>
+                  <span
+                    v-for="(ar, arIndex) in song.ar"
+                    :key="`${song.id}-${ar.id}`"
+                    class="select"
+                    :class="$style.singerName"
+                    @click.stop="handleSingerClick(ar)"
+                  >
+                    {{ ar.name }}{{ arIndex < song.ar.length - 1 ? '、' : '' }}
+                  </span>
                 </div>
                 <div :class="$style.album">
                   <span class="select">{{ song.al?.name }}</span>
@@ -365,6 +389,7 @@ export default {
           albumId: song.al?.id || 0,
           img: song.al?.picUrl || '',
           al: song.al,
+          ar: song.ar || [],
           fee: song.fee || 0,
         }))
       } catch (e) {
@@ -403,6 +428,7 @@ export default {
             albumId: song.al?.id || 0,
             img: song.al?.picUrl || '',
             al: song.al,
+            ar: song.ar || [],
             fee: song.fee || 0,
           }))
         } else if (tabId === 'simi') {
@@ -418,6 +444,7 @@ export default {
             albumId: song.al?.id || 0,
             img: song.al?.picUrl || '',
             al: song.al,
+            ar: song.ar || [],
             fee: song.fee || 0,
           }))
         } else if (tabId === 'playlist') {
@@ -513,6 +540,11 @@ export default {
       })
     }
 
+    const handleSingerClick = (arItem) => {
+      if (!arItem?.id) return
+      void router.push({ path: '/artist', query: { id: arItem.id } })
+    }
+
     const formatDuration = (ms) => {
       if (!ms) return '--:--'
       const seconds = Math.floor(ms / 1000)
@@ -545,6 +577,7 @@ export default {
       handlePlay,
       handleRefresh,
       handlePlaylistClick,
+      handleSingerClick,
       // 心动模式
       userPlaylists,
       selectedPlaylistId,
@@ -745,6 +778,13 @@ export default {
   white-space: nowrap;
   text-overflow: ellipsis;
   color: var(--color-font-label);
+}
+
+.singerName {
+  cursor: pointer;
+  &:hover {
+    color: var(--color-primary);
+  }
 }
 
 .album {

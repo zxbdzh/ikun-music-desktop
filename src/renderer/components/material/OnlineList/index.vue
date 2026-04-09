@@ -99,7 +99,24 @@
                   }}</span>
                 </div>
                 <div class="list-item-cell" style="flex: 0 0 22%">
-                  <span class="select" :aria-label="item.singer">{{ item.singer }}</span>
+                  <template v-if="item.meta.ar && item.meta.ar.length">
+                    <span
+                      v-for="(ar, arIndex) in item.meta.ar"
+                      :key="ar.id || arIndex"
+                      class="select singer-name"
+                      :class="$style.singerName"
+                      @click.stop="handleSingerNameClick(item, ar)"
+                    >{{ ar.name }}{{ arIndex < item.meta.ar.length - 1 ? '、' : '' }}</span>
+                  </template>
+                  <template v-else>
+                    <span
+                      v-for="(name, arIndex) in item.singer.split('、')"
+                      :key="arIndex"
+                      class="select singer-name"
+                      :class="$style.singerName"
+                      @click.stop="handleSingerNameClick(item, { id: undefined, name })"
+                    >{{ name }}{{ arIndex < item.singer.split('、').length - 1 ? '、' : '' }}</span>
+                  </template>
                 </div>
                 <div class="list-item-cell" style="flex: 0 0 22%">
                   <span class="select" :aria-label="item.meta.albumName">{{
@@ -208,7 +225,24 @@
                   }}</span>
                 </div>
                 <div class="list-item-cell" style="flex: 0 0 24%">
-                  <span class="select" :aria-label="item.singer">{{ item.singer }}</span>
+                  <template v-if="item.meta.ar && item.meta.ar.length">
+                    <span
+                      v-for="(ar, arIndex) in item.meta.ar"
+                      :key="ar.id || arIndex"
+                      class="select singer-name"
+                      :class="$style.singerName"
+                      @click.stop="handleSingerNameClick(item, ar)"
+                    >{{ ar.name }}{{ arIndex < item.meta.ar.length - 1 ? '、' : '' }}</span>
+                  </template>
+                  <template v-else>
+                    <span
+                      v-for="(name, arIndex) in item.singer.split('、')"
+                      :key="arIndex"
+                      class="select singer-name"
+                      :class="$style.singerName"
+                      @click.stop="handleSingerNameClick(item, { id: undefined, name })"
+                    >{{ name }}{{ arIndex < item.singer.split('、').length - 1 ? '、' : '' }}</span>
+                  </template>
                 </div>
                 <div class="list-item-cell" style="flex: 0 0 27%">
                   <span class="select" :aria-label="item.meta.albumName">{{
@@ -280,6 +314,7 @@ import { clipboardWriteText } from '@common/utils/electron'
 import { assertApiSupport } from '@renderer/store/utils'
 import { preloadImage } from '@common/utils/imageCache'
 import { ref } from '@common/utils/vueTools'
+import { useRouter } from '@common/utils/vueRouter'
 import useList from './useList'
 import useMenu from './useMenu'
 import usePlay from './usePlay'
@@ -324,10 +359,17 @@ export default {
   },
   emits: ['show-menu', 'play-list', 'togglePage'],
   setup(props, { emit }) {
+    const router = useRouter()
     const actionButtonsVisible = appSetting['list.actionButtonsVisible']
     const rightClickSelectedIndex = ref(-1)
     const dom_listContent = ref(null)
     const listRef = ref(null)
+
+    const handleSingerNameClick = (item, ar) => {
+      if (!ar?.id) return
+      if (item.source !== 'wy') return
+      router.push({ path: '/artist', query: { id: ar.id } })
+    }
 
     const { selectedList, listItemHeight, handleSelectData, removeAllSelect } = useList({
       props,
@@ -456,6 +498,7 @@ export default {
 
       handleListRightClick,
       assertApiSupport,
+      handleSingerNameClick,
 
       isShowListAdd,
       isShowListAddMultiple,
@@ -528,6 +571,12 @@ export default {
   align-items: center;
   justify-content: center;
   color: var(--color-font-label);
+}
+.singerName {
+  cursor: pointer;
+  &:hover {
+    color: var(--color-primary);
+  }
 }
 .noitem {
   position: absolute;
