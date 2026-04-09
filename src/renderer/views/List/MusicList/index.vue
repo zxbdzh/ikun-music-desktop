@@ -43,7 +43,7 @@
             { disabled: !assertApiSupport(item.source) },
           ]"
           @click="handleListItemClick($event, index)"
-          @contextmenu="handleListItemRightClick($event, index)"
+          @contextmenu="handleListItemRightClick($event, item, index)"
         >
           <div class="list-item-cell no-select" :class="$style.num" style="flex: 0 0 5%">
             <transition name="play-active">
@@ -120,8 +120,8 @@
               $t(`source_${item.source}`)
             }}</span>
           </div>
-          <div class="list-item-cell" style="flex: 0 0 22%">
-            <span class="select" :aria-label="item.singer">{{ item.singer }}</span>
+          <div class="list-item-cell singer-cell" style="flex: 0 0 22%">
+            <span class="select singer-name" :aria-label="item.singer" @click.stop="handleSingerClick(item, $event)">{{ item.singer }}</span>
           </div>
           <div class="list-item-cell" style="flex: 0 0 22%">
             <span class="select" :aria-label="item.meta.albumName">{{ item.meta.albumName }}</span>
@@ -159,7 +159,7 @@
             { disabled: !assertApiSupport(item.source) },
           ]"
           @click="handleListItemClick($event, index)"
-          @contextmenu="handleListItemRightClick($event, index)"
+          @contextmenu="handleListItemRightClick($event, item, index)"
         >
           <div class="list-item-cell no-select" :class="$style.num" style="flex: 0 0 5%">
             <transition name="play-active">
@@ -231,8 +231,8 @@
               $t(`source_${item.source}`)
             }}</span>
           </div>
-          <div class="list-item-cell" style="flex: 0 0 25%">
-            <span class="select" :aria-label="item.singer">{{ item.singer }}</span>
+          <div class="list-item-cell singer-cell" style="flex: 0 0 25%">
+            <span class="select singer-name" :aria-label="item.singer" @click.stop="handleSingerClick(item, $event)">{{ item.singer }}</span>
           </div>
           <div class="list-item-cell" style="flex: 0 0 28%">
             <span class="select" :aria-label="item.meta.albumName">{{ item.meta.albumName }}</span>
@@ -412,6 +412,8 @@ export default {
       handleShareCard,
       handleDislikeMusic,
       handleRemoveMusic,
+      handleSingerClick,
+      handleSingerRightClick,
     } = useMusicActions({ props, list, removeAllSelect, selectedList })
 
     const { isChecking, isLiked, handleToggleLike, handleToggleLikeMultiple, handleToggleUnlikeMultiple } = useLikeMusic({ list })
@@ -471,9 +473,21 @@ export default {
       handleSelectData(index)
       doubleClickPlay(index)
     }
-    const handleListItemRightClick = (event, index) => {
+    const handleListItemRightClick = (event, item, index) => {
+      // 检查是否点击的是歌手名称元素
+      const singerCell = event.target.closest('.singer-cell')
+      if (singerCell) {
+        if (item && item.meta?.singerId && item.source === 'wy') {
+          event.preventDefault()
+          router.push({
+            path: '/artist',
+            query: { id: item.meta.singerId },
+          })
+          return
+        }
+      }
       rightClickSelectedIndex.value = index
-      showMenu(event, list.value[index], index)
+      showMenu(event, item, index)
     }
     const handleMenuClick = (action) => {
       let index = rightClickSelectedIndex.value
@@ -571,6 +585,9 @@ export default {
       isShowMusicToggleModal,
       selectedToggleMusicInfo,
       toggleSource,
+
+      handleSingerClick,
+      handleSingerRightClick,
     }
   },
 }

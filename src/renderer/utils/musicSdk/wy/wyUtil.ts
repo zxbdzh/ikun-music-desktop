@@ -188,6 +188,49 @@ const getSimiSongs = async (songId: string | number): Promise<any[]> => {
   }
 }
 
+// 获取歌手详情
+interface ArtistInfo {
+  videoCount: number
+  artist: {
+    id: number
+    name: string
+    cover: string
+    avatar: string
+    briefDesc: string
+    albumSize: number
+    musicSize: number
+    mvSize: number
+    transNames: string[]
+    alias: string[]
+    identities: string[]
+    identifyTag: string[]
+  }
+  user: any
+}
+
+const getArtistInfo = async (artistId: string | number): Promise<ArtistInfo> => {
+  try {
+    const response: any = httpFetch(`${API_BASE_URL}/artist/detail?id=${artistId}`, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      },
+    })
+    const { body, statusCode } = await response.promise
+    if (statusCode !== 200) {
+      throw new Error(`HTTP ${statusCode}: 获取歌手详情失败`)
+    }
+    if (body.code !== 200) {
+      console.error('Get artist info error:', body)
+      throw new Error(body.message || '获取歌手详情失败')
+    }
+    return body.data
+  } catch (err: any) {
+    console.error('Get artist info error:', err)
+    throw err
+  }
+}
+
 // 获取每日推荐歌曲
 const getDailySongs = async (cookie: string): Promise<any[]> => {
   try {
@@ -426,4 +469,5 @@ export default {
   likeSong,
   checkIsLiked,
   dailySignin,
+  getArtistInfo,
 }

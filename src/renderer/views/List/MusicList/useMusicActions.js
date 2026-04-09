@@ -32,6 +32,52 @@ export default ({ props, list, selectedList, removeAllSelect }) => {
     openUrl(url)
   }
 
+  // 歌手名称点击/右键跳转歌手详情页
+  const handleSingerClick = async (item, event) => {
+    // 网易云歌曲如果没有 singerId，懒加载获取
+    if (!item.meta?.singerId && item.source === 'wy' && item.meta?.songId) {
+      try {
+        const requestObj = musicSdk.wy.getMusicInfo(item.meta.songId)
+        const songDetail = await requestObj.promise
+        if (songDetail?.ar?.[0]?.id) {
+          item.meta.singerId = songDetail.ar[0].id
+        }
+      } catch (err) {
+        console.error('获取歌手ID失败:', err)
+      }
+    }
+    if (!item.meta?.singerId || item.source !== 'wy') return
+    router.push({
+      path: '/artist',
+      query: { id: item.meta.singerId },
+    })
+  }
+
+  // 返回 true 表示已处理（跳转），返回 false 表示需要显示菜单
+  const handleSingerRightClick = async (item, event) => {
+    event.preventDefault()
+    // 网易云歌曲如果没有 singerId，懒加载获取
+    if (!item.meta?.singerId && item.source === 'wy' && item.meta?.songId) {
+      try {
+        const requestObj = musicSdk.wy.getMusicInfo(item.meta.songId)
+        const songDetail = await requestObj.promise
+        if (songDetail?.ar?.[0]?.id) {
+          item.meta.singerId = songDetail.ar[0].id
+        }
+      } catch (err) {
+        console.error('获取歌手ID失败:', err)
+      }
+    }
+    if (item.meta?.singerId && item.source === 'wy') {
+      router.push({
+        path: '/artist',
+        query: { id: item.meta.singerId },
+      })
+      return true
+    }
+    return false
+  }
+
   const handleCopyName = (index) => {
     const minfo = list.value[index]
     clipboardWriteText(
@@ -92,5 +138,7 @@ export default ({ props, list, selectedList, removeAllSelect }) => {
     handleShareCard,
     handleDislikeMusic,
     handleRemoveMusic,
+    handleSingerClick,
+    handleSingerRightClick,
   }
 }

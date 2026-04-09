@@ -22,6 +22,7 @@ export default {
       if (item.pc) {
         list.push({
           singer: item.pc.ar ?? '',
+          singerId: item.pc.ar?.[0]?.id ?? item.pc.ar?.[0]?.id,
           name: item.pc.sn ?? '',
           albumName: item.pc.alb ?? '',
           albumId: item.al?.id,
@@ -38,6 +39,7 @@ export default {
       } else {
         list.push({
           singer: this.getSinger(item.ar),
+          singerId: item.ar?.[0]?.id,
           name: item.name ?? '',
           albumName: item.al?.name,
           albumId: item.al?.id,
