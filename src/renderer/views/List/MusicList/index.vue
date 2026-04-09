@@ -142,7 +142,7 @@
             <span v-else class="select singer-name" :aria-label="item.singer" @click.stop="handleSingerClick(item, $event)">{{ item.singer }}</span>
           </div>
           <div class="list-item-cell" style="flex: 0 0 22%">
-            <span class="select" :aria-label="item.meta.albumName">{{ item.meta.albumName }}</span>
+            <span class="select album-name" :aria-label="item.meta.albumName" @click.stop="handleAlbumClick(item)">{{ item.meta.albumName }}</span>
           </div>
           <div class="list-item-cell" style="flex: 0 0 9%">
             <span class="no-select">{{ item.interval || '--/--' }}</span>
@@ -271,7 +271,7 @@
             <span v-else class="select singer-name" :aria-label="item.singer" @click.stop="handleSingerClick(item, $event)">{{ item.singer }}</span>
           </div>
           <div class="list-item-cell" style="flex: 0 0 28%">
-            <span class="select" :aria-label="item.meta.albumName">{{ item.meta.albumName }}</span>
+            <span class="select album-name" :aria-label="item.meta.albumName" @click.stop="handleAlbumClick(item)">{{ item.meta.albumName }}</span>
           </div>
           <div class="list-item-cell" style="flex: 0 0 10%">
             <span class="no-select">{{ item.interval || '--/--' }}</span>
@@ -409,6 +409,13 @@ export default {
             confirmButtonText: '确定',
           })
         }
+      }
+    }
+
+    const handleAlbumClick = (item) => {
+      const albumId = item.meta?.albumId
+      if (albumId) {
+        router.push({ path: '/album', query: { id: albumId } })
       }
     }
 
@@ -621,6 +628,7 @@ export default {
       listRef,
       excludeListIds,
       handleSingerNameClick,
+      handleAlbumClick,
 
       menus,
       isShowItemMenu,
@@ -698,6 +706,13 @@ export default {
     }
 
     .singer-name {
+      cursor: pointer;
+      &:hover {
+        color: var(--color-primary);
+      }
+    }
+
+    .album-name {
       cursor: pointer;
       &:hover {
         color: var(--color-primary);

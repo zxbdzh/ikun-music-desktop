@@ -509,6 +509,45 @@ const searchArtist = async (keyword: string, limit = 5): Promise<SearchArtistRes
   }
 }
 
+// 获取专辑详情
+interface AlbumInfo {
+  id: number
+  name: string
+  picUrl: string
+  artist: {
+    id: number
+    name: string
+    picUrl: string
+  }
+  publishTime: number
+  size: number
+  description: string
+  briefDesc: string
+}
+
+const getAlbumDetail = async (albumId: string | number): Promise<{ album: AlbumInfo; songs: any[] }> => {
+  try {
+    const response: any = httpFetch(`${API_BASE_URL}/album?id=${albumId}`, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      },
+    })
+    const { body, statusCode } = await response.promise
+    if (statusCode !== 200 || body.code !== 200) {
+      console.error('Get album detail error:', body)
+      throw new Error('获取专辑详情失败')
+    }
+    return {
+      album: body.album,
+      songs: body.songs || [],
+    }
+  } catch (err: any) {
+    console.error('Get album detail error:', err)
+    throw err
+  }
+}
+
 export default {
   API_BASE_URL,
   getCsrfToken,
@@ -527,4 +566,5 @@ export default {
   getArtistInfo,
   getArtistSongs,
   searchArtist,
+  getAlbumDetail,
 }

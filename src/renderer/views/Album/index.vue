@@ -5,54 +5,36 @@
     </div>
     <div v-else-if="error" :class="$style.error">
       <p>{{ error }}</p>
-      <button @click="loadArtistInfo">重试</button>
+      <button @click="loadAlbumInfo">重试</button>
     </div>
-    <template v-else-if="artistInfo">
-      <!-- 歌手头部信息 -->
+    <template v-else-if="albumInfo">
+      <!-- 专辑头部信息 -->
       <div :class="$style.header">
         <button :class="$style.backBtn" @click="$router.back()">
           <span>←</span> 返回
         </button>
-        <img :src="artistInfo.artist.cover" :class="$style.cover" />
+        <img :src="albumInfo.album.picUrl" :class="$style.cover" />
         <div :class="$style.info">
           <h1 :class="$style.name">
-            {{ artistInfo.artist.name }}
-            <span v-if="artistInfo.artist.transNames?.length" :class="$style.transName">
-              ({{ artistInfo.artist.transNames.join(', ') }})
-            </span>
+            {{ albumInfo.album.name }}
           </h1>
-          <div v-if="artistInfo.artist.alias?.length" :class="$style.alias">
-            {{ artistInfo.artist.alias.join(', ') }}
+          <div :class="$style.artist" @click.stop="handleArtistClick">
+            艺人：{{ albumInfo.album.artist.name }}
           </div>
           <div :class="$style.stats">
-            <span>歌曲: {{ artistInfo.artist.musicSize }}</span>
-            <span>专辑: {{ artistInfo.artist.albumSize }}</span>
-            <span>MV: {{ artistInfo.artist.mvSize }}</span>
+            <span>歌曲: {{ albumInfo.album.size }}</span>
+            <span>发行时间: {{ formatPublishTime(albumInfo.album.publishTime) }}</span>
           </div>
-          <div v-if="artistInfo.artist.briefDesc" :class="$style.desc" @click="toggleDescExpand" :title="isDescExpanded ? '点击收起' : '点击展开'">
-            {{ isDescExpanded ? artistInfo.artist.briefDesc : artistInfo.artist.briefDesc.slice(0, 150) + (artistInfo.artist.briefDesc.length > 150 ? '...' : '') }}
+          <div v-if="albumInfo.album.description" :class="$style.desc" @click="toggleDescExpand" :title="isDescExpanded ? '点击收起' : '点击展开'">
+            {{ isDescExpanded ? albumInfo.album.description : albumInfo.album.description.slice(0, 150) + (albumInfo.album.description.length > 150 ? '...' : '') }}
           </div>
         </div>
       </div>
 
       <!-- 歌曲列表工具栏 -->
       <div :class="$style.toolbar">
-        <div :class="$style.tabs">
-          <button
-            :class="[$style.tab, { [$style.active]: order === 'hot' }]"
-            @click="switchOrder('hot')"
-          >
-            热门
-          </button>
-          <button
-            :class="[$style.tab, { [$style.active]: order === 'time' }]"
-            @click="switchOrder('time')"
-          >
-            最新
-          </button>
-        </div>
         <div :class="$style.pageInfo">
-          共 {{ total }} 首
+          共 {{ albumInfo.songs.length }} 首
         </div>
       </div>
 
@@ -82,7 +64,7 @@
             :class="[$style.songItem, { [$style.playing]: playingIndex === index }]"
             @dblclick="handlePlay(index)"
           >
-            <div class="num" :class="$style.index">{{ (currentPage - 1) * limit + index + 1 }}</div>
+            <div class="num" :class="$style.index">{{ index + 1 }}</div>
             <div :class="$style.pic">
               <img v-if="song.al?.picUrl" :src="song.al.picUrl" :class="$style.picImg" />
               <span v-else :class="$style.picPlaceholder">
@@ -108,7 +90,7 @@
               </span>
             </div>
             <div :class="$style.album">
-              <span :class="$style.albumName" @click.stop="handleAlbumClick(song)">{{ song.al?.name }}</span>
+              <span :class="$style.albumName">{{ song.al?.name }}</span>
             </div>
             <div :class="$style.time">
               <span class="no-select">{{ song.interval }}</span>
@@ -116,23 +98,12 @@
           </div>
         </div>
       </div>
-
-      <!-- 分页 -->
-      <div v-if="totalPages > 1" :class="$style.pagination">
-        <button :class="$style.pageBtn" :disabled="currentPage <= 1" @click="prevPage">
-          上一页
-        </button>
-        <span :class="$style.pageText">第 {{ currentPage }} / {{ totalPages }} 页</span>
-        <button :class="$style.pageBtn" :disabled="currentPage >= totalPages" @click="nextPage">
-          下一页
-        </button>
-      </div>
     </template>
   </div>
 </template>
 
 <script>
-import { ref, computed, markRaw, toRaw, toRawDeep } from '@common/utils/vueTools'
+import { ref, toRaw } from '@common/utils/vueTools'
 import wyUtil from '@renderer/utils/musicSdk/wy/wyUtil'
 import { playList } from '@renderer/core/player'
 import { setTempList } from '@renderer/store/list/action'
@@ -140,121 +111,82 @@ import { LIST_IDS } from '@common/constants'
 import { toNewMusicInfo } from '@common/utils/tools'
 
 export default {
-  name: 'Artist',
+  name: 'Album',
   data() {
     return {
       loading: true,
       loadingSongs: false,
       error: null,
-      artistInfo: null,
+      albumInfo: null,
       songs: [],
-      total: 0,
-      order: 'hot',
-      currentPage: 1,
-      limit: 50,
       playingIndex: -1,
       isDescExpanded: false,
     }
   },
   computed: {
-    artistId() {
+    albumId() {
       return this.$route.query.id
-    },
-    totalPages() {
-      return Math.ceil(this.total / this.limit) || 1
     },
   },
   mounted() {
-    this.loadArtistInfo()
+    this.loadAlbumInfo()
   },
   watch: {
     '$route.query.id'(newId, oldId) {
       if (newId !== oldId) {
         this.loading = true
-        this.loadingSongs = false
         this.songs = []
-        this.currentPage = 1
         this.isDescExpanded = false
-        this.loadArtistInfo()
+        this.loadAlbumInfo()
       }
     }
   },
   methods: {
-    async loadArtistInfo() {
-      if (!this.artistId) {
-        this.error = '缺少歌手ID'
+    async loadAlbumInfo() {
+      if (!this.albumId) {
+        this.error = '缺少专辑ID'
         this.loading = false
         return
       }
       this.loading = true
       this.error = null
       try {
-        const data = await wyUtil.getArtistInfo(this.artistId)
-        this.artistInfo = data
-        this.loadSongs()
+        const data = await wyUtil.getAlbumDetail(this.albumId)
+        this.albumInfo = data
+        this.processSongs(data.songs)
       } catch (err) {
-        console.error('获取歌手详情失败:', err)
-        this.error = err.message || '获取歌手详情失败'
+        console.error('获取专辑详情失败:', err)
+        this.error = err.message || '获取专辑详情失败'
       } finally {
         this.loading = false
       }
     },
-    async loadSongs() {
-      this.loadingSongs = true
-      try {
-        const offset = (this.currentPage - 1) * this.limit
-        const result = await wyUtil.getArtistSongs(this.artistId, this.order, this.limit, offset)
-        this.songs = result.songs.map(song => ({
-          id: song.id,
-          name: song.name,
-          singer: (song.ar || []).map(a => a.name).join('、'),
-          source: 'wy',
-          interval: this.formatDuration(song.dt),
-          albumName: song.al?.name || '',
-          albumId: song.al?.id || 0,
-          img: song.al?.picUrl || '',
-          al: song.al,
-          ar: song.ar || [],
-          fee: song.fee || 0,
-        }))
-        this.total = result.total
-      } catch (err) {
-        console.error('获取歌手歌曲失败:', err)
-      } finally {
-        this.loadingSongs = false
-      }
+    processSongs(songs) {
+      this.songs = songs.map(song => ({
+        id: song.id,
+        name: song.name,
+        singer: (song.ar || []).map(a => a.name).join('、'),
+        source: 'wy',
+        interval: this.formatDuration(song.dt),
+        albumName: song.al?.name || this.albumInfo?.album?.name || '',
+        albumId: song.al?.id || this.albumId,
+        img: song.al?.picUrl || this.albumInfo?.album?.picUrl || '',
+        al: song.al,
+        ar: song.ar || [],
+        fee: song.fee || 0,
+      }))
     },
-    switchOrder(newOrder) {
-      if (this.order === newOrder) return
-      this.order = newOrder
-      this.currentPage = 1
-      this.loadSongs()
-    },
-    prevPage() {
-      if (this.currentPage > 1) {
-        this.currentPage--
-        this.loadSongs()
+    handleArtistClick() {
+      const artistId = this.albumInfo?.album?.artist?.id
+      if (artistId) {
+        this.$router.push({ path: '/artist', query: { id: artistId } })
       }
     },
     handleSingerClick(arItem) {
       const raw = toRaw(arItem)
       const id = raw?.id
-      // 允许跳转到其他歌手（不是当前歌手）
       if (!id) return
-      if (String(id) === String(this.artistId)) return
       this.$router.push({ path: '/artist', query: { id } })
-    },
-    handleAlbumClick(song) {
-      const albumId = song.al?.id
-      if (albumId) {
-        this.$router.push({ path: '/album', query: { id: albumId } })
-      }
-    },
-    nextPage() {
-      if (this.currentPage < this.totalPages) {
-        this.currentPage++
-        this.loadSongs()
-      }
     },
     toggleDescExpand() {
       this.isDescExpanded = !this.isDescExpanded
@@ -266,10 +198,14 @@ export default {
       const sec = seconds % 60
       return `${min}:${sec.toString().padStart(2, '0')}`
     },
+    formatPublishTime(timestamp) {
+      if (!timestamp) return '--'
+      const date = new Date(timestamp)
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+    },
     async handlePlay(index) {
       this.playingIndex = index
-      const formattedSongs = toRawDeep(markRaw(this.songs.map(s => {
-        // 将ar数组转换为纯JSON对象，避免Proxy对象无法克隆
+      const formattedSongs = this.songs.map(s => {
         const ar = s.ar ? s.ar.map(a => ({ id: a.id, name: a.name })) : []
         return toNewMusicInfo(toRaw({
           ...s,
@@ -294,8 +230,8 @@ export default {
             ar,
           },
         }))
-      })))
-      await setTempList('wy_artist_' + this.artistId, formattedSongs)
+      })
+      await setTempList('wy_album_' + this.albumId, formattedSongs)
       void playList(LIST_IDS.TEMP, index)
     },
   },
@@ -382,15 +318,13 @@ export default {
   color: var(--color-font);
 }
 
-.transName {
-  font-size: 18px;
-  color: var(--color-font-label);
-  font-weight: normal;
-}
-
-.alias {
-  color: var(--color-font-label);
+.artist {
+  color: var(--color-primary);
   margin-bottom: 12px;
+  cursor: pointer;
+  &:hover {
+    text-decoration: underline;
+  }
 }
 
 .stats {
@@ -423,30 +357,6 @@ export default {
   margin-bottom: 16px;
   padding-bottom: 10px;
   border-bottom: 1px solid var(--color-border);
-}
-
-.tabs {
-  display: flex;
-  gap: 8px;
-}
-
-.tab {
-  padding: 8px 20px;
-  background: var(--color-button-background);
-  color: var(--color-button-font);
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  cursor: pointer;
-
-  &:hover {
-    background: var(--color-button-background-hover);
-  }
-
-  &.active {
-    background: var(--color-primary);
-    color: white;
-    border-color: var(--color-primary);
-  }
 }
 
 .pageInfo {
@@ -601,37 +511,5 @@ export default {
     padding: 4px 0;
     user-select: none;
   }
-}
-
-.pagination {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 16px;
-  margin-top: 20px;
-  padding-bottom: 20px;
-}
-
-.pageBtn {
-  padding: 8px 24px;
-  background: var(--color-button-background);
-  color: var(--color-button-font);
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  cursor: pointer;
-
-  &:hover:not(:disabled) {
-    background: var(--color-button-background-hover);
-  }
-
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-}
-
-.pageText {
-  color: var(--color-font-label);
-  font-size: 14px;
 }
 </style>

@@ -76,6 +76,14 @@ const router = createRouter({
         name: 'Artist',
       },
     },
+    {
+      path: '/album',
+      name: 'Album',
+      component: require('./views/Album/index.vue').default,
+      meta: {
+        name: 'Album',
+      },
+    },
     { path: '/:pathMatch(.*)*', redirect: '/search' },
   ],
   linkActiveClass: 'active-link',

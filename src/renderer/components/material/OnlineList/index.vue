@@ -117,10 +117,10 @@
                       @click.stop="handleSingerNameClick(item, { id: undefined, name }, arIndex)"
                     >{{ name }}{{ arIndex < item.singer.split('、').length - 1 ? '、' : '' }}</span>
                   </template>
-                  <span v-else class="select" :aria-label="item.singer">{{ item.singer }}</span>
+                  <span v-else :class="$style.singerName" :aria-label="item.singer" @click.stop="handleSingerNameClick(item, { id: undefined, name: item.singer }, 0)">{{ item.singer }}</span>
                 </div>
                 <div class="list-item-cell" style="flex: 0 0 22%">
-                  <span class="select" :aria-label="item.meta.albumName">{{
+                  <span :class="$style.albumName" :aria-label="item.meta.albumName" @click.stop="handleAlbumClick(item)">{{
                     item.meta.albumName
                   }}</span>
                 </div>
@@ -244,10 +244,10 @@
                       @click.stop="handleSingerNameClick(item, { id: undefined, name }, arIndex)"
                     >{{ name }}{{ arIndex < item.singer.split('、').length - 1 ? '、' : '' }}</span>
                   </template>
-                  <span v-else class="select" :aria-label="item.singer">{{ item.singer }}</span>
+                  <span v-else :class="$style.singerName" :aria-label="item.singer" @click.stop="handleSingerNameClick(item, { id: undefined, name: item.singer }, 0)">{{ item.singer }}</span>
                 </div>
                 <div class="list-item-cell" style="flex: 0 0 27%">
-                  <span class="select" :aria-label="item.meta.albumName">{{
+                  <span :class="$style.albumName" :aria-label="item.meta.albumName" @click.stop="handleAlbumClick(item)">{{
                     item.meta.albumName
                   }}</span>
                 </div>
@@ -415,6 +415,14 @@ export default {
       }
     }
 
+    const handleAlbumClick = (item) => {
+      const rawItem = toRaw(item)
+      const albumId = rawItem.meta?.albumId
+      if (albumId) {
+        router.push({ path: '/album', query: { id: albumId } })
+      }
+    }
+
     const { selectedList, listItemHeight, handleSelectData, removeAllSelect } = useList({
       props,
       listRef,
@@ -543,6 +551,7 @@ export default {
       handleListRightClick,
       assertApiSupport,
       handleSingerNameClick,
+      handleAlbumClick,
 
       isShowListAdd,
       isShowListAddMultiple,
@@ -617,6 +626,12 @@ export default {
   color: var(--color-font-label);
 }
 .singerName {
+  cursor: pointer;
+  &:hover {
+    color: var(--color-primary);
+  }
+}
+.albumName {
   cursor: pointer;
   &:hover {
     color: var(--color-primary);

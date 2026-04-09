@@ -90,7 +90,7 @@
                   </span>
                 </div>
                 <div :class="$style.album">
-                  <span class="select">{{ song.al?.name }}</span>
+                  <span :class="$style.albumName" @click.stop="handleAlbumClick(song)">{{ song.al?.name }}</span>
                 </div>
                 <div :class="$style.time">
                   <span class="no-select">{{ song.interval }}</span>
@@ -156,7 +156,7 @@
                   </span>
                 </div>
                 <div :class="$style.album">
-                  <span class="select">{{ song.al?.name }}</span>
+                  <span :class="$style.albumName" @click.stop="handleAlbumClick(song)">{{ song.al?.name }}</span>
                 </div>
                 <div :class="$style.time">
                   <span class="no-select">{{ song.interval }}</span>
@@ -282,7 +282,7 @@
                   </span>
                 </div>
                 <div :class="$style.album">
-                  <span class="select">{{ song.al?.name }}</span>
+                  <span :class="$style.albumName" @click.stop="handleAlbumClick(song)">{{ song.al?.name }}</span>
                 </div>
                 <div :class="$style.time">
                   <span class="no-select">{{ song.interval }}</span>
@@ -545,6 +545,13 @@ export default {
       void router.push({ path: '/artist', query: { id: arItem.id } })
     }
 
+    const handleAlbumClick = (song) => {
+      const albumId = song.al?.id
+      if (albumId) {
+        void router.push({ path: '/album', query: { id: albumId } })
+      }
+    }
+
     const formatDuration = (ms) => {
       if (!ms) return '--:--'
       const seconds = Math.floor(ms / 1000)
@@ -578,6 +585,7 @@ export default {
       handleRefresh,
       handlePlaylistClick,
       handleSingerClick,
+      handleAlbumClick,
       // 心动模式
       userPlaylists,
       selectedPlaylistId,
@@ -781,6 +789,13 @@ export default {
 }
 
 .singerName {
+  cursor: pointer;
+  &:hover {
+    color: var(--color-primary);
+  }
+}
+
+.albumName {
   cursor: pointer;
   &:hover {
     color: var(--color-primary);
