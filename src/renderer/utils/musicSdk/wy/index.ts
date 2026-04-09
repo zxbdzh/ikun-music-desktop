@@ -61,6 +61,10 @@ const wy = {
     return requestObj.promise.then((info: any) => info.al.picUrl)
   },
 
+  getMusicInfo(songmid: string | number) {
+    return getMusicInfo(songmid)
+  },
+
   getMusicDetailPageUrl(songInfo: any) {
     return `https://music.163.com/#/song?id=${songInfo.songmid}`
   },

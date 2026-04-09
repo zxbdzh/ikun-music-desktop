@@ -102,6 +102,7 @@ export default {
 
           return {
             singer: this.getSinger(item.ar),
+            singerId: item.ar?.[0]?.id,
             name: item.name,
             albumName: item.al.name,
             albumId: item.al.id,
