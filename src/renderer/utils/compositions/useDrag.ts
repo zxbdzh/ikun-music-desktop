@@ -3,7 +3,7 @@ import Sortable, { AutoScroll } from 'sortablejs/modular/sortable.core.esm'
 import { onMounted, type Ref } from '@common/utils/vueTools'
 import { clearDownKeys } from '@renderer/event'
 
-Sortable.mount(new AutoScroll())
+Sortable.mount(AutoScroll as any)
 
 const noop = (): void => {}
 
@@ -27,7 +27,7 @@ export default ({
   let sortable: any
 
   onMounted(() => {
-    sortable = Sortable.create(dom_list.value, {
+    sortable = Sortable.create(dom_list.value!, {
       animation: 150,
       disabled: true,
       forceFallback: false,
