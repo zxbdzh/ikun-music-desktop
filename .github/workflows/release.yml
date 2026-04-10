@@ -47,42 +47,13 @@ jobs:
         if: success()
         shell: pwsh
         run: |
-          # 1. 读取项目版本号（Windows原生命令）
           $version = (Get-Content package.json -Encoding UTF8 | ConvertFrom-Json).version
-          $repo = "${{ github.repository }}"
-          $runId = "${{ github.run_id }}"
-
-          # 2. 拼接链接
-          $draftUrl = "https://github.com/$repo/releases/tag/$version"
-          $buildUrl = "${{ github.server_url }}/$repo/actions/runs/$runId"
-
-          # 3. 推送内容（Markdown 格式，原生多行字符串，顶格！无缩进！）
-          $content = @"
-          ## 🎉 草稿打包成功
-            **版本号：** $version
-            **状态：** ✅ Release 草稿构建成功
-            **草稿链接：** [查看/发布草稿]($draftUrl)
-            **构建详情：** [查看构建日志]($buildUrl)
-            "@
-
-              # 4. 【原生PowerShell】构造请求参数（最稳定，无转义噩梦）
-              $body = [PSCustomObject]@{
-                token    = "${{ secrets.PUSHPLUS_TOKEN }}"
-            title    = "🎉 ikunMusic - Release 草稿发布成功"
-            content  = $content
-            template = "markdown"
-            channel  = "wechat"
-            }
-
-            # 5. 【原生发送】系统自带命令，无需任何工具，100%兼容Windows
-            $response = Invoke-RestMethod `
-            -Uri "https://www.pushplus.plus/send" `
-            -Method Post `
-            -ContentType "application/json" `
-            -Body ($body | ConvertTo-Json)
-
-            # 6. 输出结果，方便排查
-            Write-Host "推送结果: $($response | ConvertTo-Json)"
+          $body = @{
+            token = "${{ secrets.PUSHPLUS_TOKEN }}"
+            title = "构建成功"
+            content = "版本：$version"
+          }
+          Invoke-RestMethod -Uri "https://www.pushplus.plus/send" -Method Post -ContentType "application/json" -Body ($body | ConvertTo-Json)
 #  Mac:
 #    name: Mac
 #    runs-on: macos-latest
