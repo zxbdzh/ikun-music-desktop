@@ -45,28 +45,25 @@ jobs:
 #          Get-FileHash *.exe,*.7z -Algorithm MD5 | Format-List
       - name: Send WeChat Notification
         if: success()
+        shell: bash
         run: |
-          $version = (Get-Content package.json | ConvertFrom-Json).version
-          $repo = "${{ github.repository }}"
-          $runId = "${{ github.run_id }}"
-          $draftUrl = "https://github.com/$repo/releases/tag/$version"
-          $buildUrl = "${{ github.server_url }}/$repo/actions/runs/$runId"
+          version=$(cat package.json | jq -r .version)
+          repo="${{ github.repository }}"
+          runId="${{ github.run_id }}"
+          draftUrl="https://github.com/$repo/releases/tag/$version"
+          buildUrl="${{ github.server_url }}/$repo/actions/runs/$runId"
 
-          # 拼接 markdown 内容
-          $content = @"
-          ## 🎉 草稿打包成功
-          **版本号：** $version
-          **状态：** ✅ Release 草稿构建成功
-          **草稿链接：** [ 查看/发布草稿 ]($draftUrl)
-          **构建详情：** [查看构建日志]($buildUrl)
-          "@
-
-          # 执行 curl
-          curl "https://www.pushplus.plus/send" \
-          -H "Accept: */*" \
-          -H "Content-Type: application/json;charset=UTF-8" \
-          -H "X-Requested-With: XMLHttpRequest" \
-          --data-raw "{`"token`":`"${{ secrets.PUSHPLUS_TOKEN }}`",`"title`":`"🎉 ikunMusic - Release 草稿发布成功`",`"content`":`"$($content -replace "`r`n", '\r\n')`",`"template`":`"markdown`",`"channel`":`"wechat`"}"
+          curl 'https://www.pushplus.plus/send' \
+            -H "Accept: */*" \
+            -H "Content-Type: application/json;charset=UTF-8" \
+            -H "X-Requested-With: XMLHttpRequest" \
+            -d '{
+              "token": "${{ secrets.PUSHPLUS_TOKEN }}",
+              "title": "🎉 ikunMusic - Release 草稿发布成功",
+              "content": "## 🎉 草稿打包成功\n**版本号：** '"$version"'\n**状态：** ✅ 构建成功\n**草稿链接：** [查看/发布草稿]('"$draftUrl"')\n**构建日志：** [查看日志]('"$buildUrl"')",
+              "template": "markdown",
+              "channel": "wechat"
+            }'
 #  Mac:
 #    name: Mac
 #    runs-on: macos-latest
