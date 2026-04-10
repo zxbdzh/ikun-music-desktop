@@ -659,6 +659,30 @@ const getListenDataRealtimeReport = async (type: 'week' | 'month' | 'year', cook
   }
 }
 
+const getSongFirstListenInfo = async (songId: string | number, cookie: string): Promise<any> => {
+  try {
+    const url = `${API_BASE_URL}/music/first/listen/info?id=${songId}&cookie=${encodeURIComponent(cookie)}`
+    const response: any = httpFetch(url, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      },
+    })
+    const { body, statusCode } = await response.promise
+    if (statusCode !== 200) {
+      throw new Error(`HTTP ${statusCode}: 获取歌曲回忆坐标失败`)
+    }
+    if (body.code !== 200) {
+      console.error('Get song first listen info error:', body)
+      throw new Error(body.message || '获取歌曲回忆坐标失败')
+    }
+    return body.data
+  } catch (err: any) {
+    console.error('Get song first listen info error:', err)
+    throw err
+  }
+}
+
 export default {
   API_BASE_URL,
   getCsrfToken,
@@ -681,4 +705,5 @@ export default {
   getListenDataReport,
   getListenDataYearReport,
   getListenDataRealtimeReport,
+  getSongFirstListenInfo,
 }

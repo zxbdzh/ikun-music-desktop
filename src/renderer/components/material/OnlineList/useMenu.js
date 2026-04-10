@@ -4,6 +4,7 @@ import { useI18n } from '@renderer/plugins/i18n'
 import { hasDislike } from '@renderer/core/dislikeList'
 import { appSetting } from '@renderer/store/setting'
 import { openShareMusicCard } from '@renderer/store/shareMusicCard'
+import { openSongMemory } from '@renderer/store/songMemory'
 
 export default ({
   props,
@@ -35,6 +36,7 @@ export default ({
     shareCard: true,
     dislike: true,
     like: true,
+    songMemory: true,
   })
   const t = useI18n()
   const menuLocation = reactive({ x: 0, y: 0 })
@@ -99,6 +101,12 @@ export default ({
         action: 'like',
         disabled: true,
         loading: true,
+      })
+      // 添加回忆坐标按钮
+      list.push({
+        name: '回忆坐标',
+        action: 'songMemory',
+        disabled: false,
       })
     }
 
@@ -223,6 +231,11 @@ export default ({
         break
       case 'like':
         handleToggleLike(index)
+        break
+      case 'songMemory':
+        if (currentMusicInfo.value) {
+          openSongMemory(currentMusicInfo.value)
+        }
         break
       case 'likeMultiple':
         handleToggleLikeMultiple(batchLikeList.value)
