@@ -13,6 +13,7 @@
     <layout-sync-mode-modal />
     <layout-sync-auth-code-modal />
     <layout-play-detail />
+    <SongMemory />
     <layout-share-music-card-modal />
   </div>
 </template>
@@ -22,6 +23,7 @@ import { onMounted } from '@common/utils/vueTools'
 // import BubbleCursor from '@common/utils/effects/cursor-effects/bubbleCursor'
 // import '@common/utils/effects/snow.min'
 import useApp from '@renderer/core/useApp'
+import SongMemory from '@renderer/components/layout/SongMemory/index.vue'
 
 useApp()
 

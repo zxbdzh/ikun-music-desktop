@@ -21,6 +21,9 @@ div(:class="$style.footerLeftControlBtns")
   button(:class="$style.footerLeftControlBtn" :aria-label="$t('share__title')" @click="handleShareCurrentMusic")
     svg(version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" width="95%" viewBox="0 0 24 24" space="preserve")
       use(xlink:href="#icon-refresh")
+  button(:class="$style.footerLeftControlBtn" :aria-label="$t('song_memory')" @click="handleOpenSongMemory")
+    svg(version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" viewBox="0 0 24 24" space="preserve")
+      use(xlink:href="#icon-musicFile")
   button(:class="$style.footerLeftControlBtn" :aria-label="$t('player__add_music_to')" @click="isShowAddMusicTo = true")
     svg(version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" viewBox="0 0 512 512" space="preserve")
       use(xlink:href="#icon-add-2")
@@ -45,6 +48,7 @@ import { dialog } from '@renderer/plugins/Dialog'
 import { setMediaDeviceId } from '@renderer/plugins/player'
 import { appSetting, saveMediaDeviceId, setEnableAudioVisualization } from '@renderer/store/setting'
 import { openShareMusicCard } from '@renderer/store/shareMusicCard'
+import { openSongMemory } from '@renderer/store/songMemory'
 
 export default {
   setup() {
@@ -69,6 +73,11 @@ export default {
     const handleShareCurrentMusic = () => {
       if (!playMusicInfo.musicInfo) return
       openShareMusicCard(playMusicInfo.musicInfo)
+    }
+
+    const handleOpenSongMemory = () => {
+      if (!playMusicInfo.musicInfo) return
+      openSongMemory(playMusicInfo.musicInfo)
     }
 
     const toggleAudioVisualization = async () => {
@@ -98,6 +107,7 @@ export default {
       toggleDesktopLyric,
       toggleLockDesktopLyric,
       handleShareCurrentMusic,
+      handleOpenSongMemory,
       toggleAudioVisualization,
       isShowAddMusicTo,
       playMusicInfo,

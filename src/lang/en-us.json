@@ -827,5 +827,6 @@
   "wy_need_play_song": "Please play a WyCloud song first",
   "listen_data_title": "Listen Data",
   "listen_data_rules": "Rules",
-  "listen_data_no_data": "No listening data"
+  "listen_data_no_data": "No listening data",
+  "song_memory": "Memory Coordinates"
 }

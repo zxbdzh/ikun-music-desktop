@@ -196,10 +196,13 @@ export default ({
   }
 
   const menuClick = (action, index) => {
-    hideMenu()
     if (!action) return
+    const actionType = action.action
+    const musicInfo = currentMusicInfo.value
+    hideMenu()
+    if (!actionType) return
 
-    switch (action.action) {
+    switch (actionType) {
       case 'download':
         handleShowDownloadModal(index)
         break
@@ -222,8 +225,8 @@ export default ({
         handleCopyMusicLink(index)
         break
       case 'shareCard':
-        if (currentMusicInfo.value) {
-          openShareMusicCard(currentMusicInfo.value)
+        if (musicInfo) {
+          openShareMusicCard(musicInfo)
         }
         break
       case 'dislike':
@@ -233,8 +236,8 @@ export default ({
         handleToggleLike(index)
         break
       case 'songMemory':
-        if (currentMusicInfo.value) {
-          openSongMemory(currentMusicInfo.value)
+        if (musicInfo) {
+          openSongMemory(musicInfo)
         }
         break
       case 'likeMultiple':

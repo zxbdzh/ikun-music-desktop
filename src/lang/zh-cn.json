@@ -828,5 +828,6 @@
   "wy_need_play_song": "请先播放一首网易云歌曲",
   "listen_data_title": "云村听歌足迹",
   "listen_data_rules": "规则",
-  "listen_data_no_data": "暂无听歌数据"
+  "listen_data_no_data": "暂无听歌数据",
+  "song_memory": "回忆坐标"
 }

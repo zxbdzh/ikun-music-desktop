@@ -90,9 +90,37 @@ export default {
 
     const formatDate = (dateStr) => {
       if (!dateStr) return ''
-      const match = dateStr.match(/(\d+)-(\d+)-(\d+)/)
-      if (match) {
-        return `${parseInt(match[2])}月${parseInt(match[3])}日`
+      const currentYear = new Date().getFullYear()
+      // 匹配完整日期时间格式: 2026-02-03 21:06:06
+      const fullMatch = dateStr.match(/(\d{4})-(\d+)-(\d+)\s+(\d+):(\d+):(\d+)/)
+      if (fullMatch) {
+        const year = parseInt(fullMatch[1])
+        const month = parseInt(fullMatch[2])
+        const day = parseInt(fullMatch[3])
+        const time = `${fullMatch[4]}:${fullMatch[5]}`
+        let result = ''
+        // 非今年显示年份
+        if (year !== currentYear) {
+          result = `${year}年${month}月${day}日`
+        } else {
+          result = `${month}月${day}日`
+        }
+        // 如果时间不是 00:00:00，加上具体时间
+        if (fullMatch[4] !== '00' || fullMatch[5] !== '00' || fullMatch[6] !== '00') {
+          result += ` ${time}`
+        }
+        return result
+      }
+      // 匹配纯日期格式: 2026-02-06
+      const dateMatch = dateStr.match(/(\d{4})-(\d+)-(\d+)/)
+      if (dateMatch) {
+        const year = parseInt(dateMatch[1])
+        const month = parseInt(dateMatch[2])
+        const day = parseInt(dateMatch[3])
+        if (year !== currentYear) {
+          return `${year}年${month}月${day}日`
+        }
+        return `${month}月${day}日`
       }
       return dateStr
     }
@@ -190,7 +218,7 @@ export default {
   display: flex;
   align-items: center;
   padding: 16px 20px;
-  border-bottom: 1px solid var(--color-secondary-background);
+  border-bottom: 1px solid var(--color-primary-light-800);
   gap: 10px;
 }
 
@@ -202,26 +230,26 @@ export default {
   flex: 1;
   font-size: 16px;
   font-weight: 600;
-  color: var(--color-text);
+  color: var(--color-font);
 }
 
 .closeBtn {
   width: 28px;
   height: 28px;
   border: none;
-  background: var(--color-secondary-background);
+  background: var(--color-primary-light-800);
   border-radius: 50%;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 14px;
-  color: var(--color-secondary-text);
+  color: var(--color-font-label);
   transition: all 0.2s;
 
   &:hover {
     background: var(--color-primary);
-    color: var(--white);
+    color: var(--color-font);
   }
 }
 
@@ -236,7 +264,7 @@ export default {
   gap: 14px;
   margin-bottom: 20px;
   padding-bottom: 16px;
-  border-bottom: 1px solid var(--color-secondary-background);
+  border-bottom: 1px solid var(--color-primary-light-800);
 }
 
 .songCover {
@@ -255,7 +283,7 @@ export default {
 .songName {
   font-size: 16px;
   font-weight: 600;
-  color: var(--color-text);
+  color: var(--color-font);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -264,7 +292,7 @@ export default {
 
 .singer {
   font-size: 13px;
-  color: var(--color-secondary-text);
+  color: var(--color-font-label);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -277,7 +305,7 @@ export default {
 }
 
 .card {
-  background: var(--color-secondary-background);
+  background: var(--color-primary-light-800);
   border-radius: 12px;
   padding: 14px;
   text-align: center;
@@ -296,7 +324,7 @@ export default {
 
 .cardLabel {
   font-size: 11px;
-  color: var(--color-secondary-text);
+  color: var(--color-font-label);
   margin-bottom: 4px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -305,13 +333,13 @@ export default {
 .cardValue {
   font-size: 18px;
   font-weight: 700;
-  color: var(--color-text);
+  color: var(--color-font);
   margin-bottom: 2px;
 }
 
 .cardSub {
   font-size: 11px;
-  color: var(--color-secondary-text);
+  color: var(--color-font-label);
 }
 
 .likeCard {
@@ -336,13 +364,13 @@ export default {
 .likeDate {
   font-size: 14px;
   font-weight: 600;
-  color: var(--color-text);
+  color: var(--color-font);
   margin-bottom: 2px;
 }
 
 .likeDesc {
   font-size: 12px;
-  color: var(--color-secondary-text);
+  color: var(--color-font-label);
 }
 
 .loading {
@@ -352,13 +380,13 @@ export default {
   justify-content: center;
   padding: 60px 20px;
   gap: 12px;
-  color: var(--color-secondary-text);
+  color: var(--color-font-label);
 }
 
 .loadingSpinner {
   width: 32px;
   height: 32px;
-  border: 3px solid var(--color-secondary-background);
+  border: 3px solid var(--color-primary-light-800);
   border-top-color: var(--color-primary);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
@@ -386,7 +414,7 @@ export default {
 
 .emptyText {
   font-size: 14px;
-  color: var(--color-secondary-text);
+  color: var(--color-font-label);
 }
 
 .modal-enter-active {

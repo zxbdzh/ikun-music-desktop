@@ -3,6 +3,7 @@ import musicSdk from '@renderer/utils/musicSdk'
 import { useI18n } from '@renderer/plugins/i18n'
 import { hasDislike } from '@renderer/core/dislikeList'
 import { appSetting } from '@renderer/store/setting'
+import { openSongMemory } from '@renderer/store/songMemory'
 
 export default ({
   assertApiSupport,
@@ -44,6 +45,7 @@ export default ({
     remove: true,
     sourceDetail: true,
     like: true,
+    songMemory: true,
   })
   const t = useI18n()
   const menuLocation = shallowReactive({ x: 0, y: 0 })
@@ -137,6 +139,15 @@ export default ({
       })
     }
 
+    // 添加回忆坐标按钮
+    if (isWySource && hasWyCookie) {
+      list.push({
+        name: t('song_memory'),
+        action: 'songMemory',
+        disabled: false,
+      })
+    }
+
     return list
   }
 
@@ -221,9 +232,12 @@ export default ({
   }
 
   const menuClick = (action, index) => {
-    hideMenu()
     if (!action) return
-    switch (action.action) {
+    const actionType = action.action
+    const musicInfo = currentMusicInfo.value
+    hideMenu()
+    if (!actionType) return
+    switch (actionType) {
       case 'play':
         handlePlayMusic(index)
         break
@@ -268,6 +282,11 @@ export default ({
         break
       case 'like':
         handleToggleLike(index)
+        break
+      case 'songMemory':
+        if (musicInfo) {
+          openSongMemory(musicInfo)
+        }
         break
       case 'likeMultiple':
         handleToggleLikeMultiple(batchLikeList.value)
