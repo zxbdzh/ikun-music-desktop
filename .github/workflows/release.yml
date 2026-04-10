@@ -51,22 +51,23 @@ jobs:
           $runId = "${{ github.run_id }}"
           $downloadUrl = "https://github.com/$repo/releases/tag/$version"
           $buildUrl = "${{ github.server_url }}/$repo/actions/runs/$runId"
+          $draftUrl = $downloadUrl
           $content = @"
-              <h2>🎉 草稿打包成功</h2>
-              <p><strong>版本号：</strong>$version</p>
-              <p><strong>状态：</strong>✅ Release 草稿构建成功</p>
-              <p><strong>草稿链接：</strong><a href="$draftUrl">查看/发布草稿</a></p>
-              <p><strong>构建详情：</strong><a href="$buildUrl">查看构建日志</a></p>
-              "@
+          <h2>🎉 草稿打包成功</h2>
+          <p><strong>版本号：</strong>$version</p>
+          <p><strong>状态：</strong>✅ Release 草稿构建成功</p>
+          <p><strong>草稿链接：</strong><a href="$draftUrl">查看/发布草稿</a></p>
+          <p><strong>构建详情：</strong><a href="$buildUrl">查看构建日志</a></p>
+          "@
 
-              $body = @{
-                token = "${{ secrets.PUSHPLUS_TOKEN }}"
-                title = "🎉 ikunMusic - Release 草稿发布成功"
-                content = $content
-                template = "html"
-              } | ConvertTo-Json
+          $body = @{
+                  token = "${{ secrets.PUSHPLUS_TOKEN }}"
+            title = "🎉 ikunMusic - Release 草稿发布成功"
+            content = $content
+            template = "html"
+          } | ConvertTo-Json
 
-              Invoke-RestMethod -Uri "http://www.pushplus.plus/send" -Method Post -ContentType "application/json" -Body $body
+          Invoke-RestMethod -Uri "http://www.pushplus.plus/send" -Method Post -ContentType "application/json" -Body $body
 #  Mac:
 #    name: Mac
 #    runs-on: macos-latest
