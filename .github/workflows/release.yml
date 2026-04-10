@@ -65,7 +65,13 @@ jobs:
           # 使用普通字符串拼接，避免 Here-String 的顶格缩进问题
           $richContent = "## $status`n`n"
           $richContent += "**📦 版本号：** ``$version`` `n"
-          $richContent += "**⏰ 时间：** $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') `n`n"
+          # 强制转换为 中国标准时间 (UTC+8 上海)
+          $shanghaiTime = [System.TimeZoneInfo]::ConvertTimeBySystemTimeZoneId(
+          [DateTime]::UtcNow,
+          'China Standard Time'
+          )
+          # 拼接到你的富文本
+          $richContent += "**⏰ 时间：** $($shanghaiTime.ToString('yyyy-MM-dd HH:mm:ss')) `n`n"
           $richContent += "---`n`n"
           $richContent += "### 🔗 快速链接`n"
           $richContent += "- **[查看/发布草稿]($draftUrl)**`n"
