@@ -10,39 +10,39 @@ jobs:
     name: Windows
     runs-on: windows-latest
     steps:
-      - name: Check out git repository
-        uses: actions/checkout@v4
-
-      - name: Get npm cache directory
-        shell: pwsh
-        run: echo "NPM_CACHE=$(npm config get cache)" >> $env:GITHUB_ENV
-
-      - name: Show Env
-        run: echo "${{ env.NPM_CACHE }}"
-
-      - name: Setup Node Env
-        env:
-          NPM_CACHE: ${{ env.NPM_CACHE }}
-        uses: ./.github/actions/setup
-
-      - name: Build src code
-        run: |
-          git status --porcelain
-          pnpm run build
-
-      - name: Release package
-        run: |
-          pnpm run publish:win:7z:x64
-          pnpm run publish:win:7z:arm64
-          pnpm run publish:win:setup:arm64
-          pnpm run publish:win:setup:x64
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Generate file MD5
-        run: |
-          cd build
-          Get-FileHash *.exe,*.7z -Algorithm MD5 | Format-List
+#      - name: Check out git repository
+#        uses: actions/checkout@v4
+#
+#      - name: Get npm cache directory
+#        shell: pwsh
+#        run: echo "NPM_CACHE=$(npm config get cache)" >> $env:GITHUB_ENV
+#
+#      - name: Show Env
+#        run: echo "${{ env.NPM_CACHE }}"
+#
+#      - name: Setup Node Env
+#        env:
+#          NPM_CACHE: ${{ env.NPM_CACHE }}
+#        uses: ./.github/actions/setup
+#
+#      - name: Build src code
+#        run: |
+#          git status --porcelain
+#          pnpm run build
+#
+#      - name: Release package
+#        run: |
+#          pnpm run publish:win:7z:x64
+#          pnpm run publish:win:7z:arm64
+#          pnpm run publish:win:setup:arm64
+#          pnpm run publish:win:setup:x64
+#        env:
+#          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#
+#      - name: Generate file MD5
+#        run: |
+#          cd build
+#          Get-FileHash *.exe,*.7z -Algorithm MD5 | Format-List
       - name: Send WeChat Notification
         if: success()
         run: |
