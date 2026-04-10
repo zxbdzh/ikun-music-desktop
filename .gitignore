@@ -72,7 +72,6 @@ src/**/*-internal.js
 # Development
 todo.md
 
-pnpm-lock.yaml
 .idea
 .claude
 CLAUDE.md
