@@ -2,6 +2,11 @@ name: Build
 
 on:
   workflow_dispatch:
+
+# 必须声明权限，否则无法发布 Release
+permissions:
+  contents: write
+
 env:
   IS_CI: 'true'
 
@@ -44,16 +49,37 @@ jobs:
 #          cd build
 #          Get-FileHash *.exe,*.7z -Algorithm MD5 | Format-List
       - name: Send WeChat Notification
-        if: success()
+        if: always() # 无论成功失败都运行，或者用 success()
         shell: pwsh
+        env:
+          PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
         run: |
-          $version = (Get-Content package.json -Encoding UTF8 | ConvertFrom-Json).version
+          $packageJson = Get-Content package.json | ConvertFrom-Json
+          $version = $packageJson.version
+          $repo = "${{ github.repository }}"
+          $runId = "${{ github.run_id }}"
+          $draftUrl = "https://github.com/$repo/releases"
+          $buildUrl = "${{ github.server_url }}/$repo/actions/runs/$runId"
+          $status = if ("${{ job.status }}" -eq "success") { "🎉 打包成功" } else { "❌ 打包失败" }
+
+          # 使用普通字符串拼接，避免 Here-String 的顶格缩进问题
+          $richContent = "## $status`n`n"
+          $richContent += "**📦 版本号：** ``$version`` `n"
+          $richContent += "**⏰ 时间：** $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') `n`n"
+          $richContent += "---`n`n"
+          $richContent += "### 🔗 快速链接`n"
+          $richContent += "- **[查看/发布草稿]($draftUrl)**`n"
+          $richContent += "- **[查看构建日志]($buildUrl)**"
+
           $body = @{
-            token = "${{ secrets.PUSHPLUS_TOKEN }}"
-            title = "构建成功"
-            content = "版本：$version"
-          }
-          Invoke-RestMethod -Uri "https://www.pushplus.plus/send" -Method Post -ContentType "application/json" -Body ($body | ConvertTo-Json)
+            token    = $env:PUSHPLUS_TOKEN
+            title    = "ikunMusic 构建通知 - $version"
+            content  = $richContent
+            template = "markdown"
+          } | ConvertTo-Json -Compress
+
+          Invoke-RestMethod -Uri "https://www.pushplus.plus/send" -Method Post -ContentType "application/json" -Body $body
+
 #  Mac:
 #    name: Mac
 #    runs-on: macos-latest
