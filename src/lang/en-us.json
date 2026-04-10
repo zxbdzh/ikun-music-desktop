@@ -824,5 +824,8 @@
   "setting__wy_simi_songs": "Similar Songs",
   "setting__wy_simi_playlist": "Similar Playlists",
   "wy_cloud": "WyCloud",
-  "wy_need_play_song": "Please play a WyCloud song first"
+  "wy_need_play_song": "Please play a WyCloud song first",
+  "listen_data_title": "Listen Data",
+  "listen_data_rules": "Rules",
+  "listen_data_no_data": "No listening data"
 }

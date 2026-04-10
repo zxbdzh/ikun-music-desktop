@@ -294,6 +294,11 @@
           </template>
         </template>
       </template>
+
+      <!-- 听歌足迹 -->
+      <template v-else-if="activeTab === 'listen-data'">
+        <ListenData />
+      </template>
     </div>
   </div>
 </template>
@@ -311,9 +316,13 @@ import { LIST_IDS } from '@common/constants'
 import { useI18n } from '@root/lang'
 import { toNewMusicInfo } from '@common/utils/tools'
 import { useRouter } from '@common/utils/vueRouter'
+import ListenData from '@renderer/views/ListenData/index.vue'
 
 export default {
   name: 'WyCloud',
+  components: {
+    ListenData,
+  },
   setup() {
     const t = useI18n()
     const router = useRouter()
@@ -334,6 +343,7 @@ export default {
       { id: 'simi', title: t('setting__wy_simi_songs') },
       { id: 'playlist', title: t('setting__wy_simi_playlist') },
       { id: 'heartbeat', title: t('setting__wy_heartbeat') },
+      { id: 'listen-data', title: t('listen_data_title') },
     ])
 
     const currentSongId = computed(() => {

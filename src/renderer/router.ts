@@ -84,6 +84,14 @@ const router = createRouter({
         name: 'Album',
       },
     },
+    {
+      path: '/listen-data',
+      name: 'ListenData',
+      component: require('./views/ListenData/index.vue').default,
+      meta: {
+        name: 'ListenData',
+      },
+    },
     { path: '/:pathMatch(.*)*', redirect: '/search' },
   ],
   linkActiveClass: 'active-link',

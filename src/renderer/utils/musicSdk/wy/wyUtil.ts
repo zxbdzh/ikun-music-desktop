@@ -548,6 +548,93 @@ const getAlbumDetail = async (albumId: string | number): Promise<{ album: AlbumI
   }
 }
 
+// 听歌报告
+interface ListenDataReport {
+  code: number
+  data: {
+    type: string
+    startTime: number
+    endTime: number
+    listenTimeBlock?: any
+    listenTimeDistributionBlock?: any
+    wallpaperBlock?: any
+    topSongBlock?: any
+    topArtistBlock?: any
+    topStyleBlock?: any
+    topAgeBlock?: any
+    topLanguageBlock?: any
+    vipBlock?: any
+    djListenDataBlock?: any
+    friendsListenWeekBlock?: any
+    friendsKeywordWeekBlock?: any
+  }
+  message: string
+}
+
+const getListenDataReport = async (type: 'week' | 'month' | 'year', cookie: string, endTime?: number): Promise<ListenDataReport['data']> => {
+  try {
+    let url = `${API_BASE_URL}/listen/data/report?type=${type}&cookie=${encodeURIComponent(cookie)}`
+    if (endTime) {
+      url += `&endTime=${endTime}`
+    }
+    const response: any = httpFetch(url, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      },
+    })
+    const { body, statusCode } = await response.promise
+    if (statusCode !== 200) {
+      throw new Error(`HTTP ${statusCode}: 获取听歌报告失败`)
+    }
+    if (body.code !== 200) {
+      console.error('Get listen data report error:', body)
+      throw new Error(body.message || '获取听歌报告失败')
+    }
+    return body.data
+  } catch (err: any) {
+    console.error('Get listen data report error:', err)
+    throw err
+  }
+}
+
+interface ListenDataYearReport {
+  code: number
+  data: {
+    displayYear: number
+    yearItems: Array<{
+      year: number
+      playNum: number
+      playDuration: number
+    }>
+  }
+  message: string
+}
+
+const getListenDataYearReport = async (cookie: string): Promise<ListenDataYearReport['data']> => {
+  try {
+    const url = `${API_BASE_URL}/listen/data/year/report?cookie=${encodeURIComponent(cookie)}`
+    const response: any = httpFetch(url, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      },
+    })
+    const { body, statusCode } = await response.promise
+    if (statusCode !== 200) {
+      throw new Error(`HTTP ${statusCode}: 获取年报失败`)
+    }
+    if (body.code !== 200) {
+      console.error('Get listen data year report error:', body)
+      throw new Error(body.message || '获取年报失败')
+    }
+    return body.data
+  } catch (err: any) {
+    console.error('Get listen data year report error:', err)
+    throw err
+  }
+}
+
 export default {
   API_BASE_URL,
   getCsrfToken,
@@ -567,4 +654,6 @@ export default {
   getArtistSongs,
   searchArtist,
   getAlbumDetail,
+  getListenDataReport,
+  getListenDataYearReport,
 }
