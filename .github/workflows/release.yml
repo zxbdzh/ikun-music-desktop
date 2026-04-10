@@ -49,25 +49,24 @@ jobs:
           $version = (Get-Content package.json | ConvertFrom-Json).version
           $repo = "${{ github.repository }}"
           $runId = "${{ github.run_id }}"
-          $downloadUrl = "https://github.com/$repo/releases/tag/$version"
+          $draftUrl = "https://github.com/$repo/releases/tag/$version"
           $buildUrl = "${{ github.server_url }}/$repo/actions/runs/$runId"
-          $draftUrl = $downloadUrl
+
+          # 拼接 markdown 内容
           $content = @"
-          <h2>🎉 草稿打包成功</h2>
-          <p><strong>版本号：</strong>$version</p>
-          <p><strong>状态：</strong>✅ Release 草稿构建成功</p>
-          <p><strong>草稿链接：</strong><a href="$draftUrl">查看/发布草稿</a></p>
-          <p><strong>构建详情：</strong><a href="$buildUrl">查看构建日志</a></p>
+          ## 🎉 草稿打包成功
+          **版本号：** $version
+          **状态：** ✅ Release 草稿构建成功
+          **草稿链接：** [ 查看/发布草稿 ]($draftUrl)
+          **构建详情：** [查看构建日志]($buildUrl)
           "@
 
-          $body = @{
-                  token = "${{ secrets.PUSHPLUS_TOKEN }}"
-            title = "🎉 ikunMusic - Release 草稿发布成功"
-            content = $content
-            template = "html"
-          } | ConvertTo-Json
-
-          Invoke-RestMethod -Uri "http://www.pushplus.plus/send" -Method Post -ContentType "application/json" -Body $body
+          # 执行 curl
+          curl "https://www.pushplus.plus/send" \
+          -H "Accept: */*" \
+          -H "Content-Type: application/json;charset=UTF-8" \
+          -H "X-Requested-With: XMLHttpRequest" \
+          --data-raw "{`"token`":`"${{ secrets.PUSHPLUS_TOKEN }}`",`"title`":`"🎉 ikunMusic - Release 草稿发布成功`",`"content`":`"$($content -replace "`r`n", '\r\n')`",`"template`":`"markdown`",`"channel`":`"wechat`"}"
 #  Mac:
 #    name: Mac
 #    runs-on: macos-latest
