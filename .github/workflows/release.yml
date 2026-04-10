@@ -10,20 +10,22 @@ jobs:
     name: Windows
     runs-on: windows-latest
     steps:
-      - name: Check out git repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Get npm cache directory
-        shell: pwsh
-        run: echo "NPM_CACHE=$(npm config get cache)" >> $env:GITHUB_ENV
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
 
-      - name: Show Env
-        run: echo "${{ env.NPM_CACHE }}"
+      - name: Install pnpm
+        uses: pnpm/action-setup@v5
+        with:
+          version: 8
+          cache: true  # 官方推荐：开启缓存，无路径报错
 
-      - name: Setup Node Env
-        env:
-          NPM_CACHE: ${{ env.NPM_CACHE }}
-        uses: ./.github/actions/setup
+      - name: Install dependencies
+        run: pnpm install
 
       - name: Build src code
         run: |
@@ -43,30 +45,34 @@ jobs:
         run: |
           cd build
           Get-FileHash *.exe,*.7z -Algorithm MD5 | Format-List
+
       - name: Send WeChat Notification
         if: success()
         run: |
           $version = (Get-Content package.json | ConvertFrom-Json).version
           $repo = "${{ github.repository }}"
           $runId = "${{ github.run_id }}"
-          $downloadUrl = "https://github.com/$repo/releases/tag/$version"
+          $draftUrl = "https://github.com/$repo/releases/edit/$version"
           $buildUrl = "${{ github.server_url }}/$repo/actions/runs/$runId"
+
           $content = @"
-              <h2>🎉 草稿打包成功</h2>
-              <p><strong>版本号：</strong>$version</p>
-              <p><strong>状态：</strong>✅ Release 草稿构建成功</p>
-              <p><strong>草稿链接：</strong><a href="$draftUrl">查看/发布草稿</a></p>
-              <p><strong>构建详情：</strong><a href="$buildUrl">查看构建日志</a></p>
-              "@
+          <h2>🎉 草稿打包成功</h2>
+          <p><strong>版本号：</strong>$version</p>
+          <p><strong>状态：</strong>✅ Release 草稿构建成功</p>
+          <p><strong>草稿链接：</strong><a href="$draftUrl">查看/发布草稿</a></p>
+          <p><strong>构建详情：</strong><a href="$buildUrl">查看构建日志</a></p>
+          "@
 
-              $body = @{
-                token = "${{ secrets.PUSHPLUS_TOKEN }}"
-                title = "🎉 摸了吗 - Release 草稿发布成功"
-                content = $content
-                template = "html"
-              } | ConvertTo-Json
+          $body = @{
+            token = "${{ secrets.PUSHPLUS_TOKEN }}"
+            title = "🎉 ikunMusic - Release 草稿发布成功"
+            content = $content
+            template = "html"
+          } | ConvertTo-Json
 
-              Invoke-RestMethod -Uri "http://www.pushplus.plus/send" -Method Post -ContentType "application/json" -Body $body
+          Invoke-RestMethod -Uri "http://www.pushplus.plus/send" -Method Post -ContentType "application/json" -Body $body
+
+# 你注释的 Mac/Linux 配置完全保留
 #  Mac:
 #    name: Mac
 #    runs-on: macos-latest
