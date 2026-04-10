@@ -10,8 +10,8 @@ jobs:
     name: Windows
     runs-on: windows-latest
     steps:
-#      - name: Check out git repository
-#        uses: actions/checkout@v4
+      - name: Check out git repository
+        uses: actions/checkout@v4
 #
 #      - name: Get npm cache directory
 #        shell: pwsh
