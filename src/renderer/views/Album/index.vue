@@ -10,7 +10,7 @@
     <template v-else-if="albumInfo">
       <!-- 专辑头部信息 -->
       <div :class="$style.header">
-        <button :class="$style.backBtn" @click="$router.back()">
+        <button :class="$style.backBtn" @click="handleBack">
           <span>←</span> 返回
         </button>
         <img :src="albumInfo.album.picUrl" :class="$style.cover" />
@@ -127,6 +127,9 @@ export default {
     albumId() {
       return this.$route.query.id
     },
+    fromSource() {
+      return this.$route.query.from
+    },
   },
   mounted() {
     this.loadAlbumInfo()
@@ -142,6 +145,13 @@ export default {
     }
   },
   methods: {
+    handleBack() {
+      if (this.fromSource === 'listen-data') {
+        this.$router.push({ path: '/listen-data' })
+      } else {
+        this.$router.back()
+      }
+    },
     async loadAlbumInfo() {
       if (!this.albumId) {
         this.error = '缺少专辑ID'
@@ -179,14 +189,14 @@ export default {
     handleArtistClick() {
       const artistId = this.albumInfo?.album?.artist?.id
       if (artistId) {
-        this.$router.push({ path: '/artist', query: { id: artistId } })
+        this.$router.push({ path: '/artist', query: { id: artistId, from: this.fromSource } })
       }
     },
     handleSingerClick(arItem) {
       const raw = toRaw(arItem)
       const id = raw?.id
       if (!id) return
-      this.$router.push({ path: '/artist', query: { id } })
+      this.$router.push({ path: '/artist', query: { id, from: this.fromSource } })
     },
     toggleDescExpand() {
       this.isDescExpanded = !this.isDescExpanded

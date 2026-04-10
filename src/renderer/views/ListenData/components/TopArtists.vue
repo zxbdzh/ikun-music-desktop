@@ -57,7 +57,7 @@ export default {
 
     const goArtist = (artistId) => {
       if (!artistId) return
-      router.push({ path: '/artist', query: { id: artistId } })
+      router.push({ path: '/artist', query: { id: artistId, from: 'listen-data' } })
     }
 
     return {

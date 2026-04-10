@@ -635,6 +635,30 @@ const getListenDataYearReport = async (cookie: string): Promise<ListenDataYearRe
   }
 }
 
+const getListenDataRealtimeReport = async (type: 'week' | 'month' | 'year', cookie: string): Promise<any> => {
+  try {
+    const url = `${API_BASE_URL}/listen/data/realtime/report?type=${type}&cookie=${encodeURIComponent(cookie)}`
+    const response: any = httpFetch(url, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      },
+    })
+    const { body, statusCode } = await response.promise
+    if (statusCode !== 200) {
+      throw new Error(`HTTP ${statusCode}: 获取实时听歌报告失败`)
+    }
+    if (body.code !== 200) {
+      console.error('Get listen data realtime report error:', body)
+      throw new Error(body.message || '获取实时听歌报告失败')
+    }
+    return body.data
+  } catch (err: any) {
+    console.error('Get listen data realtime report error:', err)
+    throw err
+  }
+}
+
 export default {
   API_BASE_URL,
   getCsrfToken,
@@ -656,4 +680,5 @@ export default {
   getAlbumDetail,
   getListenDataReport,
   getListenDataYearReport,
+  getListenDataRealtimeReport,
 }

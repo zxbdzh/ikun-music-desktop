@@ -10,7 +10,7 @@
     <template v-else-if="artistInfo">
       <!-- 歌手头部信息 -->
       <div :class="$style.header">
-        <button :class="$style.backBtn" @click="$router.back()">
+        <button :class="$style.backBtn" @click="handleBack">
           <span>←</span> 返回
         </button>
         <img :src="artistInfo.artist.cover" :class="$style.cover" />
@@ -160,6 +160,9 @@ export default {
     artistId() {
       return this.$route.query.id
     },
+    fromSource() {
+      return this.$route.query.from
+    },
     totalPages() {
       return Math.ceil(this.total / this.limit) || 1
     },
@@ -180,6 +183,13 @@ export default {
     }
   },
   methods: {
+    handleBack() {
+      if (this.fromSource === 'listen-data') {
+        this.$router.push({ path: '/listen-data' })
+      } else {
+        this.$router.back()
+      }
+    },
     async loadArtistInfo() {
       if (!this.artistId) {
         this.error = '缺少歌手ID'
@@ -242,12 +252,12 @@ export default {
       // 允许跳转到其他歌手（不是当前歌手）
       if (!id) return
       if (String(id) === String(this.artistId)) return
-      this.$router.push({ path: '/artist', query: { id } })
+      this.$router.push({ path: '/artist', query: { id, from: this.fromSource } })
     },
     handleAlbumClick(song) {
       const albumId = song.al?.id
       if (albumId) {
-        this.$router.push({ path: '/album', query: { id: albumId } })
+        this.$router.push({ path: '/album', query: { id: albumId, from: this.fromSource } })
       }
     },
     nextPage() {

@@ -150,7 +150,7 @@ export default {
     const isCurrentPeriodFlag = computed(() => periodOffset.value >= 0)
 
     const loadData = async() => {
-      console.log('[ListenData] loadData 被调用, activeTab:', activeTab.value)
+      console.log('[ListenData] loadData 被调用, activeTab:', activeTab.value, 'offset:', periodOffset.value)
       const cookie = appSetting['common.wy_cookie']
       if (!cookie) {
         console.log('[ListenData] 无 cookie')
@@ -159,13 +159,20 @@ export default {
       }
       isLoading.value = true
       try {
-        console.log('[ListenData] 请求参数:', { type: activeTab.value, endTime: currentEndTime.value })
+        console.log('[ListenData] 请求参数:', { type: activeTab.value, endTime: currentEndTime.value, offset: periodOffset.value })
         let data
         if (activeTab.value === 'year') {
           console.log('[ListenData] 调用年报 API')
           data = await wyUtil.getListenDataYearReport(cookie)
         } else {
-          data = await wyUtil.getListenDataReport(activeTab.value, cookie, currentEndTime.value)
+          // 本周/本月使用实时API，历史周期使用原API
+          if (periodOffset.value === 0) {
+            console.log('[ListenData] 调用实时 API')
+            data = await wyUtil.getListenDataRealtimeReport(activeTab.value, cookie)
+          } else {
+            console.log('[ListenData] 调用历史 API')
+            data = await wyUtil.getListenDataReport(activeTab.value, cookie, currentEndTime.value)
+          }
         }
         console.log('[ListenData] 返回数据:', JSON.stringify(data, null, 2))
         reportData.value = data
@@ -193,7 +200,7 @@ export default {
     }
 
     const nextPeriod = () => {
-      if (periodOffset.value >= -1) return // 最远到当前周期
+      if (periodOffset.value >= 0) return // 最远到当前周期（offset=0）
       periodOffset.value += 1
       if (activeTab.value !== 'year') {
         void loadData()
