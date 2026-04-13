@@ -37,7 +37,8 @@ import useSoundEffect from './useSoundEffect'
 import useMaxOutputChannelCount from './useMaxOutputChannelCount'
 import { setPowerSaveBlocker } from '@renderer/core/player/utils'
 import usePreloadNextMusic from './usePreloadNextMusic'
-import useScrobble from './useScrobble'
+// import useScrobble from './useScrobble'  // 暂时不用
+import useWeblogScrobble from './useWeblogScrobble'
 
 export default () => {
   const t = useI18n()
@@ -52,7 +53,8 @@ export default () => {
   usePlaybackRate()
   useWatchList()
   usePreloadNextMusic()
-  useScrobble()
+  // useScrobble()  // 暂时不用
+  useWeblogScrobble()
 
   const handlePlayNext = () => {
     void playNext()
