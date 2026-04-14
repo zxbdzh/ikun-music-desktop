@@ -37,7 +37,7 @@ import useSoundEffect from './useSoundEffect'
 import useMaxOutputChannelCount from './useMaxOutputChannelCount'
 import { setPowerSaveBlocker } from '@renderer/core/player/utils'
 import usePreloadNextMusic from './usePreloadNextMusic'
-// import useScrobble from './useScrobble'  // 暂时不用
+import useScrobble from './useScrobble'
 import useWeblogScrobble from './useWeblogScrobble'
 
 export default () => {
@@ -53,7 +53,11 @@ export default () => {
   usePlaybackRate()
   useWatchList()
   usePreloadNextMusic()
-  // useScrobble()  // 暂时不用
+
+  // 根据设置启用旧版或新版听歌记录
+  if (appSetting['wy.enableOldScrobble']) {
+    useScrobble()
+  }
   useWeblogScrobble()
 
   const handlePlayNext = () => {

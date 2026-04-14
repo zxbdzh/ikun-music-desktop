@@ -62,6 +62,8 @@ dd
       base-checkbox(id="setting_wy_enable_scrobble" :model-value="appSetting['common.wy_enableScrobble']" :label="$t('setting__wy_enable_scrobble')" @update:model-value="handleToggleScrobble")
     .p(v-if="appSetting['common.wy_cookie'] && appSetting['common.wy_enableScrobble']")
       span(:class="$style.tip") {{ $t('setting__wy_enable_scrobble_tip') }}
+    .p.gap-top(v-if="appSetting['common.wy_cookie'] && appSetting['common.wy_enableScrobble']")
+      base-checkbox(id="setting_wy_enable_old_scrobble" :model-value="appSetting['wy.enableOldScrobble']" :label="$t('setting__wy_enable_old_scrobble')" @update:model-value="updateSetting({'wy.enableOldScrobble': $event})")
 
   //- Cookie 输入弹窗
   material-modal(:show="isShowInputModal" bg-close teleport="#view" @close="closeModal")
@@ -235,6 +237,7 @@ export default {
 
     return {
       appSetting,
+      updateSetting,
       loginStatus,
       loginMethod,
       phoneNumber,
