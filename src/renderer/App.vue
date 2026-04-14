@@ -1,5 +1,21 @@
 <template>
-  <div id="container" class="view-container">
+  <div id="container" class="view-container" :class="{ 'bg-cover-enabled': bgCover && enableBgCover }">
+    <!-- 封面背景层 -->
+    <div
+      v-if="bgCover && enableBgCover"
+      class="bg-cover"
+      :style="{
+        backgroundImage: `url(${bgCover})`,
+        filter: `blur(${bgCoverBlur}px) brightness(${isDark ? 0.6 : 0.4})`,
+        opacity: bgCoverOpacity / 100,
+      }"
+    />
+    <!-- 遮罩层 -->
+    <div
+      v-if="bgCover && enableBgCover"
+      class="bg-cover-overlay"
+      :class="{ 'is-dark': isDark }"
+    />
     <layout-aside id="left" />
     <div id="right">
       <layout-toolbar id="toolbar" />
@@ -19,13 +35,33 @@
 </template>
 
 <script setup>
+import { computed, watch } from 'vue'
 import { onMounted } from '@common/utils/vueTools'
 // import BubbleCursor from '@common/utils/effects/cursor-effects/bubbleCursor'
 // import '@common/utils/effects/snow.min'
 import useApp from '@renderer/core/useApp'
+import useBgCover from '@renderer/core/useApp/useBgCover'
+import { themeShouldUseDarkColors } from '@renderer/store'
+import { appSetting } from '@renderer/store/setting'
 import SongMemory from '@renderer/components/layout/SongMemory/index.vue'
 
 useApp()
+
+const { bgCover } = useBgCover()
+const enableBgCover = computed(() => appSetting['theme.enableBgCover'])
+const bgCoverBlur = computed(() => appSetting['theme.bgCoverBlur'])
+const bgCoverOpacity = computed(() => appSetting['theme.bgCoverOpacity'])
+const isDark = computed(() => themeShouldUseDarkColors.value)
+const isBgCoverActive = computed(() => bgCover.value && enableBgCover.value)
+
+// 监听封面背景开关，控制 html 类的添加/移除
+watch(isBgCoverActive, (active) => {
+  if (active) {
+    document.documentElement.classList.add('bg-cover-mode')
+  } else {
+    document.documentElement.classList.remove('bg-cover-mode')
+  }
+}, { immediate: true })
 
 onMounted(() => {
   document.getElementById('root').style.display = 'block'
@@ -69,6 +105,10 @@ body {
   transition: background-color @transition-normal;
   background-color: var(--color-content-background);
   box-sizing: border-box;
+}
+
+html.bg-cover-mode {
+  --background-image: none !important;
 }
 
 .disableAnimation * {
@@ -165,5 +205,37 @@ body {
 }
 #view.show-modal > .view-container {
   opacity: 0.2;
+}
+
+// 封面背景层
+.bg-cover {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-size: cover;
+  background-position: center;
+  z-index: 0;
+  pointer-events: none;
+  transition: opacity @transition-normal;
+}
+
+// 封面背景遮罩层
+.bg-cover-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  pointer-events: none;
+  background-color: var(--color-content-background);
+  opacity: 0.5;
+
+  &.is-dark {
+    background-color: rgba(0, 0, 0, 0.6);
+    opacity: 0.6;
+  }
 }
 </style>

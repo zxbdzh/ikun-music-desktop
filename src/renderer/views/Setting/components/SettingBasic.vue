@@ -35,6 +35,15 @@ dd
         span(:class="$style.label") {{ $t('theme_more_btn_show') }}
         svg-icon(name="angle-right-solid" :class="$style.activeIcon")
 
+    .gap-top
+      base-checkbox(id="setting_basic_enable_bg_cover" :model-value="appSetting['theme.enableBgCover']" :label="$t('setting__basic_enable_bg_cover')" @update:model-value="updateSetting({'theme.enableBgCover': $event})")
+    .gap-top(v-if="appSetting['theme.enableBgCover']")
+      | {{ $t('setting__basic_bg_cover_blur') }}: {{ appSetting['theme.bgCoverBlur'] }}
+      input(type="range" min="0" max="100" :value="appSetting['theme.bgCoverBlur']" @input="updateSetting({'theme.bgCoverBlur': Number($event.target.value)})")
+    .gap-top(v-if="appSetting['theme.enableBgCover']")
+      | {{ $t('setting__basic_bg_cover_opacity') }}: {{ appSetting['theme.bgCoverOpacity'] }}
+      input(type="range" min="0" max="100" :value="appSetting['theme.bgCoverOpacity']" @input="updateSetting({'theme.bgCoverOpacity': Number($event.target.value)})")
+
 dd
   h3#basic_source {{ $t('setting__basic_source') }}
   div
@@ -566,5 +575,11 @@ export default {
   .status {
     margin-left: 5px;
   }
+}
+
+input[type="range"] {
+  width: 100%;
+  margin-top: 8px;
+  cursor: pointer;
 }
 </style>

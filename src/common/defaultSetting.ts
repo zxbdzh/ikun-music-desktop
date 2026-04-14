@@ -22,6 +22,8 @@ const defaultSetting: LX.AppSetting = {
   'common.wy_cookie': '',
   'common.wy_enableScrobble': false,
   'common.transparentWindow': !isMac,
+
+  'wy.enableOldScrobble': false,
   'common.tryAutoUpdate': true,
   'common.showChangeLog': true,
 
@@ -155,6 +157,9 @@ const defaultSetting: LX.AppSetting = {
   'theme.id': 'green',
   'theme.lightId': 'green',
   'theme.darkId': 'black',
+  'theme.enableBgCover': false,
+  'theme.bgCoverBlur': 30,
+  'theme.bgCoverOpacity': 30,
 
   'odc.isAutoClearSearchInput': false,
   'odc.isAutoClearSearchList': false,

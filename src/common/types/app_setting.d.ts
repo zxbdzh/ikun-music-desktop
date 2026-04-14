@@ -78,6 +78,11 @@ declare global {
       'common.wy_enableScrobble': boolean
 
       /**
+       * 启用旧版听歌记录同步
+       */
+      'wy.enableOldScrobble': boolean
+
+      /**
        * 启用透明窗口
        */
       'common.transparentWindow': boolean
@@ -601,6 +606,21 @@ declare global {
        * 暗色主题id
        */
       'theme.darkId': string
+
+      /**
+       * 是否启用封面背景
+       */
+      'theme.enableBgCover': boolean
+
+      /**
+       * 封面背景模糊度
+       */
+      'theme.bgCoverBlur': number
+
+      /**
+       * 封面背景透明度
+       */
+      'theme.bgCoverOpacity': number
 
       /**
        * 是否显示热门搜索
