@@ -800,7 +800,7 @@
   "setting__lastfm_api_secret_placeholder": "請輸入 Last.fm API Secret",
   "setting__lastfm_api_tip": "申請地址: https://www.last.fm/api/account/create",
   "setting__lastfm_enable_scrobble": "上報聽歌記錄到 Last.fm",
-  "setting__lastfm_enable_now_playing": "上報正在播放到 Last.fm",
+  "setting__lastfm_enable_now_playing": "即時顯示當前播放狀態",
   "setting__lastfm_scrobble_tip": "播放時長達到 120 秒或 50% 時自動上報，支援所有音源",
   "setting__wy_login_method_captcha": "驗證碼登錄",
   "setting__wy_login_method_cookie": "Cookie登錄",

@@ -1,6 +1,6 @@
-import { httpFetch } from '../../request'
-import { createMD5 } from './crypto'
-import { appSetting } from '@renderer/store/setting'
+import {httpFetch} from '../../request'
+import CryptoJS from 'crypto-js'
+import {appSetting} from '@renderer/store/setting'
 
 const LASTFM_API_BASE = 'https://ws.audioscrobbler.com/2.0/'
 
@@ -11,14 +11,14 @@ const getApiSecret = () => appSetting['common.lastfm_api_secret']
  * 生成 Last.fm API 签名
  */
 const generateSignature = (params: Record<string, string>): string => {
-  const sortedKeys = Object.keys(params).sort()
+  const sortedKeys = Object.keys(params).sort((a, b) => a.localeCompare(b, undefined, {sensitivity: 'base'}))
   let sigString = ''
   for (const key of sortedKeys) {
     sigString += key + params[key]
   }
   sigString += getApiSecret()
-  console.log('[LastFM] generateSignature input:', sigString, '-> MD5:', createMD5(sigString))
-  return createMD5(sigString)
+  console.log('[LastFM] generateSignature input:', sigString, '-> MD5:', CryptoJS.MD5(sigString).toString())
+  return CryptoJS.MD5(sigString).toString()
 }
 
 /**
@@ -42,12 +42,12 @@ const callApi = async (
   }
 
   // 如果是 signed 请求，需要添加签名
-  // 签名不包括 api_key、api_sig、format（只有这三个）
-  const isSigned = !params.sk
-  if (isSigned) {
-    const sigParams = {
+  // 签名不包括 api_sig、format（只有这两个）
+  if (params.sk || params.token) {
+    const sigParams: Record<string, string> = {
       ...params,
       method,
+      api_key: apiKey,
     }
     allParams.api_sig = generateSignature(sigParams)
   }

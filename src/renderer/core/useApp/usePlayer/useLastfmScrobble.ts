@@ -1,11 +1,16 @@
-import { onBeforeUnmount } from '@common/utils/vueTools'
-import { playMusicInfo } from '@renderer/store/player/state'
-import { appSetting } from '@renderer/store/setting'
-import { updateNowPlaying, scrobble } from '@renderer/utils/musicSdk/lastfm'
-import { getCurrentTime, getDuration, onPlaying, onPause, onEmptied } from '@renderer/plugins/player'
+import {onBeforeUnmount} from '@common/utils/vueTools'
+import {playMusicInfo} from '@renderer/store/player/state'
+import {appSetting} from '@renderer/store/setting'
+import {scrobble, updateNowPlaying} from '@renderer/utils/musicSdk/lastfm'
+import {getCurrentTime, getDuration, onEmptied, onPause, onPlaying} from '@renderer/plugins/player'
 
 const MIN_PLAY_TIME = 120
 const MIN_PLAY_PERCENT = 0.5
+
+// 取第一个歌手（多艺术家时只取第一个）
+const convertArtistFormat = (artist: string): string => {
+  return artist.split(/[、,，]/)[0].trim()
+}
 
 interface LastfmScrobbleInfo {
   trackName: string
@@ -75,7 +80,7 @@ export default () => {
 
     scrobbleInfo = {
       trackName: name,
-      artistName: singer,
+      artistName: convertArtistFormat(singer),
       albumName: albumName || '',
       totalTime: duration,
       accumulatedPlayedTime: 0,

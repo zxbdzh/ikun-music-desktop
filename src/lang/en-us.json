@@ -824,7 +824,7 @@
   "setting__lastfm_api_secret_placeholder": "Enter Last.fm API Secret",
   "setting__lastfm_api_tip": "Apply at: https://www.last.fm/api/account/create",
   "setting__lastfm_enable_scrobble": "Report listen history to Last.fm",
-  "setting__lastfm_enable_now_playing": "Report now playing to Last.fm",
+  "setting__lastfm_enable_now_playing": "Real-time now playing status",
   "setting__lastfm_scrobble_tip": "Automatically reports when playback reaches 120 seconds or 50%, supports all music sources",
   "wy_like_success": "Added to 'My Favorites' playlist",
   "wy_unlike_success": "Removed from 'My Favorites' playlist",
