@@ -83,6 +83,36 @@ declare global {
       'wy.enableOldScrobble': boolean
 
       /**
+       * Last.fm 会话密钥
+       */
+      'common.lastfm_session_key': string
+
+      /**
+       * Last.fm 用户名
+       */
+      'common.lastfm_username': string
+
+      /**
+       * 启用 Last.fm 听歌记录上报
+       */
+      'common.lastfm_enable_scrobble': boolean
+
+      /**
+       * 启用 Last.fm 正在播放上报
+       */
+      'common.lastfm_enable_now_playing': boolean
+
+      /**
+       * Last.fm API Key
+       */
+      'common.lastfm_api_key': string
+
+      /**
+       * Last.fm API Secret
+       */
+      'common.lastfm_api_secret': string
+
+      /**
        * 启用透明窗口
        */
       'common.transparentWindow': boolean

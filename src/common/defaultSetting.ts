@@ -24,6 +24,13 @@ const defaultSetting: LX.AppSetting = {
   'common.transparentWindow': !isMac,
 
   'wy.enableOldScrobble': false,
+
+  'common.lastfm_session_key': '',
+  'common.lastfm_username': '',
+  'common.lastfm_enable_scrobble': false,
+  'common.lastfm_enable_now_playing': true,
+  'common.lastfm_api_key': '',
+  'common.lastfm_api_secret': '',
   'common.tryAutoUpdate': true,
   'common.showChangeLog': true,
 

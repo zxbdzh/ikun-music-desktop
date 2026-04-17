@@ -5,6 +5,7 @@ import { useDialog } from './utils'
 import useMusicAction from './useMusicAction'
 import useSonglistAction from './useSonglistAction'
 import usePlayerAction from './usePlayerAction'
+import useLastfmAction from './useLastfmAction'
 
 export default () => {
   let isInited = false
@@ -14,6 +15,7 @@ export default () => {
   const handleMusicAction = useMusicAction()
   const handleSonglistAction = useSonglistAction()
   const handlePlayerAction = usePlayerAction()
+  const handleLastfmAction = useLastfmAction()
 
   const handleLinkAction = async (link: string) => {
     // console.log(link)
@@ -44,6 +46,9 @@ export default () => {
         break
       case 'player':
         await handlePlayerAction(action as any)
+        break
+      case 'lastfm':
+        await handleLastfmAction(action, params)
         break
       default:
         throw new Error('Unknown type: ' + type)

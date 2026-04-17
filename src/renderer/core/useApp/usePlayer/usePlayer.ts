@@ -39,6 +39,7 @@ import { setPowerSaveBlocker } from '@renderer/core/player/utils'
 import usePreloadNextMusic from './usePreloadNextMusic'
 import useScrobble from './useScrobble'
 import useWeblogScrobble from './useWeblogScrobble'
+import useLastfmScrobble from './useLastfmScrobble'
 
 export default () => {
   const t = useI18n()
@@ -59,6 +60,9 @@ export default () => {
     useScrobble()
   }
   useWeblogScrobble()
+
+  // Last.fm 上报
+  useLastfmScrobble()
 
   const handlePlayNext = () => {
     void playNext()
