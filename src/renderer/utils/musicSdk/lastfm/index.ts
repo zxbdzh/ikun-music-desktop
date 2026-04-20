@@ -1,7 +1,7 @@
-import { LastFM } from 'lastfm-ts-api'
+import { LastFMAuth, LastFMTrack } from 'lastfm-ts-api'
 import { appSetting } from '@renderer/store/setting'
 
-let client: LastFM | null = null
+let trackClient: LastFMTrack | null = null
 
 const getClient = () => {
   const apiKey = appSetting['common.lastfm_api_key']
@@ -13,16 +13,12 @@ const getClient = () => {
     return null
   }
 
-  if (!client) {
-    client = new LastFM({
-      apiKey,
-      apiSecret,
-      sessionKey,
-    })
+  if (!trackClient) {
+    trackClient = new LastFMTrack(apiKey, apiSecret, sessionKey)
     console.log('[LastFM] Client created successfully')
   }
 
-  return client
+  return trackClient
 }
 
 /**
@@ -48,9 +44,11 @@ export const getSession = async (token: string): Promise<{ session_key: string; 
     throw new Error('Last.fm API Key or Secret not configured')
   }
 
-  const tempClient = new LastFM({ apiKey, apiSecret })
-  const result = await tempClient.auth.getSession({ token })
+  const authClient = new LastFMAuth(apiKey, apiSecret)
+  const result = await authClient.getSession({ token })
   console.log('[LastFM] getSession result:', JSON.stringify(result))
+  console.log('[LastFM] session key:', result.session?.key)
+  console.log('[LastFM] session name:', result.session?.name)
   return {
     session_key: result.session.key,
     name: result.session.name,
@@ -75,7 +73,7 @@ export const updateNowPlaying = async (params: {
     }
 
     console.log('[LastFM] updateNowPlaying called:', { track: params.track, artist: params.artist, album: params.album, duration: params.duration })
-    await lfm.track.updateNowPlaying({
+    await lfm.updateNowPlaying({
       track: params.track,
       artist: params.artist,
       album: params.album,
@@ -97,24 +95,27 @@ export const scrobble = async (params: {
   duration?: number
   timestamp: number
   sessionKey: string
-}): Promise<void> => {
+}): Promise<any> => {
   try {
     const lfm = getClient()
     if (!lfm) {
       console.log('[LastFM] scrobble: no client available')
-      return
+      return null
     }
 
     console.log('[LastFM] scrobble called:', { track: params.track, artist: params.artist, album: params.album, duration: params.duration, timestamp: params.timestamp })
-    await lfm.track.scrobble({
+    const result = await lfm.scrobble({
       track: params.track,
       artist: params.artist,
       album: params.album,
-      duration: params.duration ? Math.floor(params.duration / 1000) : undefined,
+      duration: params.duration ? Math.floor(params.duration) : undefined,
       timestamp: params.timestamp,
     })
-    console.log('[LastFM] scrobble success')
-  } catch (e) {
-    console.error('[LastFM] scrobble failed:', e)
+    console.log('[LastFM] scrobble success, result:', JSON.stringify(result))
+    return result
+  } catch (e: any) {
+    console.error('[LastFM] scrobble failed:', e?.message || e)
+    console.error('[LastFM] scrobble error details:', e?.response?.data || e)
+    return null
   }
 }

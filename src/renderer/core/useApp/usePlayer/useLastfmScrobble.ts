@@ -2,7 +2,7 @@ import {onBeforeUnmount} from '@common/utils/vueTools'
 import {playMusicInfo} from '@renderer/store/player/state'
 import {appSetting} from '@renderer/store/setting'
 import {scrobble, updateNowPlaying} from '@renderer/utils/musicSdk/lastfm'
-import {getCurrentTime, getDuration, onEmptied, onPause, onPlaying} from '@renderer/plugins/player'
+import {getCurrentTime, getDuration, onEmptied, onEnded, onPause, onPlaying} from '@renderer/plugins/player'
 
 const MIN_PLAY_TIME = 120
 const MIN_PLAY_PERCENT = 0.5
@@ -20,7 +20,6 @@ interface LastfmScrobbleInfo {
   accumulatedPlayedTime: number
   isScrobbled: boolean
   isNowPlayingReported: boolean
-  playStartTime: number
 }
 
 export default () => {
@@ -28,27 +27,35 @@ export default () => {
   let reportTimer: ReturnType<typeof setInterval> | null = null
   let lastPlayTime = 0
 
-  // 检查并上报旧歌曲
+  // 发送 scrobble
+  const sendScrobble = async (info: LastfmScrobbleInfo) => {
+    const sessionKey = appSetting['common.lastfm_session_key']
+    if (!sessionKey) return
+
+    // 使用当前时间作为 timestamp（参考 BetterLyrics 实现）
+    const timestamp = Math.floor(Date.now() / 1000)
+
+    const result = await scrobble({
+      track: info.trackName,
+      artist: info.artistName,
+      album: info.albumName || undefined,
+      duration: info.totalTime,
+      timestamp,
+      sessionKey,
+    })
+    console.log('[LastFM] sendScrobble result:', result)
+  }
+
+  // 检查并上报旧歌曲（切歌或播放完成时调用）
   const checkAndReportOldSong = () => {
     if (!scrobbleInfo || scrobbleInfo.isScrobbled) return
 
     const playedTime = Math.floor(scrobbleInfo.accumulatedPlayedTime)
-    const { totalTime, trackName, artistName, albumName, playStartTime } = scrobbleInfo
+    const { totalTime } = scrobbleInfo
 
     if (playedTime >= MIN_PLAY_TIME || (totalTime > 0 && playedTime >= totalTime * MIN_PLAY_PERCENT)) {
       scrobbleInfo.isScrobbled = true
-
-      const sessionKey = appSetting['common.lastfm_session_key']
-      if (!sessionKey) return
-
-      void scrobble({
-        track: trackName,
-        artist: artistName,
-        album: albumName || undefined,
-        duration: totalTime,
-        timestamp: playStartTime,
-        sessionKey,
-      })
+      sendScrobble(scrobbleInfo)
     }
   }
 
@@ -86,7 +93,6 @@ export default () => {
       accumulatedPlayedTime: 0,
       isScrobbled: false,
       isNowPlayingReported: false,
-      playStartTime: Math.floor(Date.now() / 1000),
     }
   }
 
@@ -116,25 +122,6 @@ export default () => {
           sessionKey,
         })
       }
-    }
-
-    const playedTime = Math.floor(scrobbleInfo.accumulatedPlayedTime)
-    const { totalTime, trackName, artistName, albumName, playStartTime } = scrobbleInfo
-
-    if (playedTime >= MIN_PLAY_TIME || (totalTime > 0 && playedTime >= totalTime * MIN_PLAY_PERCENT)) {
-      scrobbleInfo.isScrobbled = true
-
-      const sessionKey = appSetting['common.lastfm_session_key']
-      if (!sessionKey) return
-
-      void scrobble({
-        track: trackName,
-        artist: artistName,
-        album: albumName || undefined,
-        duration: totalTime,
-        timestamp: playStartTime,
-        sessionKey,
-      })
     }
   }
 
@@ -167,6 +154,21 @@ export default () => {
     stopReportTimer()
   }
 
+  // 播放完成时检查是否需要 scrobble
+  const handleEnded = () => {
+    if (scrobbleInfo && !scrobbleInfo.isScrobbled) {
+      const playedTime = Math.floor(scrobbleInfo.accumulatedPlayedTime)
+      const { totalTime } = scrobbleInfo
+
+      // 播放完成时，几乎一定满足 scrobble 条件
+      if (playedTime >= MIN_PLAY_TIME || (totalTime > 0 && playedTime >= totalTime * MIN_PLAY_PERCENT)) {
+        scrobbleInfo.isScrobbled = true
+        sendScrobble(scrobbleInfo)
+      }
+    }
+  }
+
+  // 切歌时检查是否需要 scrobble
   const handleEmptied = () => {
     checkAndReportOldSong()
     scrobbleInfo = null
@@ -175,11 +177,13 @@ export default () => {
 
   const rOnPlaying = onPlaying(handlePlaying)
   const rOnPause = onPause(handlePause)
+  const rOnEnded = onEnded(handleEnded)
   const rOnEmptied = onEmptied(handleEmptied)
 
   onBeforeUnmount(() => {
     rOnPlaying()
     rOnPause()
+    rOnEnded()
     rOnEmptied()
     resetState()
   })
