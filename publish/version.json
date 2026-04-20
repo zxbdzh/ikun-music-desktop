@@ -1,7 +1,11 @@
 {
-  "version": "1.0.5",
+  "version": "1.0.6",
   "desc": "",
   "history": [
+    {
+      "version": "1.0.6",
+      "desc": "修复 last.fm scrobble 不生效问题"
+    },
     {
       "version": "1.0.5",
       "desc": "添加 last.fm 音乐记录上报"
