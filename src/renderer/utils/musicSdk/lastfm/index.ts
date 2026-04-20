@@ -1,93 +1,39 @@
-import {httpFetch} from '../../request'
-import CryptoJS from 'crypto-js'
-import {appSetting} from '@renderer/store/setting'
+import { LastFM } from 'lastfm-ts-api'
+import { appSetting } from '@renderer/store/setting'
 
-const LASTFM_API_BASE = 'https://ws.audioscrobbler.com/2.0/'
+let client: LastFM | null = null
 
-const getApiKey = () => appSetting['common.lastfm_api_key']
-const getApiSecret = () => appSetting['common.lastfm_api_secret']
+const getClient = () => {
+  const apiKey = appSetting['common.lastfm_api_key']
+  const apiSecret = appSetting['common.lastfm_api_secret']
+  const sessionKey = appSetting['common.lastfm_session_key']
 
-/**
- * 生成 Last.fm API 签名
- */
-const generateSignature = (params: Record<string, string>): string => {
-  const sortedKeys = Object.keys(params).sort((a, b) => a.localeCompare(b, undefined, {sensitivity: 'base'}))
-  let sigString = ''
-  for (const key of sortedKeys) {
-    sigString += key + params[key]
+  if (!apiKey || !apiSecret || !sessionKey) {
+    console.log('[LastFM] Missing config: apiKey or apiSecret or sessionKey')
+    return null
   }
-  sigString += getApiSecret()
-  console.log('[LastFM] generateSignature input:', sigString, '-> MD5:', CryptoJS.MD5(sigString).toString())
-  return CryptoJS.MD5(sigString).toString()
+
+  if (!client) {
+    client = new LastFM({
+      apiKey,
+      apiSecret,
+      sessionKey,
+    })
+    console.log('[LastFM] Client created successfully')
+  }
+
+  return client
 }
 
 /**
- * 通用 API 请求
+ * 获取授权 URL
  */
-const callApi = async (
-  method: string,
-  params: Record<string, string>,
-  isPost = false
-): Promise<any> => {
-  const apiKey = getApiKey()
+export const getAuthUrl = (): string => {
+  const apiKey = appSetting['common.lastfm_api_key']
   if (!apiKey) {
     throw new Error('Last.fm API Key not configured')
   }
-
-  const allParams: Record<string, string> = {
-    ...params,
-    api_key: apiKey,
-    method,
-    format: 'json',
-  }
-
-  // 如果是 signed 请求，需要添加签名
-  // 签名不包括 api_sig、format（只有这两个）
-  if (params.sk || params.token) {
-    const sigParams: Record<string, string> = {
-      ...params,
-      method,
-      api_key: apiKey,
-    }
-    allParams.api_sig = generateSignature(sigParams)
-  }
-
-  try {
-    let url = LASTFM_API_BASE
-    let body = ''
-
-    if (isPost) {
-      const formData = new URLSearchParams()
-      for (const [key, value] of Object.entries(allParams)) {
-        formData.append(key, value)
-      }
-      body = formData.toString()
-    } else {
-      const queryString = Object.entries(allParams)
-        .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
-        .join('&')
-      url += `?${queryString}`
-    }
-
-    const response: any = httpFetch(url, {
-      method: isPost ? 'POST' : 'GET',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      ...(isPost ? { body } : {}),
-    })
-
-    const { body: responseBody, statusCode } = await response.promise
-    console.log('[LastFM] API response status:', statusCode, 'body:', JSON.stringify(responseBody))
-    if (statusCode !== 200) {
-      throw new Error(`HTTP error: ${statusCode}`)
-    }
-    return responseBody
-  } catch (e) {
-    console.error('[LastFM] API call failed:', e)
-    throw e
-  }
+  return `https://www.last.fm/api/auth/?api_key=${apiKey}&cb=lxmusic://lastfm/auth`
 }
 
 /**
@@ -95,11 +41,16 @@ const callApi = async (
  */
 export const getSession = async (token: string): Promise<{ session_key: string; name: string }> => {
   console.log('[LastFM] getSession called with token:', token)
-  const result = await callApi('auth.getSession', { token }, true)
-  console.log('[LastFM] getSession result:', JSON.stringify(result))
-  if (result.error) {
-    throw new Error(result.message || 'Failed to get session')
+  const apiKey = appSetting['common.lastfm_api_key']
+  const apiSecret = appSetting['common.lastfm_api_secret']
+
+  if (!apiKey || !apiSecret) {
+    throw new Error('Last.fm API Key or Secret not configured')
   }
+
+  const tempClient = new LastFM({ apiKey, apiSecret })
+  const result = await tempClient.auth.getSession({ token })
+  console.log('[LastFM] getSession result:', JSON.stringify(result))
   return {
     session_key: result.session.key,
     name: result.session.name,
@@ -117,15 +68,20 @@ export const updateNowPlaying = async (params: {
   sessionKey: string
 }): Promise<void> => {
   try {
-    const apiParams: Record<string, string> = {
-      sk: params.sessionKey,
+    const lfm = getClient()
+    if (!lfm) {
+      console.log('[LastFM] updateNowPlaying: no client available')
+      return
+    }
+
+    console.log('[LastFM] updateNowPlaying called:', { track: params.track, artist: params.artist, album: params.album, duration: params.duration })
+    await lfm.track.updateNowPlaying({
       track: params.track,
       artist: params.artist,
-    }
-    if (params.album) apiParams.album = params.album
-    if (params.duration) apiParams.duration = String(Math.floor(params.duration / 1000))
-
-    await callApi('track.updateNowPlaying', apiParams, true)
+      album: params.album,
+      duration: params.duration ? Math.floor(params.duration / 1000) : undefined,
+    })
+    console.log('[LastFM] updateNowPlaying success')
   } catch (e) {
     console.error('[LastFM] updateNowPlaying failed:', e)
   }
@@ -143,64 +99,22 @@ export const scrobble = async (params: {
   sessionKey: string
 }): Promise<void> => {
   try {
-    const apiParams: Record<string, string> = {
-      sk: params.sessionKey,
+    const lfm = getClient()
+    if (!lfm) {
+      console.log('[LastFM] scrobble: no client available')
+      return
+    }
+
+    console.log('[LastFM] scrobble called:', { track: params.track, artist: params.artist, album: params.album, duration: params.duration, timestamp: params.timestamp })
+    await lfm.track.scrobble({
       track: params.track,
       artist: params.artist,
-      timestamp: String(params.timestamp),
-    }
-    if (params.album) apiParams.album = params.album
-    if (params.duration) apiParams.duration = String(Math.floor(params.duration / 1000))
-
-    await callApi('track.scrobble', apiParams, true)
+      album: params.album,
+      duration: params.duration ? Math.floor(params.duration / 1000) : undefined,
+      timestamp: params.timestamp,
+    })
+    console.log('[LastFM] scrobble success')
   } catch (e) {
     console.error('[LastFM] scrobble failed:', e)
   }
-}
-
-/**
- * 查询歌曲信息
- */
-export const getTrackInfo = async (params: {
-  track: string
-  artist: string
-}): Promise<any | null> => {
-  try {
-    const result = await callApi('track.getInfo', {
-      track: params.track,
-      artist: params.artist,
-      autocorrect: '1',
-    })
-    return result.track || null
-  } catch (e) {
-    console.error('[LastFM] getTrackInfo failed:', e)
-    return null
-  }
-}
-
-/**
- * 查询艺人信息
- */
-export const getArtistInfo = async (artist: string): Promise<any | null> => {
-  try {
-    const result = await callApi('artist.getInfo', {
-      artist,
-      autocorrect: '1',
-    })
-    return result.artist || null
-  } catch (e) {
-    console.error('[LastFM] getArtistInfo failed:', e)
-    return null
-  }
-}
-
-/**
- * 获取授权 URL
- */
-export const getAuthUrl = (): string => {
-  const apiKey = getApiKey()
-  if (!apiKey) {
-    throw new Error('Last.fm API Key not configured')
-  }
-  return `https://www.last.fm/api/auth/?api_key=${apiKey}&cb=lxmusic://lastfm/auth`
 }

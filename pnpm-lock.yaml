@@ -38,6 +38,9 @@ importers:
       jschardet:
         specifier: ^3.1.4
         version: 3.1.4
+      lastfm-ts-api:
+        specifier: ^2.6.2
+        version: 2.6.2
       lodash:
         specifier: ^4.17.23
         version: 4.17.23
@@ -3688,6 +3691,9 @@ packages:
   kind-of@6.0.3:
     resolution: {integrity: sha512-dcS1ul+9tmeD95T+x28/ehLgd9mENa3LsvDTtzm3vyBEO7RPptvAD+t44WVXaUjTBRcrpFeFlC8WCruUR456hw==}
     engines: {node: '>=0.10.0'}
+
+  lastfm-ts-api@2.6.2:
+    resolution: {integrity: sha512-LqF1q6n6unR6rMQSvJHbUg8XbfwEDjycmF9POu2NoZullceBuvG85fUYa8C6kcJUfjMz4QbLGFjpdqpVOnphPg==}
 
   launch-editor@2.13.1:
     resolution: {integrity: sha512-lPSddlAAluRKJ7/cjRFoXUFzaX7q/YKI7yPHuEvSJVqoXvFnJov1/Ud87Aa4zULIbA9Nja4mSPK8l0z/7eV2wA==}
@@ -9995,6 +10001,8 @@ snapshots:
   kind-of@5.1.0: {}
 
   kind-of@6.0.3: {}
+
+  lastfm-ts-api@2.6.2: {}
 
   launch-editor@2.13.1:
     dependencies:
