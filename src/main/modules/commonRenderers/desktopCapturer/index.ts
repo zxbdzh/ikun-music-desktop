@@ -1,0 +1,3 @@
+import './rendererEvent'
+
+export default () => {}

@@ -51,6 +51,18 @@
             </svg>
           </slot>
         </button>
+        <button type="button" :class="$style.audioMatchBtn" @click="handleOpenAudioMatch" :title="$t('audio_match__tooltip')">
+          <svg
+            version="1.1"
+            xmlns="http://www.w3.org/2000/svg"
+            xlink="http://www.w3.org/1999/xlink"
+            height="100%"
+            viewBox="0 0 24 24"
+            space="preserve"
+          >
+            <use xlink:href="#icon-mic" />
+          </svg>
+        </button>
       </div>
       <div v-if="list" :class="$style.list" :style="listStyle">
         <ul ref="dom_list" @mouseleave="selectIndex = -1">
@@ -74,6 +86,7 @@ import { clipboardReadText } from '@common/utils/electron'
 import { HOTKEY_COMMON } from '@common/hotKey'
 import { appSetting } from '@renderer/store/setting'
 import { useI18n } from '@root/lang'
+import { showAudioMatch } from '@renderer/core/useApp/useAudioMatch'
 
 const t = useI18n()
 
@@ -219,6 +232,9 @@ export default {
       this.$emit('update:modelValue', this.text)
       this.sendEvent('submit')
     },
+    handleOpenAudioMatch() {
+      showAudioMatch()
+    },
   },
 }
 </script>
@@ -285,7 +301,6 @@ export default {
     button {
       flex: none;
       border: none;
-      // background-color: @color-search-form-background;
       background-color: transparent;
       outline: none;
       cursor: pointer;
@@ -304,6 +319,19 @@ export default {
       }
       &:active {
         background-color: var(--color-button-background-active);
+      }
+
+      &.audioMatchBtn {
+        border-left: 1px solid var(--color-primary-light-300-alpha-400);
+
+        svg {
+          width: 16px;
+          height: 16px;
+        }
+
+        &:hover svg {
+          fill: var(--color-primary);
+        }
       }
     }
   }

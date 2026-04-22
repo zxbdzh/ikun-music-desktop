@@ -95,6 +95,7 @@ declare global {
 
   var COMMIT_ID: string
   var COMMIT_DATE: string
+  var staticPath: string
 }
 
 // declare const ELECTRON_DISABLE_SECURITY_WARNINGS: string

@@ -851,5 +851,20 @@
   "listen_data_title": "云村听歌足迹",
   "listen_data_rules": "规则",
   "listen_data_no_data": "暂无听歌数据",
-  "song_memory": "回忆坐标"
+  "song_memory": "回忆坐标",
+  "audio_match__title": "听歌识曲",
+  "audio_match__audio_source": "音频源",
+  "audio_match__source_microphone": "麦克风",
+  "audio_match__source_system": "电脑内部",
+  "audio_match__status_idle": "等待开始",
+  "audio_match__status_recording": "录音中...",
+  "audio_match__status_matching": "正在识别...",
+  "audio_match__start": "开始识别",
+  "audio_match__stop": "停止",
+  "audio_match__play": "播放",
+  "audio_match__retry": "重试",
+  "audio_match__close": "关闭",
+  "audio_match__tooltip": "听歌识曲",
+  "audio_match__no_result": "未识别到歌曲，请重试",
+  "audio_match__permission_denied": "麦克风权限被拒绝，请在系统设置中允许访问"
 }

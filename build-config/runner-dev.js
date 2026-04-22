@@ -3,6 +3,7 @@ process.env.NODE_ENV = 'development'
 const chalk = require('chalk')
 const electron = require('electron')
 const path = require('path')
+const express = require('express')
 const { spawn } = require('child_process')
 const webpack = require('webpack')
 const WebpackDevServer = require('webpack-dev-server')
@@ -34,7 +35,7 @@ function shouldShowRuntimeError(error) {
 }
 
 // ── Renderer dev server factory ──
-function startRendererDevServer(name, config, port, staticOpts) {
+function startRendererDevServer(name, config, port, staticDirs) {
   return new Promise((resolve) => {
     const compiler = webpack(config)
     const hmr = webpackHotMiddleware(compiler, { log: false, heartbeat: 2500 })
@@ -64,11 +65,16 @@ function startRendererDevServer(name, config, port, staticOpts) {
       },
       setupMiddlewares(middlewares, devServer) {
         devServer.app.use(hmr)
+        // 添加静态目录
+        if (Array.isArray(staticDirs)) {
+          staticDirs.forEach(({ directory, url }) => {
+            devServer.app.use(url, express.static(directory))
+          })
+        }
         setImmediate(() => devServer.middleware.waitUntilValid(resolve))
         return middlewares
       },
     }
-    if (staticOpts) serverOpts.static = staticOpts
 
     new WebpackDevServer(serverOpts, compiler).start()
   })
@@ -161,10 +167,10 @@ function init() {
   replaceLib({ electronPlatformName: process.platform, arch: Arch[process.arch] })
 
   Promise.all([
-    startRendererDevServer('renderer', rendererConfig, 9080, {
-      directory: path.join(__dirname, '../src/common/theme/images'),
-      publicPath: '/theme_images',
-    }).then(() => ok('renderer')).catch((err) => fail('renderer', err)),
+    startRendererDevServer('renderer', rendererConfig, 9080, [
+      { directory: path.join(__dirname, '../src/common/theme/images'), url: '/theme_images' },
+      { directory: path.join(__dirname, '../src/static'), url: '/static' },
+    ]).then(() => ok('renderer')).catch((err) => fail('renderer', err)),
 
     startRendererDevServer('renderer-lyric', rendererLyricConfig, 9081)
       .then(() => ok('renderer-lyric')).catch((err) => fail('renderer-lyric', err)),

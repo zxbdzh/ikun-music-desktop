@@ -8,6 +8,7 @@ const modules = {
     get_system_fonts: 'get_system_fonts',
     get_app_setting: 'get_app_setting',
     set_app_setting: 'set_app_setting',
+    get_audio_match_files: 'get_audio_match_files',
   },
   player: {
     invoke_play_music: 'play_music',
@@ -169,6 +170,9 @@ const modules = {
     status: 'status',
     set_config: 'set_config',
   },
+  desktopCapturer: {
+    get_sources: 'desktopCapturer_get_sources',
+  },
 }
 
 for (const moduleName of Object.keys(modules) as Array<keyof typeof modules>) {
@@ -191,3 +195,4 @@ export const DISLIKE_EVENT_NAME = modules.dislike
 export const WIN_MAIN_RENDERER_EVENT_NAME = modules.winMain
 export const WIN_LYRIC_RENDERER_EVENT_NAME = modules.winLyric
 export const HOTKEY_RENDERER_EVENT_NAME = modules.hotKey
+export const DESKTOP_CAPTURER_EVENT_NAME = modules.desktopCapturer

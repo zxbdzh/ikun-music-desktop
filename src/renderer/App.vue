@@ -31,6 +31,7 @@
     <layout-play-detail />
     <SongMemory />
     <layout-share-music-card-modal />
+    <AudioMatch />
   </div>
 </template>
 
@@ -44,6 +45,7 @@ import useBgCover from '@renderer/core/useApp/useBgCover'
 import { themeShouldUseDarkColors } from '@renderer/store'
 import { appSetting } from '@renderer/store/setting'
 import SongMemory from '@renderer/components/layout/SongMemory/index.vue'
+import AudioMatch from '@renderer/components/AudioMatch.vue'
 
 useApp()
 
