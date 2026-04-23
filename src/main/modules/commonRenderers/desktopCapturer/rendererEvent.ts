@@ -1,4 +1,4 @@
-import { desktopCapturer } from 'electron'
+import { desktopCapturer, session } from 'electron'
 import { mainHandle } from '@common/mainIpc'
 import { DESKTOP_CAPTURER_EVENT_NAME } from '@common/ipcNames'
 
@@ -7,23 +7,87 @@ interface DesktopCapturerSource {
   name: string
 }
 
-export default () => {
+export const registerRendererEvents = (
+  sendEvent: <T = any>(name: string, params?: T | undefined) => void,
+  ses?: Electron.Session
+) => {
   console.log('[desktopCapturer] 注册 handler:', DESKTOP_CAPTURER_EVENT_NAME.get_sources)
+
+  // 使用传入的 session 或 defaultSession
+  const targetSession = ses || session.defaultSession
+
+  // ========== Electron 38+ setDisplayMediaRequestHandler ==========
+  targetSession.setDisplayMediaRequestHandler((request, callback) => {
+    console.log('[desktopCapturer] Display media request:', {
+      audioRequested: request.audioRequested,
+      videoRequested: request.videoRequested,
+    })
+
+    const options: Electron.SourcesOptions = {
+      types: ['screen', 'window'],
+      thumbnailSize: { width: 0, height: 0 },
+      fetchDesktopAudio: request.audioRequested,
+    }
+
+    desktopCapturer.getSources(options).then((sources) => {
+      if (!sources.length) {
+        console.log('[desktopCapturer] 未找到可用源')
+        callback(null)
+        return
+      }
+
+      // 优先选择屏幕源
+      const screenSource = sources.find(s => s.id.startsWith('screen:'))
+      const source = screenSource || sources[0]
+
+      console.log('[desktopCapturer] 授权源:', source.name)
+
+      // callback 格式：{ video: source, audio: 'loopback' }
+      // eslint-disable-next-line standard/no-callback-literal
+      callback({
+        video: source,
+        audio: 'loopback',
+      })
+    }).catch((err) => {
+      console.error('[desktopCapturer] getSources error:', err)
+      callback(null)
+    })
+  }, { useSystemPicker: false }) // useSystemPicker 仅 macOS 15+ 支持
+  // ========== Electron 38+ setDisplayMediaRequestHandler ==========
+
   mainHandle<{ types: ('screen' | 'window')[]; fetchDesktopAudio?: boolean }, DesktopCapturerSource[]>(
     DESKTOP_CAPTURER_EVENT_NAME.get_sources,
     async ({ params }) => {
       const options: any = {
         types: params.types,
-        thumbnailSize: { width: 150, height: 150 },
+        thumbnailSize: { width: 0, height: 0 }, // 不需要缩略图
       }
       if (params.fetchDesktopAudio) {
         options.fetchDesktopAudio = true
       }
-      const sources = await desktopCapturer.getSources(options)
-      return sources.map((source) => ({
-        id: source.id,
-        name: source.name,
-      }))
+
+      // 添加超时控制，避免 IPC 挂起
+      const timeoutMs = 10000
+      const timeout = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('获取桌面源超时')), timeoutMs)
+      })
+
+      try {
+        const sources = await Promise.race([
+          desktopCapturer.getSources(options),
+          timeout,
+        ])
+        console.log('[desktopCapturer] 获取源成功，数量:', sources.length)
+        return sources.map((source) => ({
+          id: source.id,
+          name: source.name,
+        }))
+      } catch (err) {
+        console.error('[desktopCapturer] 获取源失败:', err)
+        throw err
+      }
     }
   )
 }
+
+export default () => {}

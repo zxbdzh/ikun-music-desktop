@@ -23,6 +23,16 @@
             </select>
           </div>
 
+          <!-- 麦克风设备选择 -->
+          <div v-if="showDeviceSelect" :class="$style.deviceSelect">
+            <label>{{ $t('audio_match__device') }}:</label>
+            <select v-model="selectedDeviceId" :disabled="isListening">
+              <option v-for="device in devices" :key="device.deviceId" :value="device.deviceId">
+                {{ device.label }}
+              </option>
+            </select>
+          </div>
+
           <!-- 空闲状态 -->
           <div v-if="state.status === 'idle'" :class="$style.statusIdle">
             <div :class="$style.statusIcon">●</div>
@@ -38,6 +48,12 @@
             </div>
           </div>
 
+          <!-- 已录制，待提交 -->
+          <div v-else-if="state.status === 'recorded'" :class="$style.statusRecorded">
+            <div :class="$style.statusIcon">✓</div>
+            <span>{{ $t('audio_match__status_recorded') }}</span>
+          </div>
+
           <!-- 识别中 -->
           <div v-else-if="state.status === 'matching'" :class="$style.statusMatching">
             <div :class="$style.statusIcon">◌</div>
@@ -47,6 +63,12 @@
           <!-- 错误 -->
           <div v-else-if="state.status === 'error'" :class="$style.statusError">
             <span>{{ state.error }}</span>
+          </div>
+
+          <!-- 未识别到歌曲 -->
+          <div v-else-if="state.status === 'no_match'" :class="$style.statusNoMatch">
+            <div :class="$style.statusIcon">✕</div>
+            <span>{{ state.error || '未识别到歌曲，请重试' }}</span>
           </div>
 
           <!-- 结果 -->
@@ -89,6 +111,24 @@
             </button>
 
             <button
+              v-if="state.status === 'recorded' && canPlayRecord"
+              type="button"
+              :class="$style.playRecordBtn"
+              @click="handlePlayRecord"
+            >
+              ▶ {{ $t('audio_match__play_record') }}
+            </button>
+
+            <button
+              v-if="state.status === 'recorded'"
+              type="button"
+              :class="$style.submitBtn"
+              @click="handleSubmit"
+            >
+              ✓ {{ $t('audio_match__submit') }}
+            </button>
+
+            <button
               type="button"
               :class="$style.cancelBtn"
               @click="handleClose"
@@ -104,13 +144,15 @@
 
 <script lang="ts">
 import { ref, computed, watch, onBeforeUnmount } from '@common/utils/vueTools'
-import { startListening, stopListening, reset, onStateChange, getState, type AudioSource } from '@renderer/utils/audioMatch'
+import { startListening, stopListening, submitMatch, reset, onStateChange, getState, getAudioDevices, playRecordedAudio, playMatchResult, resetWasmModule, type AudioSource, type AudioDevice } from '@renderer/utils/audioMatch'
 import { isAudioMatchVisible, hideAudioMatch } from '@renderer/core/useApp/useAudioMatch'
 
 export default {
   name: 'AudioMatch',
   setup() {
     const selectedSource = ref<AudioSource>('microphone')
+    const selectedDeviceId = ref<string>('default')
+    const devices = ref<AudioDevice[]>([])
     const state = ref(getState())
 
     let unsubscribe: (() => void) | null = null
@@ -125,18 +167,33 @@ export default {
     }
 
     const handleStart = async () => {
-      await startListening(selectedSource.value)
+      await startListening(selectedSource.value, selectedDeviceId.value)
     }
 
     const handleStop = async () => {
       await stopListening()
     }
 
-    const handlePlayResult = () => {
+    const handleSubmit = async () => {
+      await submitMatch()
+    }
+
+    const handlePlayRecord = async () => {
+      try {
+        await playRecordedAudio()
+      } catch (e) {
+        console.error('[AudioMatch] 试听失败:', e)
+      }
+    }
+
+    const handlePlayResult = async () => {
       const result = state.value.result
       if (!result) return
-      // TODO: 跳转到歌曲播放
-      console.log('[AudioMatch] Play result:', result)
+      try {
+        await playMatchResult(result)
+      } catch (e: any) {
+        console.error('[AudioMatch] 播放失败:', e)
+      }
     }
 
     const handleRetry = () => {
@@ -150,27 +207,44 @@ export default {
 
     watch(
       isAudioMatchVisible,
-      (val) => {
+      async (val) => {
         if (val && !unsubscribe) {
           unsubscribe = onStateChange((s) => {
             state.value = { ...s }
           })
+        }
+        if (val) {
+          // 每次打开弹窗时刷新设备列表
+          try {
+            devices.value = await getAudioDevices()
+          } catch (e) {
+            console.warn('[AudioMatch] 获取设备列表失败', e)
+          }
         }
       },
       { immediate: true }
     )
 
     const isListening = computed(() => state.value.status === 'listening')
+    const showDeviceSelect = computed(() => selectedSource.value === 'microphone')
+    // MediaRecorder 方案：录音数据通过 Blob 获取，回放功能与音频源类型无关
+    const canPlayRecord = computed(() => state.value.status === 'recorded')
 
     return {
       visible: isAudioMatchVisible,
       selectedSource,
+      selectedDeviceId,
+      devices,
       state,
       isListening,
+      showDeviceSelect,
+      canPlayRecord,
       handleClose,
       handleOverlayClick,
       handleStart,
       handleStop,
+      handleSubmit,
+      handlePlayRecord,
       handlePlayResult,
       handleRetry,
     }
@@ -261,10 +335,40 @@ export default {
   }
 }
 
+.deviceSelect {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+
+  label {
+    font-size: 13px;
+    color: var(--color-font);
+  }
+
+  select {
+    flex: 1;
+    padding: 6px 10px;
+    border: 1px solid var(--color-primary-light-300-alpha-500);
+    border-radius: 4px;
+    background-color: var(--color-primary-light-300-alpha-200);
+    color: var(--color-font);
+    font-size: 13px;
+    cursor: pointer;
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+  }
+}
+
 .statusIdle,
 .statusListening,
+.statusRecorded,
 .statusMatching,
-.statusError {
+.statusError,
+.statusNoMatch {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -313,6 +417,14 @@ export default {
 
 .statusError {
   color: var(--color-error);
+}
+
+.statusNoMatch {
+  color: var(--color-warning);
+}
+
+.statusRecorded {
+  color: var(--color-primary);
 }
 
 .result {
@@ -392,6 +504,7 @@ export default {
 
 .startBtn,
 .stopBtn,
+.submitBtn,
 .cancelBtn {
   flex: 1;
   padding: 10px 16px;
@@ -417,6 +530,24 @@ export default {
 
   &:hover {
     background-color: var(--color-error-dark);
+  }
+}
+
+.playRecordBtn {
+  background-color: var(--color-secondary-background);
+  color: var(--color-secondary-text);
+
+  &:hover {
+    background-color: var(--color-secondary-dark);
+  }
+}
+
+.submitBtn {
+  background-color: var(--color-primary);
+  color: #fff;
+
+  &:hover {
+    background-color: var(--color-primary-dark-200);
   }
 }
 

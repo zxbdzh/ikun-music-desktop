@@ -1,6 +1,8 @@
 import { registerRendererEvents as common } from '@main/modules/commonRenderers/common'
 import { registerRendererEvents as list } from '@main/modules/commonRenderers/list'
 import { registerRendererEvents as dislike } from '@main/modules/commonRenderers/dislike'
+import { registerRendererEvents as desktopCapturer } from '@main/modules/commonRenderers/desktopCapturer'
+import { session } from 'electron'
 import app, { sendConfigChange } from './app'
 import hotKey from './hotKey'
 import userApi from './userApi'
@@ -26,6 +28,9 @@ export default () => {
   common(sendEvent)
   list(sendEvent)
   dislike(sendEvent)
+  // 使用与窗口相同的 session 分区，确保 setDisplayMediaRequestHandler 能拦截 getDisplayMedia
+  const ses = session.fromPartition('persist:win-main')
+  desktopCapturer(sendEvent, ses)
   app()
   hotKey()
   userApi()

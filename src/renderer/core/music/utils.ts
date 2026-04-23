@@ -254,7 +254,8 @@ export const getPlayQuality = (
   musicInfo: LX.Music.MusicInfoOnline
 ): LX.Quality => {
   let type: LX.Quality = '128k'
-  if (TRY_QUALITYS_LIST.includes(highQuality as TryQualityType)) {
+  // 检查 _qualitys 是否存在
+  if (musicInfo.meta._qualitys && TRY_QUALITYS_LIST.includes(highQuality as TryQualityType)) {
     let list = qualityList.value[musicInfo.source]
 
     let t = TRY_QUALITYS_LIST.slice(TRY_QUALITYS_LIST.indexOf(highQuality as TryQualityType)).find(

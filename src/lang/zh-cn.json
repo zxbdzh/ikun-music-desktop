@@ -858,13 +858,17 @@
   "audio_match__source_system": "电脑内部",
   "audio_match__status_idle": "等待开始",
   "audio_match__status_recording": "录音中...",
+  "audio_match__status_recorded": "录音完成，点击提交识别",
   "audio_match__status_matching": "正在识别...",
   "audio_match__start": "开始识别",
   "audio_match__stop": "停止",
+  "audio_match__play_record": "试听",
+  "audio_match__submit": "提交识别",
   "audio_match__play": "播放",
   "audio_match__retry": "重试",
   "audio_match__close": "关闭",
   "audio_match__tooltip": "听歌识曲",
   "audio_match__no_result": "未识别到歌曲，请重试",
-  "audio_match__permission_denied": "麦克风权限被拒绝，请在系统设置中允许访问"
+  "audio_match__permission_denied": "麦克风权限被拒绝，请在系统设置中允许访问",
+  "audio_match__device": "麦克风设备"
 }
