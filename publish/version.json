@@ -1,7 +1,11 @@
 {
-  "version": "1.0.6",
+  "version": "1.0.7",
   "desc": "",
   "history": [
+    {
+      "version": "1.0.7",
+      "desc": "新增听歌识曲功能"
+    },
     {
       "version": "1.0.6",
       "desc": "修复 last.fm scrobble 不生效问题"
