@@ -72,16 +72,20 @@ let isWasmLoading = false
 
 /**
  * 通过 IPC 获取文件内容并执行（解决 asar 打包后静态资源路径无法访问的问题）
+ * 注意：使用 textContent 执行脚本时，脚本会立即执行，不需要等待 onload
  */
-const loadScriptContent = (content: string, filename: string): Promise<void> =>
-  new Promise((resolve, reject) => {
+const loadScriptContent = (content: string, filename: string): Promise<void> => {
+  return new Promise((resolve, reject) => {
     const s = document.createElement('script')
     s.textContent = content
     s.dataset.audioMatchFile = filename  // 标记来源文件，便于清理
-    s.onload = () => resolve()
-    s.onerror = (e) => reject(new Error(`执行脚本失败`))
+    s.onerror = () => reject(new Error(`执行脚本失败: ${filename}`))
+    // textContent 的脚本是同步执行的，appendChild 后立即执行完毕
     document.head.appendChild(s)
+    // 脚本已执行完成，直接 resolve
+    resolve()
   })
+}
 
 /**
  * 通过 IPC 方式加载音频匹配 WASM 模块
@@ -96,19 +100,41 @@ const loadWasmModuleViaIPC = async (): Promise<(samples: Float32Array) => Promis
   generateFP = null
 
   // 通过 IPC 获取文件内容
-  const { afpJs, wasmJs } = await rendererInvoke<{ afpJs: string; wasmJs: string }>(
-    CMMON_EVENT_NAME.get_audio_match_files
-  )
-
-  console.log('[AudioMatch] 已通过 IPC 获取文件内容，afpJs 长度:', afpJs.length, 'wasmJs 长度:', wasmJs.length)
+  let afpJs: string, wasmJs: string
+  try {
+    const result = await rendererInvoke<{ afpJs: string; wasmJs: string }>(
+      CMMON_EVENT_NAME.get_audio_match_files
+    )
+    afpJs = result.afpJs
+    wasmJs = result.wasmJs
+    console.log('[AudioMatch] 已通过 IPC 获取文件内容，afpJs 长度:', afpJs.length, 'wasmJs 长度:', wasmJs.length)
+  } catch (err) {
+    console.error('[AudioMatch] IPC 获取文件失败:', err)
+    throw new Error('IPC 获取文件失败: ' + (err as Error).message)
+  }
 
   // 先加载 wasm.js，再加载 afp.js（WASM 必须在主模块之前初始化）
-  await loadScriptContent(wasmJs, 'afp.wasm.js')
-  await loadScriptContent(afpJs, 'afp.js')
+  try {
+    console.log('[AudioMatch] 加载 wasm.js...')
+    await loadScriptContent(wasmJs, 'afp.wasm.js')
+    console.log('[AudioMatch] wasm.js 加载完成')
+  } catch (err) {
+    console.error('[AudioMatch] wasm.js 加载失败:', err)
+    throw new Error('wasm.js 加载失败: ' + (err as Error).message)
+  }
+
+  try {
+    console.log('[AudioMatch] 加载 afp.js...')
+    await loadScriptContent(afpJs, 'afp.js')
+    console.log('[AudioMatch] afp.js 加载完成')
+  } catch (err) {
+    console.error('[AudioMatch] afp.js 加载失败:', err)
+    throw new Error('afp.js 加载失败: ' + (err as Error).message)
+  }
 
   const gf = (window as any).GenerateFP
   if (typeof gf !== 'function') {
-    console.error('[AudioMatch] GenerateFP 不可用')
+    console.error('[AudioMatch] GenerateFP 不可用，window.GenerateFP:', typeof (window as any).GenerateFP)
     throw new Error('GenerateFP 不可用')
   }
 
