@@ -26,13 +26,12 @@ export const registerRendererEvents = (
     const options: Electron.SourcesOptions = {
       types: ['screen', 'window'],
       thumbnailSize: { width: 0, height: 0 },
-      fetchDesktopAudio: request.audioRequested,
     }
 
     desktopCapturer.getSources(options).then((sources) => {
       if (!sources.length) {
         console.log('[desktopCapturer] 未找到可用源')
-        callback(null)
+        callback(null as unknown as Electron.Streams)
         return
       }
 
@@ -50,7 +49,7 @@ export const registerRendererEvents = (
       })
     }).catch((err) => {
       console.error('[desktopCapturer] getSources error:', err)
-      callback(null)
+      callback(null as unknown as Electron.Streams)
     })
   }, { useSystemPicker: false }) // useSystemPicker 仅 macOS 15+ 支持
   // ========== Electron 38+ setDisplayMediaRequestHandler ==========
