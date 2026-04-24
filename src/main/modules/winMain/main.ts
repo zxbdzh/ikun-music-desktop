@@ -108,7 +108,7 @@ export const createWindow = () => {
 
   const winURL =
     process.env.NODE_ENV !== 'production'
-      ? 'http://localhost:9080'
+      ? 'http://localhost:9222'
       : `file://${path.join(encodePath(__dirname), 'index.html')}`
   void browserWindow.loadURL(
     winURL +

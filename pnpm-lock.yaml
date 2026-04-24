@@ -169,20 +169,20 @@ importers:
         specifier: ^6.1.1
         version: 6.1.1
       electron:
-        specifier: 37.6.1
-        version: 37.6.1
+        specifier: 38.8.6
+        version: 38.8.6
       electron-builder:
-        specifier: ^26.3.6
+        specifier: ^26.8.1
         version: 26.8.1(electron-builder-squirrel-windows@26.8.1)
       electron-debug:
         specifier: ^3.2.0
         version: 3.2.0
       electron-devtools-installer:
-        specifier: github:lyswhut/electron-devtools-installer#64596d615c1fc891eefd8aef1dfcb2c87aaadf03
-        version: https://codeload.github.com/lyswhut/electron-devtools-installer/tar.gz/64596d615c1fc891eefd8aef1dfcb2c87aaadf03
+        specifier: ^4.0.0
+        version: 4.0.0
       electron-to-chromium:
-        specifier: ^1.5.267
-        version: 1.5.321
+        specifier: ^1.5.343
+        version: 1.5.343
       electron-updater:
         specifier: 6.7.3
         version: 6.7.3
@@ -1476,7 +1476,6 @@ packages:
   '@xmldom/xmldom@0.8.11':
     resolution: {integrity: sha512-cQzWCtO6C8TQiYl1ruKNn2U6Ao4o4WBBcbL61yJl84x+j5sOWWFU9X7DpND8XZG3daDppSsigMdfAIl2upQBRw==}
     engines: {node: '>=10.0.0'}
-    deprecated: this version has critical issues, please update to the latest version
 
   '@xtuc/ieee754@1.2.0':
     resolution: {integrity: sha512-DX8nKgqcGwsc0eJSqYt5lwP4DH5FlHnmuWWBRy7X0NcaGR0ZtuyeESgMwTYVEtxmsNGY+qit4QYT/MIYTOTPeA==}
@@ -2470,9 +2469,8 @@ packages:
   electron-debug@3.2.0:
     resolution: {integrity: sha512-7xZh+LfUvJ52M9rn6N+tPuDw6oRAjxUj9SoxAZfJ0hVCXhZCsdkrSt7TgXOiWiEOBgEV8qwUIO/ScxllsPS7ow==}
 
-  electron-devtools-installer@https://codeload.github.com/lyswhut/electron-devtools-installer/tar.gz/64596d615c1fc891eefd8aef1dfcb2c87aaadf03:
-    resolution: {tarball: https://codeload.github.com/lyswhut/electron-devtools-installer/tar.gz/64596d615c1fc891eefd8aef1dfcb2c87aaadf03}
-    version: 0.0.0-development
+  electron-devtools-installer@4.0.0:
+    resolution: {integrity: sha512-9Tntu/jtfSn0n6N/ZI6IdvRqXpDyLQiDuuIbsBI+dL+1Ef7C8J2JwByw58P3TJiNeuqyV3ZkphpNWuZK5iSY2w==}
 
   electron-is-accelerator@0.1.2:
     resolution: {integrity: sha512-fLGSAjXZtdn1sbtZxx52+krefmtNuVwnJCV2gNiVt735/ARUboMl8jnNC9fZEqQdlAv2ZrETfmBUsoQci5evJA==}
@@ -2490,8 +2488,8 @@ packages:
   electron-publish@26.8.1:
     resolution: {integrity: sha512-q+jrSTIh/Cv4eGZa7oVR+grEJo/FoLMYBAnSL5GCtqwUpr1T+VgKB/dn1pnzxIxqD8S/jP1yilT9VrwCqINR4w==}
 
-  electron-to-chromium@1.5.321:
-    resolution: {integrity: sha512-L2C7Q279W2D/J4PLZLk7sebOILDSWos7bMsMNN06rK482umHUrh/3lM8G7IlHFOYip2oAg5nha1rCMxr/rs6ZQ==}
+  electron-to-chromium@1.5.343:
+    resolution: {integrity: sha512-YHnQ3MXI08icvL9ZKnEBy05F2EQ8ob01UaMOuMbM8l+4UcAq6MPPbBTJBbsBUg3H8JeZNt+O4fjsoWth3p6IFg==}
 
   electron-updater@6.7.3:
     resolution: {integrity: sha512-EgkT8Z9noqXKbwc3u5FkJA+r48jwZ5DTUiOkJMOTEEH//n5Am6wfQGz7nvSFEA2oIAMv9jRzn5JKTyWeSKOPgg==}
@@ -2500,8 +2498,8 @@ packages:
     resolution: {integrity: sha512-bO3y10YikuUwUuDUQRM4KfwNkKhnpVO7IPdbsrejwN9/AABJzzTQ4GeHwyzNSrVO+tEH3/Np255a3sVZpZDjvg==}
     engines: {node: '>=8.0.0'}
 
-  electron@37.6.1:
-    resolution: {integrity: sha512-aHtJVNjqf0lk7dlPoc1X+fMBpZtLn+XGvP6IYc3gooTwsD1D/Ic2SBRC9SnIk6LkWTsDaSF9jgH1d9Q7eABy/Q==}
+  electron@38.8.6:
+    resolution: {integrity: sha512-lyBhcVi9QYAZL6FO6r5twAWAjWnYomo3iVDvrb5SJZlq928BGemHOKG0tPIq41NOLaCu9f3XdEEjMkjQPjprRg==}
     engines: {node: '>= 12.20.55'}
     hasBin: true
 
@@ -7816,7 +7814,7 @@ snapshots:
     dependencies:
       baseline-browser-mapping: 2.10.8
       caniuse-lite: 1.0.30001780
-      electron-to-chromium: 1.5.321
+      electron-to-chromium: 1.5.343
       node-releases: 2.0.36
       update-browserslist-db: 1.2.3(browserslist@4.28.1)
 
@@ -8572,11 +8570,8 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  electron-devtools-installer@https://codeload.github.com/lyswhut/electron-devtools-installer/tar.gz/64596d615c1fc891eefd8aef1dfcb2c87aaadf03:
+  electron-devtools-installer@4.0.0:
     dependencies:
-      rimraf: 3.0.2
-      semver: 7.7.4
-      tslib: 2.8.1
       unzip-crx-3: 0.2.0
 
   electron-is-accelerator@0.1.2: {}
@@ -8607,7 +8602,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  electron-to-chromium@1.5.321: {}
+  electron-to-chromium@1.5.343: {}
 
   electron-updater@6.7.3:
     dependencies:
@@ -8634,7 +8629,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  electron@37.6.1:
+  electron@38.8.6:
     dependencies:
       '@electron/get': 2.0.3
       '@types/node': 22.19.15

@@ -167,12 +167,12 @@ function init() {
   replaceLib({ electronPlatformName: process.platform, arch: Arch[process.arch] })
 
   Promise.all([
-    startRendererDevServer('renderer', rendererConfig, 9080, [
+    startRendererDevServer('renderer', rendererConfig, 9222, [
       { directory: path.join(__dirname, '../src/common/theme/images'), url: '/theme_images' },
       { directory: path.join(__dirname, '../src/static'), url: '/static' },
     ]).then(() => ok('renderer')).catch((err) => fail('renderer', err)),
 
-    startRendererDevServer('renderer-lyric', rendererLyricConfig, 9081)
+    startRendererDevServer('renderer-lyric', rendererLyricConfig, 9223)
       .then(() => ok('renderer-lyric')).catch((err) => fail('renderer-lyric', err)),
 
     startRendererScripts()
