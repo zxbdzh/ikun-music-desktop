@@ -64,24 +64,60 @@ export const getAudioDevices = async (): Promise<AudioDevice[]> => {
 
 // ============ WASM 模块加载 ============
 
+import { rendererInvoke } from '@common/rendererIpc'
+import { CMMON_EVENT_NAME } from '@common/ipcNames'
+
 let generateFP: ((samples: Float32Array) => Promise<string>) | null = null
 let isWasmLoading = false
 
-const loadScript = (src: string): Promise<void> =>
+/**
+ * 通过 IPC 获取文件内容并执行（解决 asar 打包后静态资源路径无法访问的问题）
+ */
+const loadScriptContent = (content: string, filename: string): Promise<void> =>
   new Promise((resolve, reject) => {
-    // 检查脚本是否已存在，如果存在则先移除（解决刷新后脚本缓存问题）
-    const existingScript = document.querySelector(`script[src="${src}"]`)
-    if (existingScript) {
-      existingScript.remove()
-    }
-
     const s = document.createElement('script')
-    // 添加时间戳 cache busting，确保每次加载最新脚本
-    s.src = src + '?t=' + Date.now()
+    s.textContent = content
+    s.dataset.audioMatchFile = filename  // 标记来源文件，便于清理
     s.onload = () => resolve()
-    s.onerror = () => reject(new Error(`加载失败: ${src}`))
+    s.onerror = (e) => reject(new Error(`执行脚本失败`))
     document.head.appendChild(s)
   })
+
+/**
+ * 通过 IPC 方式加载音频匹配 WASM 模块
+ * 使用主进程读取 asar 中的文件，解决打包后 /static/ 路径无法访问的问题
+ */
+const loadWasmModuleViaIPC = async (): Promise<(samples: Float32Array) => Promise<string>> => {
+  console.log('[AudioMatch] 通过 IPC 加载 WASM 模块...')
+
+  // 清理可能存在的旧脚本
+  document.querySelectorAll('script[data-audio-match-file]').forEach(script => script.remove())
+  ;(window as any).GenerateFP = undefined
+  generateFP = null
+
+  // 通过 IPC 获取文件内容
+  const { afpJs, wasmJs } = await rendererInvoke<{ afpJs: string; wasmJs: string }>(
+    CMMON_EVENT_NAME.get_audio_match_files
+  )
+
+  console.log('[AudioMatch] 已通过 IPC 获取文件内容，afpJs 长度:', afpJs.length, 'wasmJs 长度:', wasmJs.length)
+
+  // 先加载 wasm.js，再加载 afp.js（WASM 必须在主模块之前初始化）
+  await loadScriptContent(wasmJs, 'afp.wasm.js')
+  await loadScriptContent(afpJs, 'afp.js')
+
+  const gf = (window as any).GenerateFP
+  if (typeof gf !== 'function') {
+    console.error('[AudioMatch] GenerateFP 不可用')
+    throw new Error('GenerateFP 不可用')
+  }
+
+  console.log('[AudioMatch] GenerateFP 加载成功')
+  return (samples: Float32Array): Promise<string> => {
+    console.log('[AudioMatch] 调用 GenerateFP，输入采样数:', samples.length)
+    return (window as any).GenerateFP(samples)
+  }
+}
 
 const loadWasmModule = async (): Promise<(samples: Float32Array) => Promise<string>> => {
   // 如果已经有 generateFP，直接返回复用
@@ -108,30 +144,9 @@ const loadWasmModule = async (): Promise<(samples: Float32Array) => Promise<stri
 
   isWasmLoading = true
   try {
-    // 清理可能存在的旧脚本
-    document.querySelectorAll('script[src*="afp"]').forEach(s => s.remove())
-    // 清除 generateFP 缓存
-    generateFP = null
-
-    // 通过动态 script 标签加载
-    await Promise.all([
-      loadScript('/static/audio_match/afp.wasm.js'),
-      loadScript('/static/audio_match/afp.js'),
-    ])
-
-    const gf = (window as any).GenerateFP
-    if (typeof gf !== 'function') {
-      console.error('[AudioMatch] GenerateFP 不可用')
-      throw new Error('GenerateFP 不可用')
-    }
-
-    console.log('[AudioMatch] GenerateFP 加载成功')
-
-    generateFP = (samples: Float32Array): Promise<string> => {
-      console.log('[AudioMatch] 调用 GenerateFP，输入采样数:', samples.length, '前10个样本:', Array.from(samples.slice(0, 10)).join(','))
-      return (window as any).GenerateFP(samples)
-    }
-
+    // 使用 IPC 方式加载（WASM 模块在 asar 中，需要主进程读取）
+    const wasmModule = await loadWasmModuleViaIPC()
+    generateFP = wasmModule
     return generateFP
   } finally {
     isWasmLoading = false
@@ -546,7 +561,7 @@ export const reset = () => {
 export const resetWasmModule = () => {
   generateFP = null
   // 清除可能残留的脚本
-  document.querySelectorAll('script[src*="afp"]').forEach(s => s.remove())
+  document.querySelectorAll('script[data-audio-match-file]').forEach(s => s.remove())
   // 设置为 undefined 而不是 delete（window 属性在某些环境不可删除）
   ;(window as any).GenerateFP = undefined
   console.log('[AudioMatch] WASM 模块已重置')
