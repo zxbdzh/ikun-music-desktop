@@ -40,6 +40,7 @@ import usePreloadNextMusic from './usePreloadNextMusic'
 import useScrobble from './useScrobble'
 import useWeblogScrobble from './useWeblogScrobble'
 import useLastfmScrobble from './useLastfmScrobble'
+import useSeamlessPlayback from './useSeamlessPlayback'
 
 export default () => {
   const t = useI18n()
@@ -54,6 +55,7 @@ export default () => {
   usePlaybackRate()
   useWatchList()
   usePreloadNextMusic()
+  useSeamlessPlayback()
 
   // 根据设置启用旧版或新版听歌记录
   if (appSetting['wy.enableOldScrobble']) {

@@ -27,6 +27,7 @@ import { getRandom } from '@renderer/utils/index'
 import { addListMusics, removeListMusics } from '@renderer/store/list/action'
 import { loveList } from '@renderer/store/list/state'
 import { addDislikeInfo } from '@renderer/core/dislikeList'
+import { SeamlessPlaybackManager } from '@renderer/plugins/seamless'
 // import { checkMusicFileAvailable } from '@renderer/utils/music'
 
 let gettingUrlId = ''
@@ -421,8 +422,33 @@ export const getNextPlayMusicInfo = async (): Promise<LX.Player.PlayMusicInfo | 
   return nextPlayMusicInfo
 }
 
-const handlePlayNext = (playMusicInfo: LX.Player.PlayMusicInfo) => {
-  // pause()
+const handlePlayNext = (playMusicInfo: LX.Player.PlayMusicInfo, isAutoToggle = false) => {
+  const seamlessEnabled = appSetting['player.seamlessPlayback.enable']
+  const applyOnManual = appSetting['player.seamlessPlayback.applyOnManualSwitch']
+  const shouldSeamless = isAutoToggle || applyOnManual
+
+  if (seamlessEnabled && shouldSeamless) {
+    const seamlessManager = SeamlessPlaybackManager.getInstance()
+    void (async () => {
+      const url = await getMusicUrl({ musicInfo: playMusicInfo.musicInfo }).catch(() => '')
+      if (!url) return
+      const buffer = seamlessManager.getBufferFromCache(url)
+      if (buffer) {
+        const mode = appSetting['player.seamlessPlayback.mode']
+        const duration = mode === 'fade'
+          ? appSetting['player.seamlessPlayback.fadeDuration']
+          : appSetting['player.seamlessPlayback.crossfadeDuration']
+        if (mode === 'fade') {
+          await seamlessManager.fadeTransition(buffer, duration)
+        } else {
+          // For crossfade, we need current buffer which requires more complex handling
+          // Fall back to fade for now
+          await seamlessManager.fadeTransition(buffer, duration)
+        }
+      }
+    })()
+  }
+
   setPlayMusicInfo(playMusicInfo.listId, playMusicInfo.musicInfo, playMusicInfo.isTempPlay)
   handlePlay()
 }
@@ -437,7 +463,7 @@ export const playNext = async (isAutoToggle = false): Promise<void> => {
     // 如果稍后播放列表存在歌曲则直接播放改列表的歌曲
     const playMusicInfo = tempPlayList[0]
     removeTempPlayList(0)
-    handlePlayNext(playMusicInfo)
+    handlePlayNext(playMusicInfo, isAutoToggle)
     console.log('play temp list')
     return
   }
@@ -484,13 +510,13 @@ export const playNext = async (isAutoToggle = false): Promise<void> => {
     }
 
     if (index < playedList.length) {
-      handlePlayNext(playedList[index])
+      handlePlayNext(playedList[index], isAutoToggle)
       console.log('play played list')
       return
     }
   }
   if (randomNextMusicInfo.info) {
-    handlePlayNext(randomNextMusicInfo.info)
+    handlePlayNext(randomNextMusicInfo.info, isAutoToggle)
     return
   }
   // const isCheckFile = findNum > 2 // 针对下载列表，如果超过两次都碰到无效歌曲，则过滤整个列表内的无效歌曲
@@ -547,7 +573,7 @@ export const playNext = async (isAutoToggle = false): Promise<void> => {
     musicInfo: filteredList[nextIndex],
     listId: currentListId,
     isTempPlay: false,
-  })
+  }, isAutoToggle)
 }
 
 /**
@@ -591,7 +617,7 @@ export const playPrev = async (isAutoToggle = false): Promise<void> => {
     }
 
     if (index > -1) {
-      handlePlayNext(playedList[index])
+      handlePlayNext(playedList[index], isAutoToggle)
       return
     }
   }
@@ -644,7 +670,7 @@ export const playPrev = async (isAutoToggle = false): Promise<void> => {
     musicInfo: filteredList[nextIndex],
     listId: currentListId,
     isTempPlay: false,
-  })
+  }, isAutoToggle)
 }
 
 /**

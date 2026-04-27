@@ -333,6 +333,31 @@ declare global {
       'player.isAutoCleanPlayedList': boolean
 
       /**
+       * 是否启用无缝切歌
+       */
+      'player.seamlessPlayback.enable': boolean
+
+      /**
+       * 无缝切歌模式：渐入渐出或交叉淡化
+       */
+      'player.seamlessPlayback.mode': 'fade' | 'crossfade'
+
+      /**
+       * 渐入渐出模式时长（毫秒）
+       */
+      'player.seamlessPlayback.fadeDuration': number
+
+      /**
+       * 交叉淡化模式时长（毫秒）
+       */
+      'player.seamlessPlayback.crossfadeDuration': number
+
+      /**
+       * 手动切歌时是否应用无缝切换
+       */
+      'player.seamlessPlayback.applyOnManualSwitch': boolean
+
+      /**
        * 播放详情页-是否缩放当前播放的歌词行
        */
       'playDetail.isZoomActiveLrc': boolean

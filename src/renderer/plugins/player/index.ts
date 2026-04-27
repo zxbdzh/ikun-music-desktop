@@ -298,6 +298,15 @@ export const getAudioContext = () => {
   return audioContext
 }
 
+export const getGainNode = (): GainNode => {
+  initAdvancedAudioFeatures()
+  return gainNode
+}
+
+export const getAudio = (): HTMLAudioElement | null => {
+  return audio
+}
+
 let unsubMediaListChangeEvent: (() => void) | null = null
 export const setMaxOutputChannelCount = (enable: boolean) => {
   if (enable) {

@@ -6,6 +6,7 @@ import { musicInfo } from '@renderer/store/player/state'
 import { getNextPlayMusicInfo, resetRandomNextMusicInfo } from '@renderer/core/player'
 import { getMusicUrl } from '@renderer/core/music'
 import { appSetting } from '@renderer/store/setting'
+import { SeamlessPlaybackManager } from '@renderer/plugins/seamless'
 
 let audio: HTMLAudioElement
 const initAudio = () => {
@@ -73,6 +74,11 @@ const preloadNextMusicUrl = async (curTime: number) => {
         )
         void checkMusicUrl(url)
         console.log('preload url refresh', url)
+      }
+      // Preload AudioBuffer for seamless playback
+      if (appSetting['player.seamlessPlayback.enable']) {
+        const seamlessManager = SeamlessPlaybackManager.getInstance()
+        void seamlessManager.prepareNextTrack(url)
       }
     }
   }

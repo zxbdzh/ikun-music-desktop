@@ -41,6 +41,19 @@ dd
       name="setting_play_quality" need :model-value="appSetting['player.playQuality']" :value="item" :label="$t(`setting_play_quality_${item}`)"
       @update:model-value="updateSetting({ 'player.playQuality': $event })")
 
+dd
+  h3#seamless_playback {{ $t('setting__play_seamless') }}
+  .gap-top
+    base-checkbox(id="setting_player_seamless_enable" :model-value="appSetting['player.seamlessPlayback.enable']" :label="$t('setting__play_seamless_enable')" @update:model-value="updateSetting({ 'player.seamlessPlayback.enable': $event })")
+  .gap-top(v-if="appSetting['player.seamlessPlayback.enable']")
+    base-selection(v-model="seamlessMode" :list="seamlessModeList" item-key="value" item-name="label" :label="$t('setting__play_seamless_mode')")
+  .gap-top(v-if="appSetting['player.seamlessPlayback.enable'] && seamlessMode === 'fade'")
+    base-slider(:model-value="appSetting['player.seamlessPlayback.fadeDuration']" :min="2000" :max="5000" :step="500" :label="appSetting['player.seamlessPlayback.fadeDuration'] + 'ms'" @update:model-value="updateSetting({ 'player.seamlessPlayback.fadeDuration': $event })")
+  .gap-top(v-if="appSetting['player.seamlessPlayback.enable'] && seamlessMode === 'crossfade'")
+    base-slider(:model-value="appSetting['player.seamlessPlayback.crossfadeDuration']" :min="2000" :max="5000" :step="500" :label="appSetting['player.seamlessPlayback.crossfadeDuration'] + 'ms'" @update:model-value="updateSetting({ 'player.seamlessPlayback.crossfadeDuration': $event })")
+  .gap-top(v-if="appSetting['player.seamlessPlayback.enable']")
+    base-checkbox(id="setting_player_seamless_manual" :model-value="appSetting['player.seamlessPlayback.applyOnManualSwitch']" :label="$t('setting__play_seamless_manual')" @update:model-value="updateSetting({ 'player.seamlessPlayback.applyOnManualSwitch': $event })")
+
 dd(:aria-label="$t('setting__play_mediaDevice_title')")
   h3#play_mediaDevice {{ $t('setting__play_mediaDevice') }}
   div
@@ -48,7 +61,7 @@ dd(:aria-label="$t('setting__play_mediaDevice_title')")
 </template>
 
 <script>
-import { ref, onBeforeUnmount, watch } from '@common/utils/vueTools'
+import { ref, onBeforeUnmount, watch, computed } from '@common/utils/vueTools'
 import { hasInitedAdvancedAudioFeatures, setMediaDeviceId } from '@renderer/plugins/player'
 import { dialog } from '@renderer/plugins/Dialog'
 import { useI18n } from '@renderer/plugins/i18n'
@@ -63,6 +76,15 @@ export default {
   setup() {
     const t = useI18n()
     const playQualityList = [...TRY_QUALITYS_LIST, '128k'].reverse()
+
+    const seamlessModeList = [
+      { value: 'fade', label: t('setting__play_seamless_mode_fade') },
+      { value: 'crossfade', label: t('setting__play_seamless_mode_crossfade') },
+    ]
+    const seamlessMode = computed({
+      get: () => appSetting['player.seamlessPlayback.mode'],
+      set: (val) => updateSetting({ 'player.seamlessPlayback.mode': val }),
+    })
 
     const mediaDevices = ref([])
     const getMediaDevice = async () => {
@@ -150,6 +172,8 @@ export default {
       handleUpdateMaxOutputChannelCount,
       playQualityList,
       isMac,
+      seamlessModeList,
+      seamlessMode,
     }
   },
 }
