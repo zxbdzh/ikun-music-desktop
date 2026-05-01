@@ -328,19 +328,14 @@ declare global {
       'player.autoSkipOnError': boolean
 
       /**
-       * 切歌过渡模式
+       * 是否启用无缝切歌
        */
-      'player.transitionMode': 'disabled' | 'crossfade' | 'smartMix'
+      'player.transitionEnabled': boolean
 
       /**
-       * 切歌过渡时长（秒）
+       * 无缝切歌过渡时长（秒）
        */
       'player.transitionDuration': number
-
-      /**
-       * 手动切歌时是否也使用过渡
-       */
-      'player.transitionOnManualSkip': boolean
 
       /**
        * 点击相同列表内的歌曲切歌时是否清空已播放列表（随机模式下列表内所有歌曲会重新参与随机）

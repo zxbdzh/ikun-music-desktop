@@ -145,7 +145,7 @@ export default () => {
   const rOnTimeupdate = onTimeupdate(() => {
     const time = getCurrentTime()
     const duration = playProgress.maxPlayTime
-    const isCrossfadeEnabled = appSetting['player.transitionMode'] !== 'disabled'
+    const isCrossfadeEnabled = appSetting['player.transitionEnabled']
     const threshold = getPreloadThreshold(duration, isCrossfadeEnabled)
     if (duration > threshold && duration - time < threshold && !preloadMusicInfo.info) {
       void preloadNextMusicUrl(time)

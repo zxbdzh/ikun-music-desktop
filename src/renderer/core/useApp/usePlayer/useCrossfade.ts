@@ -57,20 +57,6 @@ let isCompleting = false
 export { isCompleting }  // exported so usePlayProgress can guard setProgress during crossfade
 let pendingNextDuration = 0
 
-const estimateBpm = (interval: number): number => {
-  if (!interval || interval <= 0) return 120
-  if (interval < 180) return 140
-  if (interval < 240) return 120
-  if (interval < 360) return 100
-  return 80
-}
-
-const getBeatAlignedDuration = (duration: number, bpm: number): number => {
-  const beatInterval = 60 / bpm
-  const beats = Math.round(duration / beatInterval)
-  return Math.max(1, beats * beatInterval)
-}
-
 const doCancelCrossfade = () => {
   if (crossfadeAnimId != null) {
     cancelAnimationFrame(crossfadeAnimId)
@@ -178,7 +164,7 @@ const completeCrossfade = (nextInfo: LX.Player.PlayMusicInfo) => {
  * - New song fades in: gain 0.0 → 1.0 (linear)
  * - Animation driven by AudioContext timing (hardware-accelerated)
  */
-const startGainAnimation = (durationSec: number, _smartMix: boolean) => {
+const startGainAnimation = (durationSec: number) => {
   console.log('startGainAnimation: duration =', durationSec, 's')
 
   const audioContext = getAudioContextInstance()
@@ -208,7 +194,7 @@ const startGainAnimation = (durationSec: number, _smartMix: boolean) => {
   crossfadeAnimId = requestAnimationFrame(animate)
 }
 
-const executeCrossfade = (nextInfo: LX.Player.PlayMusicInfo, url: string, duration: number, _smartMix: boolean) => {
+const executeCrossfade = (nextInfo: LX.Player.PlayMusicInfo, url: string, duration: number) => {
   setVolumeSecondary(volume.value)
   setResourceSecondary(url)
 
@@ -239,7 +225,7 @@ const executeCrossfade = (nextInfo: LX.Player.PlayMusicInfo, url: string, durati
     isCrossfading.value = true
     window.app_event.crossfadeStarted()
 
-    startGainAnimation(duration, _smartMix)
+    startGainAnimation(duration)
 
     // Audio event driven: listen to secondary audio timeupdate as primary trigger
     // When secondary audio is near end (200ms margin), trigger swap immediately
@@ -307,17 +293,12 @@ const tryStartCrossfade = async (curTime: number) => {
     return
   }
 
-  const mode = appSetting['player.transitionMode']
-  if (mode === 'disabled') return
+  if (!appSetting['player.transitionEnabled']) return
 
   const duration = getDuration()
   if (!duration || duration <= 0) return
 
-  let transitionDuration = appSetting['player.transitionDuration']
-  if (mode === 'smartMix') {
-    const bpm = estimateBpm(duration)
-    transitionDuration = getBeatAlignedDuration(transitionDuration, bpm)
-  }
+  const transitionDuration = appSetting['player.transitionDuration']
 
   if (duration - curTime > transitionDuration) return
 
@@ -338,7 +319,7 @@ const tryStartCrossfade = async (curTime: number) => {
   }
 
   nextMusicUrl = url
-  executeCrossfade(nextInfo, url, transitionDuration, mode === 'smartMix')
+  executeCrossfade(nextInfo, url, transitionDuration)
 }
 
 export default () => {
@@ -350,8 +331,7 @@ export default () => {
     const duration = playProgress.maxPlayTime
     if (!duration || duration <= 0) return
 
-    const mode = appSetting['player.transitionMode']
-    if (mode === 'disabled') return
+    if (!appSetting['player.transitionEnabled']) return
 
     const threshold = appSetting['player.transitionDuration'] + 2
     if (duration - time <= threshold) {
@@ -360,9 +340,9 @@ export default () => {
   })
 
   watch(
-    () => appSetting['player.transitionMode'],
-    (mode) => {
-      console.log('transitionMode changed to:', mode)
+    () => appSetting['player.transitionEnabled'],
+    () => {
+      console.log('transitionEnabled changed')
       if (isCrossfading.value) doCancelCrossfade()
     }
   )

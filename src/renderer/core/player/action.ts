@@ -436,11 +436,7 @@ const handlePlayNext = (playMusicInfo: LX.Player.PlayMusicInfo) => {
 export const playNext = async (isAutoToggle = false): Promise<void> => {
   console.log('skip next', isAutoToggle)
   if (isCrossfading.value) {
-    if (isAutoToggle || !appSetting['player.transitionOnManualSkip']) {
-      cancelCrossfade()
-    } else {
-      return
-    }
+    cancelCrossfade()
   }
   if (tempPlayList.length) {
     // 如果稍后播放列表存在歌曲则直接播放改列表的歌曲
@@ -564,11 +560,7 @@ export const playNext = async (isAutoToggle = false): Promise<void> => {
  */
 export const playPrev = async (isAutoToggle = false): Promise<void> => {
   if (isCrossfading.value) {
-    if (isAutoToggle || !appSetting['player.transitionOnManualSkip']) {
-      cancelCrossfade()
-    } else {
-      return
-    }
+    cancelCrossfade()
   }
   if (playMusicInfo.musicInfo == null) {
     handleToggleStop()
