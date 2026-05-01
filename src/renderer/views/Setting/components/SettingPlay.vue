@@ -45,10 +45,41 @@ dd(:aria-label="$t('setting__play_mediaDevice_title')")
   h3#play_mediaDevice {{ $t('setting__play_mediaDevice') }}
   div
     base-selection.gap-left(v-model="mediaDeviceId" :list="mediaDevices" item-key="deviceId" item-name="label" @change="handleMediaDeviceIdChnage")
+
+dd
+  h3#play_transition {{ $t('setting__play_transition_title') }}
+  .gap-top
+    .setting-item-row
+      span.setting-item-label {{ $t('setting__play_transition_mode') }}
+      base-selection.gap-left(
+        :model-value="appSetting['player.transitionMode']"
+        :list="transitionModeList"
+        item-key="value"
+        item-name="label"
+        @update:model-value="updateSetting({ 'player.transitionMode': $event })"
+      )
+  .gap-top(v-if="appSetting['player.transitionMode'] !== 'disabled'")
+    .setting-item-row
+      span.setting-item-label {{ $t('setting__play_transition_duration') }}
+      span.setting-item-value {{ transitionDurationDisplay }}
+    base-slider-bar(
+      :value="appSetting['player.transitionDuration']"
+      :min="1"
+      :max="15"
+      :step="1"
+      @change="updateSetting({ 'player.transitionDuration': $event })"
+    )
+  .gap-top(v-if="appSetting['player.transitionMode'] !== 'disabled'")
+    base-checkbox(
+      id="setting_player_transition_manual_skip"
+      :model-value="appSetting['player.transitionOnManualSkip']"
+      :label="$t('setting__play_transition_manual_skip')"
+      @update:model-value="updateSetting({ 'player.transitionOnManualSkip': $event })"
+    )
 </template>
 
 <script>
-import { ref, onBeforeUnmount, watch } from '@common/utils/vueTools'
+import { ref, computed, onBeforeUnmount, watch } from '@common/utils/vueTools'
 import { hasInitedAdvancedAudioFeatures, setMediaDeviceId } from '@renderer/plugins/player'
 import { dialog } from '@renderer/plugins/Dialog'
 import { useI18n } from '@renderer/plugins/i18n'
@@ -139,6 +170,16 @@ export default {
       updateSetting({ 'player.isMaxOutputChannelCount': enabled })
     }
 
+    const transitionModeList = computed(() => [
+      { value: 'disabled', label: t('setting__play_transition_mode_disabled') },
+      { value: 'crossfade', label: t('setting__play_transition_mode_crossfade') },
+      { value: 'smartMix', label: t('setting__play_transition_mode_smart_mix') },
+    ])
+
+    const transitionDurationDisplay = computed(() => {
+      return t('setting__play_transition_duration_current', { duration: appSetting['player.transitionDuration'] })
+    })
+
     return {
       appSetting,
       updateSetting,
@@ -150,6 +191,8 @@ export default {
       handleUpdateMaxOutputChannelCount,
       playQualityList,
       isMac,
+      transitionModeList,
+      transitionDurationDisplay,
     }
   },
 }

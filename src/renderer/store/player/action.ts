@@ -197,8 +197,6 @@ export const setPlayMusicInfo = (
 
   setPlayerMusicInfo(musicInfo)
 
-  setProgress(0, 0)
-
   if (musicInfo == null) {
     playInfo.playIndex = -1
     playInfo.playerListId = null

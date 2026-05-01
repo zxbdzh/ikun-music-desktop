@@ -1,4 +1,5 @@
 import { isEmpty, setPause, setPlay, setResource, setStop } from '@renderer/plugins/player'
+import { isCrossfading, cancelCrossfade } from '@renderer/core/useApp/usePlayer/crossfadeState'
 import {
   isPlay,
   playedList,
@@ -232,6 +233,7 @@ const handleRestorePlay = async (restorePlayInfo: LX.Player.SavedPlayInfo) => {
 
 // 处理音乐播放
 const handlePlay = () => {
+  cancelCrossfade()
   window.lx.isPlayedStop &&= false
 
   resetRandomNextMusicInfo()
@@ -433,6 +435,13 @@ const handlePlayNext = (playMusicInfo: LX.Player.PlayMusicInfo) => {
  */
 export const playNext = async (isAutoToggle = false): Promise<void> => {
   console.log('skip next', isAutoToggle)
+  if (isCrossfading.value) {
+    if (isAutoToggle || !appSetting['player.transitionOnManualSkip']) {
+      cancelCrossfade()
+    } else {
+      return
+    }
+  }
   if (tempPlayList.length) {
     // 如果稍后播放列表存在歌曲则直接播放改列表的歌曲
     const playMusicInfo = tempPlayList[0]
@@ -554,6 +563,13 @@ export const playNext = async (isAutoToggle = false): Promise<void> => {
  * 上一曲
  */
 export const playPrev = async (isAutoToggle = false): Promise<void> => {
+  if (isCrossfading.value) {
+    if (isAutoToggle || !appSetting['player.transitionOnManualSkip']) {
+      cancelCrossfade()
+    } else {
+      return
+    }
+  }
   if (playMusicInfo.musicInfo == null) {
     handleToggleStop()
     return

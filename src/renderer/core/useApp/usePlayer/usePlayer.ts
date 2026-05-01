@@ -22,6 +22,7 @@ import { appSetting } from '@renderer/store/setting'
 import useLyric from './useLyric'
 import useVolume from './useVolume'
 import useWatchList from './useWatchList'
+import { lastCrossfadeEndTime, isAfterCrossfade } from './crossfadeState'
 import { HOTKEY_PLAYER } from '@common/hotKey'
 import {
   playNext,
@@ -37,6 +38,8 @@ import useSoundEffect from './useSoundEffect'
 import useMaxOutputChannelCount from './useMaxOutputChannelCount'
 import { setPowerSaveBlocker } from '@renderer/core/player/utils'
 import usePreloadNextMusic from './usePreloadNextMusic'
+import useCrossfade from './useCrossfade'
+import { isCrossfading } from './crossfadeState'
 import useScrobble from './useScrobble'
 import useWeblogScrobble from './useWeblogScrobble'
 import useLastfmScrobble from './useLastfmScrobble'
@@ -54,6 +57,7 @@ export default () => {
   usePlaybackRate()
   useWatchList()
   usePreloadNextMusic()
+  useCrossfade()
 
   // 根据设置启用旧版或新版听歌记录
   if (appSetting['wy.enableOldScrobble']) {
@@ -97,6 +101,12 @@ export default () => {
     }
   }
   const handleEnded = () => {
+    if (isCrossfading.value) return
+    // If crossfade just completed, don't call playNext again - the crossfade handled the transition
+    if (isAfterCrossfade.value) {
+      isAfterCrossfade.value = false
+      return
+    }
     // setTimeout(() => {
     if (window.lx.isPlayedStop) {
       setAllStatus(t('player__end'))
