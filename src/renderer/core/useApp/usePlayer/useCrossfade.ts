@@ -22,7 +22,6 @@ import {
   setCrossfadeGainSecondary,
   rampCrossfadeGainCurrent,
   rampCrossfadeGainSecondary,
-  getAudioContextInstance,
 } from '@renderer/plugins/player'
 import { playProgress, setMaxplayTime, setNowPlayTime } from '@renderer/store/player/playProgress'
 import { appSetting } from '@renderer/store/setting'
@@ -83,7 +82,13 @@ const doCancelCrossfade = () => {
     loadedmetadataUnsub = null
   }
   stopSecondary()
-  resetCrossfadeGains()
+
+  // Immediately reset gains to 1 for the active audio
+  // This is critical: if crossfade was in progress, the active audio's gain
+  // was being ramped down. We need to reset it immediately.
+  setCrossfadeGainCurrent(1)
+  setCrossfadeGainSecondary(1)
+
   isCrossfading.value = false
   isCrossfadeCompleting.value = false
   crossfadeDoneMusicId.value = null
