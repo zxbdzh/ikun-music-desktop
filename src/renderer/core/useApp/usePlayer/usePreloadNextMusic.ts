@@ -7,6 +7,25 @@ import { getNextPlayMusicInfo, resetRandomNextMusicInfo } from '@renderer/core/p
 import { getMusicUrl } from '@renderer/core/music'
 import { appSetting } from '@renderer/store/setting'
 
+/**
+ * Calculate preload trigger threshold using HyPlayer's strategy:
+ * - HyPlayer uses: Math.Max(duration * 0.125, 20)
+ * - This ensures enough time for crossfade while avoiding premature loading
+ */
+const getPreloadThreshold = (duration: number, isCrossfadeEnabled: boolean): number => {
+  if (!isCrossfadeEnabled) {
+    // Non-crossfade mode: simpler 10-second threshold
+    return 10
+  }
+
+  // HyPlayer strategy: 12.5% of duration, minimum 20 seconds
+  const crossfadeThreshold = Math.max(duration * 0.125, 20)
+  const transitionDuration = appSetting['player.transitionDuration']
+
+  // Ensure we have enough time for both crossfade preparation and execution
+  return Math.max(crossfadeThreshold + transitionDuration, transitionDuration + 5)
+}
+
 let audio: HTMLAudioElement
 const initAudio = () => {
   if (audio) return
@@ -51,10 +70,20 @@ const preloadMusicInfo = {
   preProgress: 0,
   info: null as LX.Player.PlayMusicInfo | null,
 }
+
+export const preloadCache = {
+  url: '',
+  musicInfo: null as LX.Player.PlayMusicInfo | null,
+  isValid: false,
+}
+
 const resetPreloadInfo = () => {
   preloadMusicInfo.preProgress = 0
   preloadMusicInfo.info = null
   preloadMusicInfo.isLoading = false
+  preloadCache.url = ''
+  preloadCache.musicInfo = null
+  preloadCache.isValid = false
 }
 const preloadNextMusicUrl = async (curTime: number) => {
   if (preloadMusicInfo.isLoading || curTime - preloadMusicInfo.preProgress < 3) return
@@ -67,12 +96,23 @@ const preloadNextMusicUrl = async (curTime: number) => {
     if (url) {
       console.log('preload url', url)
       const result = await checkMusicUrl(url)
-      if (!result) {
-        const url = await getMusicUrl({ musicInfo: info.musicInfo, isRefresh: true }).catch(
+      if (result) {
+        preloadCache.url = url
+        preloadCache.musicInfo = info
+        preloadCache.isValid = true
+      } else {
+        const refreshUrl = await getMusicUrl({ musicInfo: info.musicInfo, isRefresh: true }).catch(
           () => ''
         )
-        void checkMusicUrl(url)
-        console.log('preload url refresh', url)
+        if (refreshUrl) {
+          const refreshResult = await checkMusicUrl(refreshUrl)
+          if (refreshResult) {
+            preloadCache.url = refreshUrl
+            preloadCache.musicInfo = info
+            preloadCache.isValid = true
+          }
+        }
+        console.log('preload url refresh', refreshUrl)
       }
     }
   }
@@ -105,7 +145,9 @@ export default () => {
   const rOnTimeupdate = onTimeupdate(() => {
     const time = getCurrentTime()
     const duration = playProgress.maxPlayTime
-    if (duration > 10 && duration - time < 10 && !preloadMusicInfo.info) {
+    const isCrossfadeEnabled = appSetting['player.transitionMode'] !== 'disabled'
+    const threshold = getPreloadThreshold(duration, isCrossfadeEnabled)
+    if (duration > threshold && duration - time < threshold && !preloadMusicInfo.info) {
       void preloadNextMusicUrl(time)
     }
   })
