@@ -8,8 +8,12 @@ import {
   getDuration,
   setCurrentTime,
   onVisibilityChange,
+  getActiveIndex,
 } from '@renderer/plugins/player'
 import { playProgress, setNowPlayTime, setMaxplayTime } from '@renderer/store/player/playProgress'
+import { crossfadeDoneMusicId } from './crossfadeState'
+import { isAfterCrossfade } from './crossfadeState'
+import { isCompleting } from './useCrossfade'
 import { musicInfo, playMusicInfo, playInfo } from '@renderer/store/player/state'
 // import { getList } from '@renderer/store/utils'
 import { appSetting } from '@renderer/store/setting'
@@ -36,6 +40,12 @@ export default () => {
     mediaBuffer.timeout = setTimeout(() => {
       mediaBuffer.timeout = null
       if (window.lx.isPlayedStop) return
+      // If crossfade just completed, this buffering is from the transition - don't skip to next
+      if (isAfterCrossfade.value) {
+        console.warn('buffering after crossfade - skipping auto-skip')
+        isAfterCrossfade.value = false
+        return
+      }
       const currentTime = getCurrentTime()
 
       mediaBuffer.playTime ||= currentTime
@@ -66,9 +76,12 @@ export default () => {
 
   const setProgress = (time: number, maxTime?: number) => {
     if (!musicInfo.id) return
+    // During crossfade completion (crossfadeDoneMusicId is set):
+    // Block updates from the OLD audio element (activeIndex !== 2 means it's the pre-swap audio)
+    if (crossfadeDoneMusicId.value && getActiveIndex() !== 2) return
+    if (isCompleting) return
     if (maxTime != null) setMaxplayTime(maxTime)
-    console.log('setProgress', time, maxTime)
-    if (time > 0) restorePlayTime = time
+    restorePlayTime = 0  // Always reset, no carry-over across songs
     if (mediaBuffer.playTime) {
       clearBufferTimeout()
       mediaBuffer.playTime = time
@@ -95,6 +108,9 @@ export default () => {
   }
 
   const handleLoadeddata = () => {
+    // During crossfade completion, DON'T update maxPlayTime from loadeddata
+    // The new song's maxPlayTime is set explicitly in handlePlaying (crossfade path)
+    if (isCompleting) return
     setMaxplayTime(getDuration())
 
     if (
@@ -119,15 +135,27 @@ export default () => {
   }
 
   const handlePlaying = () => {
-    console.log('handlePlaying', mediaBuffer.playTime, restorePlayTime)
     clearBufferTimeout()
-    if (mediaBuffer.playTime) {
-      let playTime = mediaBuffer.playTime
-      mediaBuffer.playTime = 0
-      setCurrentTime(playTime)
-    } else if (restorePlayTime) {
-      setCurrentTime(restorePlayTime)
-      restorePlayTime = 0
+
+    // Always reset ALL position state first
+    restorePlayTime = 0
+    mediaBuffer.playTime = 0
+
+    // Crossfade path: explicitly set new song's initial state
+    if (crossfadeDoneMusicId.value && musicInfo.id === crossfadeDoneMusicId.value) {
+      const newDuration = getDuration()
+      if (newDuration > 0) setMaxplayTime(newDuration)
+      setNowPlayTime(0)
+      crossfadeDoneMusicId.value = null
+      isAfterCrossfade.value = false
+      return
+    }
+
+    // Normal song: apply buffered seek if any
+    const savedMediaBufferPlayTime = mediaBuffer.playTime
+    mediaBuffer.playTime = 0
+    if (savedMediaBufferPlayTime) {
+      setCurrentTime(savedMediaBufferPlayTime)
     }
   }
   const handleWating = () => {
@@ -140,6 +168,10 @@ export default () => {
   }
 
   const handleSetPlayInfo = () => {
+    // During crossfade completion, don't restore to old song's position
+    // The crossfade code already sets correct initial state (nowPlayTime=0, maxPlayTime=duration)
+    if (isCompleting) return
+
     // restorePlayTime = playProgress.nowPlayTime
     setCurrentTime((restorePlayTime = playProgress.nowPlayTime))
     // setMaxplayTime(playProgress.maxPlayTime)
