@@ -41,10 +41,14 @@ export const registerRendererEvents = (
 
       console.log('[desktopCapturer] 授权源:', source.name)
 
-      // callback 格式：{ video: source, audio: 'loopback' }
+      // callback 格式：{ video: { id, name }, audio: 'loopback' }
+      // Video 对象只需要 id 和 name 属性
       // eslint-disable-next-line standard/no-callback-literal
       callback({
-        video: source,
+        video: {
+          id: source.id,
+          name: source.name,
+        },
         audio: 'loopback',
       })
     }).catch((err) => {
