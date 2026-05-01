@@ -2,6 +2,7 @@ interface HTMLAudioElementChrome extends HTMLAudioElement {
   setSinkId: (id: string) => Promise<void>
 }
 let audio: HTMLAudioElementChrome | null = null
+let audio2: HTMLAudioElementChrome | null = null
 let audioContext: AudioContext
 let mediaSource: MediaElementAudioSourceNode
 let analyser: AnalyserNode
@@ -185,6 +186,15 @@ let pitchShifterNodeTempValue = 1
 let defaultChannelCount = 2
 export const soundR = 0.5
 
+// Crossfade support
+let mediaSource2: MediaElementAudioSourceNode
+let cfGainNode1: GainNode
+let cfGainNode2: GainNode
+let activeIndex: 1 | 2 = 1
+
+const getActiveAudio = (): HTMLAudioElementChrome | null => activeIndex === 1 ? audio : audio2
+const getInactiveAudio = (): HTMLAudioElementChrome | null => activeIndex === 1 ? audio2 : audio
+
 export const createAudio = () => {
   if (audio) return
   audio = new window.Audio() as HTMLAudioElementChrome
@@ -192,6 +202,13 @@ export const createAudio = () => {
   audio.autoplay = true
   audio.preload = 'auto'
   audio.crossOrigin = 'anonymous'
+
+  // Create second audio element for crossfade (actual creation, Web Audio nodes in initAdvancedAudioFeatures)
+  audio2 = new window.Audio() as HTMLAudioElementChrome
+  audio2.controls = false
+  audio2.autoplay = true
+  audio2.preload = 'auto'
+  audio2.crossOrigin = 'anonymous'
 }
 
 const initAnalyser = () => {
@@ -235,10 +252,12 @@ const initGain = () => {
   gainNode = audioContext.createGain()
 }
 
-const initAdvancedAudioFeatures = () => {
+export const initAdvancedAudioFeatures = () => {
   if (audioContext) return
   if (!audio) throw new Error('audio not defined')
+  if (!audio2) throw new Error('audio2 not defined')
   audioContext = new window.AudioContext({ latencyHint: 'playback' })
+  if (audioContext.state === 'suspended') void audioContext.resume()
   defaultChannelCount = audioContext.destination.channelCount
 
   initAnalyser()
@@ -246,9 +265,21 @@ const initAdvancedAudioFeatures = () => {
   initConvolver()
   initPanner()
   initGain()
-  // source -> analyser -> biquadFilter -> pitchShifter -> [(convolver & convolverSource)->convolverDynamicsCompressor] -> panner -> gain
+
+  // Crossfade gain nodes
+  cfGainNode1 = audioContext.createGain()
+  cfGainNode2 = audioContext.createGain()
+  cfGainNode1.gain.value = 1
+  cfGainNode2.gain.value = 1
+
+  // source1 -> cfGainNode1 -> analyser -> biquadFilter -> ... -> panner -> gain -> destination
+  // source2 -> cfGainNode2 ─┘
   mediaSource = audioContext.createMediaElementSource(audio)
-  mediaSource.connect(analyser)
+  mediaSource2 = audioContext.createMediaElementSource(audio2)
+  mediaSource.connect(cfGainNode1)
+  mediaSource2.connect(cfGainNode2)
+  cfGainNode1.connect(analyser)
+  cfGainNode2.connect(analyser)
   analyser.connect(biquads.get(`hz${freqs[0]}`)!)
   const lastBiquadFilter = biquads.get(`hz${freqs.at(-1)!}`)!
   lastBiquadFilter.connect(convolverSourceGainNode)
@@ -269,7 +300,9 @@ const initAdvancedAudioFeatures = () => {
 
 const handleMediaListChange = () => {
   mediaSource.disconnect()
-  mediaSource.connect(analyser)
+  mediaSource.connect(cfGainNode1)
+  mediaSource2.disconnect()
+  mediaSource2.connect(cfGainNode2)
 }
 
 // let isConnected = true
@@ -297,6 +330,9 @@ export const getAudioContext = () => {
   initAdvancedAudioFeatures()
   return audioContext
 }
+
+// Export audioContext directly for crossfade gain animation
+export const getAudioContextInstance = () => audioContext
 
 let unsubMediaListChangeEvent: (() => void) | null = null
 export const setMaxOutputChannelCount = (enable: boolean) => {
@@ -521,72 +557,81 @@ export const setPitchShifter = (val: number) => {
 export const hasInitedAdvancedAudioFeatures = (): boolean => audioContext != null
 
 export const setResource = (src: string) => {
-  if (audio) audio.src = src
+  const a = getActiveAudio()
+  if (a) a.src = src
 }
 
 export const setPlay = () => {
-  void audio?.play()
+  void getActiveAudio()?.play()
 }
 
 export const setPause = () => {
-  audio?.pause()
+  getActiveAudio()?.pause()
 }
 
 export const setStop = () => {
-  if (audio) {
-    audio.src = ''
-    audio.removeAttribute('src')
+  const a = getActiveAudio()
+  if (a) {
+    a.src = ''
+    a.removeAttribute('src')
   }
 }
 
-export const isEmpty = (): boolean => !audio?.src
+export const isEmpty = (): boolean => !getActiveAudio()?.src
 
 export const setLoopPlay = (isLoop: boolean) => {
-  if (audio) audio.loop = isLoop
+  const a = getActiveAudio()
+  if (a) a.loop = isLoop
 }
 
 export const getPlaybackRate = (): number => {
-  return audio?.defaultPlaybackRate ?? 1
+  return getActiveAudio()?.defaultPlaybackRate ?? 1
 }
 
 export const setPlaybackRate = (rate: number) => {
-  if (!audio) return
-  audio.defaultPlaybackRate = rate
-  audio.playbackRate = rate
+  const a = getActiveAudio()
+  if (!a) return
+  a.defaultPlaybackRate = rate
+  a.playbackRate = rate
 }
 
 export const setPreservesPitch = (preservesPitch: boolean) => {
-  if (!audio) return
-  audio.preservesPitch = preservesPitch
+  const a = getActiveAudio()
+  if (!a) return
+  a.preservesPitch = preservesPitch
 }
 
 export const getMute = (): boolean => {
-  return audio?.muted ?? false
+  return getActiveAudio()?.muted ?? false
 }
 
 export const setMute = (isMute: boolean) => {
-  if (audio) audio.muted = isMute
+  const a = getActiveAudio()
+  if (a) a.muted = isMute
 }
 
 export const getCurrentTime = () => {
-  return audio?.currentTime || 0
+  return getActiveAudio()?.currentTime || 0
 }
 
 export const setCurrentTime = (time: number) => {
-  if (audio) audio.currentTime = time
+  const a = getActiveAudio()
+  if (a) a.currentTime = time
 }
 
 export const setMediaDeviceId = async (mediaDeviceId: string): Promise<void> => {
-  if (!audio) return
-  return audio.setSinkId(mediaDeviceId)
+  const a = getActiveAudio()
+  if (!a) return
+  return a.setSinkId(mediaDeviceId)
 }
 
 export const setVolume = (volume: number) => {
   if (audio) audio.volume = volume
+  if (audio2) audio2.volume = volume
 }
 
 export const getDuration = () => {
-  return audio?.duration || 0
+  return getActiveAudio()?.duration || 0
 }
 
 // export const getPlaybackRate = () => {
@@ -595,96 +640,42 @@ export const getDuration = () => {
 
 type Noop = () => void
 
-export const onPlaying = (callback: Noop) => {
+const registerDualListener = (eventName: string, callback: Noop): (() => void) => {
   if (!audio) throw new Error('audio not defined')
-
-  audio.addEventListener('playing', callback)
+  if (!audio2) {
+    audio.addEventListener(eventName, callback)
+    return () => { audio?.removeEventListener(eventName, callback) }
+  }
+  const h1 = () => { if (activeIndex === 1) callback() }
+  const h2 = () => { if (activeIndex === 2) callback() }
+  audio.addEventListener(eventName, h1)
+  audio2.addEventListener(eventName, h2)
   return () => {
-    audio?.removeEventListener('playing', callback)
+    audio?.removeEventListener(eventName, h1)
+    audio2?.removeEventListener(eventName, h2)
   }
 }
 
-export const onPause = (callback: Noop) => {
-  if (!audio) throw new Error('audio not defined')
+export const onPlaying = (callback: Noop) => registerDualListener('playing', callback)
 
-  audio?.addEventListener('pause', callback)
-  return () => {
-    audio?.removeEventListener('pause', callback)
-  }
-}
+export const onPause = (callback: Noop) => registerDualListener('pause', callback)
 
-export const onEnded = (callback: Noop) => {
-  if (!audio) throw new Error('audio not defined')
+export const onEnded = (callback: Noop) => registerDualListener('ended', callback)
 
-  audio.addEventListener('ended', callback)
-  return () => {
-    audio?.removeEventListener('ended', callback)
-  }
-}
+export const onError = (callback: Noop) => registerDualListener('error', callback)
 
-export const onError = (callback: Noop) => {
-  if (!audio) throw new Error('audio not defined')
+export const onLoadeddata = (callback: Noop) => registerDualListener('loadeddata', callback)
 
-  audio.addEventListener('error', callback)
-  return () => {
-    audio?.removeEventListener('error', callback)
-  }
-}
+export const onLoadstart = (callback: Noop) => registerDualListener('loadstart', callback)
 
-export const onLoadeddata = (callback: Noop) => {
-  if (!audio) throw new Error('audio not defined')
+export const onCanplay = (callback: Noop) => registerDualListener('canplay', callback)
 
-  audio.addEventListener('loadeddata', callback)
-  return () => {
-    audio?.removeEventListener('loadeddata', callback)
-  }
-}
+export const onEmptied = (callback: Noop) => registerDualListener('emptied', callback)
 
-export const onLoadstart = (callback: Noop) => {
-  if (!audio) throw new Error('audio not defined')
-
-  audio.addEventListener('loadstart', callback)
-  return () => {
-    audio?.removeEventListener('loadstart', callback)
-  }
-}
-
-export const onCanplay = (callback: Noop) => {
-  if (!audio) throw new Error('audio not defined')
-
-  audio.addEventListener('canplay', callback)
-  return () => {
-    audio?.removeEventListener('canplay', callback)
-  }
-}
-
-export const onEmptied = (callback: Noop) => {
-  if (!audio) throw new Error('audio not defined')
-
-  audio.addEventListener('emptied', callback)
-  return () => {
-    audio?.removeEventListener('emptied', callback)
-  }
-}
-
-export const onTimeupdate = (callback: Noop) => {
-  if (!audio) throw new Error('audio not defined')
-
-  audio.addEventListener('timeupdate', callback)
-  return () => {
-    audio?.removeEventListener('timeupdate', callback)
-  }
-}
+export const onTimeupdate = (callback: Noop) => registerDualListener('timeupdate', callback)
 
 // 缓冲中
-export const onWaiting = (callback: Noop) => {
-  if (!audio) throw new Error('audio not defined')
-
-  audio.addEventListener('waiting', callback)
-  return () => {
-    audio?.removeEventListener('waiting', callback)
-  }
-}
+export const onWaiting = (callback: Noop) => registerDualListener('waiting', callback)
 
 // 可见性改变
 export const onVisibilityChange = (callback: Noop) => {
@@ -695,5 +686,136 @@ export const onVisibilityChange = (callback: Noop) => {
 }
 
 export const getErrorCode = () => {
-  return audio?.error?.code
+  return getActiveAudio()?.error?.code
+}
+
+// ===== Crossfade / Secondary Audio Element API =====
+
+export const setResourceSecondary = (src: string) => {
+  const a = getInactiveAudio()
+  if (a) a.src = src
+}
+
+export const playSecondary = () => {
+  void getInactiveAudio()?.play()
+}
+
+export const pauseSecondary = () => {
+  getInactiveAudio()?.pause()
+}
+
+export const stopSecondary = () => {
+  const a = getInactiveAudio()
+  if (a) {
+    a.pause()
+    a.src = ''
+    a.removeAttribute('src')
+  }
+}
+
+export const setVolumeSecondary = (vol: number) => {
+  const a = getInactiveAudio()
+  if (a) a.volume = vol
+}
+
+export const setCrossfadeGain1 = (val: number) => {
+  if (cfGainNode1) cfGainNode1.gain.setValueAtTime(val, audioContext.currentTime)
+}
+
+export const setCrossfadeGain2 = (val: number) => {
+  if (cfGainNode2) cfGainNode2.gain.setValueAtTime(val, audioContext.currentTime)
+}
+
+export const rampCrossfadeGain1 = (val: number, endTime: number) => {
+  if (cfGainNode1) cfGainNode1.gain.linearRampToValueAtTime(val, endTime)
+}
+
+export const rampCrossfadeGain2 = (val: number, endTime: number) => {
+  if (cfGainNode2) cfGainNode2.gain.linearRampToValueAtTime(val, endTime)
+}
+
+export const swapActiveAudio = () => {
+  const oldActive = getActiveAudio()
+  const newActive = getInactiveAudio()
+  activeIndex = activeIndex === 1 ? 2 : 1
+  // Prevent momentary volume spike: set old to 0 before pause
+  if (oldActive === audio && cfGainNode1) cfGainNode1.gain.setValueAtTime(0, audioContext.currentTime)
+  if (oldActive === audio2 && cfGainNode2) cfGainNode2.gain.setValueAtTime(0, audioContext.currentTime)
+  oldActive?.pause()
+  // Reset both to 1 for new active (new song should be at full volume)
+  if (cfGainNode1) cfGainNode1.gain.setValueAtTime(1, audioContext.currentTime)
+  if (cfGainNode2) cfGainNode2.gain.setValueAtTime(1, audioContext.currentTime)
+}
+
+export const resetCrossfadeGains = () => {
+  if (cfGainNode1) cfGainNode1.gain.setValueAtTime(1, audioContext.currentTime)
+  if (cfGainNode2) cfGainNode2.gain.setValueAtTime(1, audioContext.currentTime)
+}
+
+// Get gain node for the currently active audio (based on activeIndex)
+const getCurrentGainNode = (): GainNode | null => {
+  return activeIndex === 1 ? cfGainNode1 : cfGainNode2
+}
+
+// Get gain node for the inactive/secondary audio (based on activeIndex)
+const getSecondaryGainNode = (): GainNode | null => {
+  return activeIndex === 1 ? cfGainNode2 : cfGainNode1
+}
+
+// Set gain for current active audio immediately
+export const setCrossfadeGainCurrent = (value: number) => {
+  const node = getCurrentGainNode()
+  if (node) node.gain.setValueAtTime(value, audioContext.currentTime)
+}
+
+// Set gain for secondary audio immediately
+export const setCrossfadeGainSecondary = (value: number) => {
+  const node = getSecondaryGainNode()
+  if (node) node.gain.setValueAtTime(value, audioContext.currentTime)
+}
+
+// Linear ramp for current active audio
+export const rampCrossfadeGainCurrent = (targetValue: number, endTime: number) => {
+  const node = getCurrentGainNode()
+  if (node) node.gain.linearRampToValueAtTime(targetValue, endTime)
+}
+
+// Linear ramp for secondary audio
+export const rampCrossfadeGainSecondary = (targetValue: number, endTime: number) => {
+  const node = getSecondaryGainNode()
+  if (node) node.gain.linearRampToValueAtTime(targetValue, endTime)
+}
+
+export const getActiveIndex = () => activeIndex
+
+export const getSecondaryCurrentTime = () => getInactiveAudio()?.currentTime || 0
+
+export const getSecondaryDuration = () => getInactiveAudio()?.duration || 0
+
+export const onCanplaySecondary = (callback: Noop) => {
+  const a = getInactiveAudio()
+  if (!a) throw new Error('secondary audio not defined')
+  a.addEventListener('canplay', callback)
+  return () => { a.removeEventListener('canplay', callback) }
+}
+
+export const onErrorSecondary = (callback: Noop) => {
+  const a = getInactiveAudio()
+  if (!a) throw new Error('secondary audio not defined')
+  a.addEventListener('error', callback)
+  return () => { a.removeEventListener('error', callback) }
+}
+
+export const onTimeupdateSecondary = (callback: Noop) => {
+  const a = getInactiveAudio()
+  if (!a) throw new Error('secondary audio not defined')
+  a.addEventListener('timeupdate', callback)
+  return () => { a.removeEventListener('timeupdate', callback) }
+}
+
+export const onLoadedmetadataSecondary = (callback: Noop) => {
+  const a = getInactiveAudio()
+  if (!a) throw new Error('secondary audio not defined')
+  a.addEventListener('loadedmetadata', callback)
+  return () => { a.removeEventListener('loadedmetadata', callback) }
 }
