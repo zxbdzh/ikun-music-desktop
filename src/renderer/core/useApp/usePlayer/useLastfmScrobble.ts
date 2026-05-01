@@ -68,8 +68,8 @@ export default () => {
       return
     }
 
-    // 如果歌曲 ID 没变，不需要更新
-    if (currentMusicId === music.id) return
+    // 如果歌曲 ID 没变且 scrobbleInfo 已存在，不需要更新
+    if (currentMusicId === music.id && scrobbleInfo) return
 
     // 先检查旧歌曲是否需要补报
     checkAndReportOldSong()
@@ -187,10 +187,14 @@ export default () => {
   // 监听歌曲切换事件，确保 crossfade 后能正确更新 scrobble 信息
   const handleMusicToggled = () => {
     console.log('[LastFM] musicToggled - resetting scrobble info')
+    // 先检查旧歌曲是否需要 scrobble
     checkAndReportOldSong()
+    // 强制重置并更新 scrobble 信息
     scrobbleInfo = null
     currentMusicId = null
     lastPlayTime = 0
+    // 立即更新 scrobble 信息
+    updateScrobbleInfo()
   }
 
   const rOnPlaying = onPlaying(handlePlaying)
