@@ -127,6 +127,16 @@ export class AppEvent extends Event {
     this.emit('playerDeviceChanged')
   }
 
+  /** 过渡开始 */
+  crossfadeStarted() {
+    this.emit('crossfadeStarted')
+  }
+
+  /** 过渡结束 */
+  crossfadeEnded() {
+    this.emit('crossfadeEnded')
+  }
+
   // 激活进度条动画事件
   activePlayProgressTransition() {
     this.emit('activePlayProgressTransition')
