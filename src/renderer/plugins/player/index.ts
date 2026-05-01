@@ -745,6 +745,14 @@ export const swapActiveAudio = () => {
   // Reset both to 1 for new active (new song should be at full volume)
   if (cfGainNode1) cfGainNode1.gain.setValueAtTime(1, audioContext.currentTime)
   if (cfGainNode2) cfGainNode2.gain.setValueAtTime(1, audioContext.currentTime)
+
+  // Manually trigger playing event for the new active audio
+  // This is needed because the new audio was already playing (we called playSecondary)
+  // but the swap operation caused oldActive.pause() which triggered onPause
+  // The new audio won't fire 'playing' again since it's already playing
+  if (newActive && !newActive.paused) {
+    newActive.dispatchEvent(new Event('playing'))
+  }
 }
 
 export const resetCrossfadeGains = () => {
