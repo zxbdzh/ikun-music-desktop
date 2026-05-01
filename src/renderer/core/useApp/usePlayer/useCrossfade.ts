@@ -22,6 +22,7 @@ import {
   setCrossfadeGainSecondary,
   rampCrossfadeGainCurrent,
   rampCrossfadeGainSecondary,
+  getAudioContextInstance,
 } from '@renderer/plugins/player'
 import { playProgress, setMaxplayTime, setNowPlayTime } from '@renderer/store/player/playProgress'
 import { appSetting } from '@renderer/store/setting'
@@ -112,15 +113,23 @@ const completeCrossfade = (nextInfo: LX.Player.PlayMusicInfo) => {
   swapActiveAudio()
   stopSecondary()
 
-  // Update musicInfo.id FIRST, then set crossfadeDoneMusicId
-  // This ensures handlePlaying sees the updated musicInfo.id when it fires
+  // Update musicInfo and immediately clear crossfadeDoneMusicId
+  // This ensures progress bar and other components work correctly
   setPlayMusicInfo(nextInfo.listId, nextInfo.musicInfo, nextInfo.isTempPlay)
-  crossfadeDoneMusicId.value = nextInfo.musicInfo.id
 
   // Set maxPlayTime using the duration captured during canplaySecondary
   if (pendingNextDuration > 0) setMaxplayTime(pendingNextDuration)
   setNowPlayTime(0)
   pendingNextDuration = 0
+
+  // Clear crossfade state immediately
+  // handlePlaying will set this if needed for other purposes
+  crossfadeDoneMusicId.value = null
+  isAfterCrossfade.value = false
+  isCrossfading.value = false
+  isCrossfadeCompleting.value = false
+  isPreparing = false
+  isCompleting = false
 
   resetRandomNextMusicInfo()
 
@@ -149,15 +158,7 @@ const completeCrossfade = (nextInfo: LX.Player.PlayMusicInfo) => {
   if (appSetting['player.togglePlayMethod'] == 'random' && !nextInfo.isTempPlay)
     addPlayedList({ ...(nextInfo as LX.Player.PlayMusicInfo) })
 
-  isCrossfading.value = false
-  isPreparing = false
-  isCompleting = false
-  nextMusicUrl = null
-  nextMusicInfoCache = null
-  // Record when crossfade ended - handleEnded will guard against calling playNext within the next few seconds
-  lastCrossfadeEndTime.value = Date.now()
-  // Signal that we're in the "after crossfade" window - prevents buffering timeout from calling playNext
-  isAfterCrossfade.value = true
+  // Trigger crossfade ended event AFTER all state is cleared
   window.app_event.crossfadeEnded()
 }
 

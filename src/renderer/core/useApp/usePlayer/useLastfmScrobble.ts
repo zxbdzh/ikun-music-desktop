@@ -26,6 +26,7 @@ export default () => {
   let scrobbleInfo: LastfmScrobbleInfo | null = null
   let reportTimer: ReturnType<typeof setInterval> | null = null
   let lastPlayTime = 0
+  let currentMusicId: string | null = null
 
   // 发送 scrobble
   const sendScrobble = async (info: LastfmScrobbleInfo) => {
@@ -60,14 +61,18 @@ export default () => {
   }
 
   const updateScrobbleInfo = () => {
-    // 先检查旧歌曲是否需要补报
-    checkAndReportOldSong()
-
     const music = playMusicInfo.musicInfo as any
     if (!music || !music.id) {
       scrobbleInfo = null
+      currentMusicId = null
       return
     }
+
+    // 如果歌曲 ID 没变，不需要更新
+    if (currentMusicId === music.id) return
+
+    // 先检查旧歌曲是否需要补报
+    checkAndReportOldSong()
 
     // 获取歌曲信息
     const isListItem = 'metadata' in music
@@ -80,6 +85,7 @@ export default () => {
     // artist 为空时跳过
     if (!singer) {
       scrobbleInfo = null
+      currentMusicId = null
       return
     }
 
@@ -94,6 +100,8 @@ export default () => {
       isScrobbled: false,
       isNowPlayingReported: false,
     }
+    currentMusicId = music.id
+    console.log('[LastFM] updateScrobbleInfo:', name, 'duration:', duration)
   }
 
   const updateScrobblePlayTime = (currentTime: number) => {
@@ -172,7 +180,17 @@ export default () => {
   const handleEmptied = () => {
     checkAndReportOldSong()
     scrobbleInfo = null
+    currentMusicId = null
     resetState()
+  }
+
+  // 监听歌曲切换事件，确保 crossfade 后能正确更新 scrobble 信息
+  const handleMusicToggled = () => {
+    console.log('[LastFM] musicToggled - resetting scrobble info')
+    checkAndReportOldSong()
+    scrobbleInfo = null
+    currentMusicId = null
+    lastPlayTime = 0
   }
 
   const rOnPlaying = onPlaying(handlePlaying)
@@ -180,11 +198,15 @@ export default () => {
   const rOnEnded = onEnded(handleEnded)
   const rOnEmptied = onEmptied(handleEmptied)
 
+  // 监听歌曲切换事件
+  window.app_event.on('musicToggled', handleMusicToggled)
+
   onBeforeUnmount(() => {
     rOnPlaying()
     rOnPause()
     rOnEnded()
     rOnEmptied()
+    window.app_event.off('musicToggled', handleMusicToggled)
     resetState()
   })
 }
