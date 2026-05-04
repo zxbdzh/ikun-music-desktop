@@ -15,6 +15,7 @@ module.exports = {
     'electron-font-manager': 'electron-font-manager',
     bufferutil: 'bufferutil',
     'utf-8-validate': 'utf-8-validate',
+    'node-hid': 'node-hid',
   },
   resolve: {
     alias: mainAliases,

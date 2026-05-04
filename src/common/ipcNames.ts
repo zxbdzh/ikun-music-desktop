@@ -181,6 +181,7 @@ const modules = {
     set_settings: 'haloPixel_set_settings',
     send_lyric: 'haloPixel_send_lyric',
     clear_lyric: 'haloPixel_clear_lyric',
+    device_status_changed: 'haloPixel_device_status_changed',
   },
 }
 

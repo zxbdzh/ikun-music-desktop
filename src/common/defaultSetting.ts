@@ -116,6 +116,12 @@ const defaultSetting: LX.AppSetting = {
   'desktopLyric.style.isFontWeightLine': true,
   'desktopLyric.style.isFontWeightExtended': true,
 
+  // 花再音响歌词设置
+  'haloPixel.enable': false,
+  'haloPixel.autoScroll': true,
+  'haloPixel.lyricMode': 'original',
+  'haloPixel.scrollThreshold': 30,
+
   'list.isClickPlayList': false,
   'list.isShowSource': true,
   'list.isSaveScrollLocation': true,

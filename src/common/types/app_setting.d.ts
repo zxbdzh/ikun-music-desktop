@@ -756,6 +756,26 @@ declare global {
        * 是否在离开搜索界面时自动清空搜索结果列表
        */
       'odc.isAutoClearSearchList': boolean
+
+      /**
+       * 是否启用花再音响歌词
+       */
+      'haloPixel.enable': boolean
+
+      /**
+       * 歌词过长时是否自动滚动
+       */
+      'haloPixel.autoScroll': boolean
+
+      /**
+       * 花再音响歌词显示模式
+       */
+      'haloPixel.lyricMode': 'original' | 'translation' | 'roma'
+
+      /**
+       * 滚动阈值
+       */
+      'haloPixel.scrollThreshold': number
     }
   }
 }
