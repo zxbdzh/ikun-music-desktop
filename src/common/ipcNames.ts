@@ -173,6 +173,15 @@ const modules = {
   desktopCapturer: {
     get_sources: 'desktopCapturer_get_sources',
   },
+  haloPixel: {
+    init_device: 'haloPixel_init_device',
+    close_device: 'haloPixel_close_device',
+    get_device_status: 'haloPixel_get_device_status',
+    get_settings: 'haloPixel_get_settings',
+    set_settings: 'haloPixel_set_settings',
+    send_lyric: 'haloPixel_send_lyric',
+    clear_lyric: 'haloPixel_clear_lyric',
+  },
 }
 
 for (const moduleName of Object.keys(modules) as Array<keyof typeof modules>) {
@@ -196,3 +205,4 @@ export const WIN_MAIN_RENDERER_EVENT_NAME = modules.winMain
 export const WIN_LYRIC_RENDERER_EVENT_NAME = modules.winLyric
 export const HOTKEY_RENDERER_EVENT_NAME = modules.hotKey
 export const DESKTOP_CAPTURER_EVENT_NAME = modules.desktopCapturer
+export const HALO_PIXEL_EVENT_NAME = modules.haloPixel
