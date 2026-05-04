@@ -73,6 +73,21 @@ export default () => {
       lyricLineAllText: curLine ? text + '\n' + curLine : text,
     })
   }
+
+  const handleCrossfadeEnded = () => {
+    sendPlayerStatus({
+      name: musicInfo.name,
+      singer: musicInfo.singer,
+      albumName: musicInfo.album,
+      picUrl: musicInfo.pic ?? '',
+      lyric: musicInfo.lrc ?? '',
+      lyricLineText: '',
+      lyricLineAllText: '',
+      duration: playProgress.maxPlayTime,
+      progress: playProgress.nowPlayTime,
+      playbackRate: appSetting['player.playbackRate'],
+    })
+  }
   // const handleSetTaskbarThumbnailClip = (clip) => {
   //   setTaskbarThumbnailClip(clip)
   // }
@@ -184,6 +199,7 @@ export default () => {
   window.app_event.on('lyricLinePlay', handleSetLyricLine)
   // window.app_event.on(eventTaskbarNames.setTaskbarThumbnailClip, handleSetTaskbarThumbnailClip)
   window.app_event.on('myListUpdate', throttleListChange)
+  window.app_event.on('crossfadeEnded', handleCrossfadeEnded)
 
   onBeforeUnmount(() => {
     rTaskbarThumbarClick()
@@ -197,6 +213,7 @@ export default () => {
     window.app_event.off('lyricLinePlay', handleSetLyricLine)
     // window.app_event.off(eventTaskbarNames.setTaskbarThumbnailClip, handleSetTaskbarThumbnailClip)
     window.app_event.off('myListUpdate', throttleListChange)
+    window.app_event.off('crossfadeEnded', handleCrossfadeEnded)
   })
 
   return async () => {

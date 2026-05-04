@@ -227,7 +227,8 @@ export default () => {
   window.app_event.on('musicToggled', handleSetPlayInfo)
 
   const rOnTimeupdate = onTimeupdate(() => {
-    setNowPlayTime(getCurrentTime())
+    const time = getCurrentTime()
+    setNowPlayTime(playProgress.maxPlayTime > 0 && time > playProgress.maxPlayTime ? playProgress.maxPlayTime : time)
   })
 
   let currentPlayTime = 0
