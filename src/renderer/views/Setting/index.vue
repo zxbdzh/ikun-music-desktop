@@ -77,7 +77,6 @@ import SettingBackup from './components/SettingBackup.vue'
 import SettingOther from './components/SettingOther.vue'
 import SettingUpdate from './components/SettingUpdate.vue'
 import SettingAbout from './components/SettingAbout.vue'
-import SettingHaloPixel from './components/SettingHaloPixel.vue'
 
 export default {
   name: 'Setting',
@@ -100,7 +99,6 @@ export default {
     SettingOther,
     SettingUpdate,
     SettingAbout,
-    SettingHaloPixel,
   },
   setup() {
     const t = useI18n()
@@ -116,7 +114,6 @@ export default {
         { id: 'SettingPlay', title: t('setting__play') },
         { id: 'SettingPlayDetail', title: t('setting__play_detail') },
         { id: 'SettingDesktopLyric', title: t('setting__desktop_lyric') },
-        { id: 'SettingHaloPixel', title: t('setting__halo_pixel') },
         { id: 'SettingSearch', title: t('setting__search') },
         { id: 'SettingList', title: t('setting__list') },
         { id: 'SettingDownload', title: t('setting__download') },

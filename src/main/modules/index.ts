@@ -5,7 +5,6 @@ import registerTray from './tray'
 import registerAppMenu from './appMenu'
 import registerWinLyric from './winLyric'
 import registerCommonRenderers from './commonRenderers'
-import registerHaloPixel from './haloPixel'
 
 let isRegistered = false
 export default () => {
@@ -17,6 +16,5 @@ export default () => {
   registerTray()
   registerAppMenu()
   registerWinLyric()
-  registerHaloPixel()
   isRegistered = true
 }

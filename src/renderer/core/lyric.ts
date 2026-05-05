@@ -6,8 +6,6 @@ import { setStatusText } from '@renderer/store/player/action'
 import { markRawList } from '@common/utils/vueTools'
 import { appSetting } from '@renderer/store/setting'
 import { onNewDesktopLyricProcess } from '@renderer/utils/ipc'
-import { rendererSend } from '@common/rendererIpc'
-import { HALO_PIXEL_EVENT_NAME } from '@common/ipcNames'
 
 const getCurrentTime = () => {
   return getPlayerCurrentTime() * 1000
@@ -96,16 +94,6 @@ export const init = () => {
       setText(text, Math.max(line, 0))
       setStatusText(text)
       window.app_event.lyricLinePlay(text, line)
-
-      // 发送到花再音响
-      if (appSetting['haloPixel.enable'] && musicInfo.id) {
-        rendererSend(HALO_PIXEL_EVENT_NAME.send_lyric, {
-          line,
-          original: text,
-          translation: musicInfo.tlrc || null,
-          roma: musicInfo.rlrc || null,
-        })
-      }
     },
     onSetLyric(lines, offset) {
       // listening lyrics seting event
@@ -238,11 +226,6 @@ export const stop = () => {
   sendDesktopLyricInfo({ action: 'set_stop' })
   // setLines([])
   setText('', 0)
-
-  // 清除花再音响歌词
-  if (appSetting['haloPixel.enable']) {
-    rendererSend(HALO_PIXEL_EVENT_NAME.clear_lyric)
-  }
 }
 
 export const sendInfo = () => {
