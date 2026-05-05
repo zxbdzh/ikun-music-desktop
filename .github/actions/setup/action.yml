@@ -18,7 +18,3 @@ runs:
     - name: Install dependencies
       run: pnpm install --frozen-lockfile
       shell: bash
-
-    - name: Rebuild native modules for Electron
-      run: pnpm run rebuild
-      shell: bash
