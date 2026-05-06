@@ -12,6 +12,9 @@ export const lastCrossfadeEndTime = ref(0)
 // Flag: new song started playing after crossfade (cleared by handleEnded guards)
 export const isAfterCrossfade = ref(false)
 
+// 无缝暂停状态 - 使用 ref 确保跨模块响应式同步
+export const isSeamlessPausing = ref(false)
+
 let _cancelCrossfade: (() => void) | null = null
 
 export const registerCancelCrossfade = (fn: () => void) => {
