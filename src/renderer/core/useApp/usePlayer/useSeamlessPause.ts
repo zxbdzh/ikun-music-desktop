@@ -89,6 +89,10 @@ export const seamlessPause = async (): Promise<boolean> => {
     // 如果正在 crossfade，先取消它
     if (isCrossfading.value) {
       cancelCrossfade()
+      // 等待一帧让状态稳定
+      await new Promise(resolve => requestAnimationFrame(resolve))
+      // 重置增益为 1
+      setCrossfadeGainCurrent(1)
     }
 
     try {
@@ -115,6 +119,8 @@ export const seamlessResume = async (): Promise<boolean> => {
     // 如果正在 crossfade，先取消它
     if (isCrossfading.value) {
       cancelCrossfade()
+      // 等待一帧让状态稳定
+      await new Promise(resolve => requestAnimationFrame(resolve))
     }
 
     try {
