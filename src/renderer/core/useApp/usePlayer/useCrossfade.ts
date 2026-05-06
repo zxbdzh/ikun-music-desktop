@@ -126,7 +126,10 @@ const completeCrossfade = (nextInfo: LX.Player.PlayMusicInfo) => {
   setPlayMusicInfo(nextInfo.listId, nextInfo.musicInfo, nextInfo.isTempPlay)
 
   // Set maxPlayTime using the duration captured during canplaySecondary
-  if (pendingNextDuration > 0) setMaxplayTime(pendingNextDuration)
+  // 兜底：如果 pendingNextDuration 未被正确捕获（loadedmetadata 还没 fire 等），
+  // swap 后直接从新 active audio 取 duration
+  const finalDuration = pendingNextDuration > 0 ? pendingNextDuration : getDuration()
+  if (finalDuration > 0) setMaxplayTime(finalDuration)
   setNowPlayTime(0)
   pendingNextDuration = 0
 
@@ -228,6 +231,10 @@ const executeCrossfade = (nextInfo: LX.Player.PlayMusicInfo, url: string, durati
     const handleLoadedMetadata = () => {
       pendingNextDuration = getSecondaryDuration()
       console.log('loadedmetadata: duration =', pendingNextDuration)
+      // 如果 swap 已经发生但 maxPlayTime 仍是旧值，立刻修复
+      if (!isCrossfading.value && pendingNextDuration > 0) {
+        setMaxplayTime(pendingNextDuration)
+      }
       if (loadedmetadataUnsub) { loadedmetadataUnsub(); loadedmetadataUnsub = null }
     }
 
