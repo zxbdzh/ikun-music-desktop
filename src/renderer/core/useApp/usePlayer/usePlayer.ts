@@ -43,6 +43,7 @@ import { isCrossfading } from './crossfadeState'
 import useScrobble from './useScrobble'
 import useWeblogScrobble from './useWeblogScrobble'
 import useLastfmScrobble from './useLastfmScrobble'
+import useSeamlessPause from './useSeamlessPause'
 
 export default () => {
   const t = useI18n()
@@ -58,6 +59,7 @@ export default () => {
   useWatchList()
   usePreloadNextMusic()
   useCrossfade()
+  useSeamlessPause()
 
   // 根据设置启用旧版或新版听歌记录
   if (appSetting['wy.enableOldScrobble']) {
