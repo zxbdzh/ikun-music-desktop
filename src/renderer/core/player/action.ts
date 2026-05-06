@@ -1,5 +1,6 @@
 import { isEmpty, setPause, setPlay, setResource, setStop } from '@renderer/plugins/player'
 import { isCrossfading, cancelCrossfade } from '@renderer/core/useApp/usePlayer/crossfadeState'
+import { seamlessPause, seamlessResume } from '@renderer/core/useApp/usePlayer/useSeamlessPause'
 import {
   isPlay,
   playedList,
@@ -658,20 +659,25 @@ export const playPrev = async (isAutoToggle = false): Promise<void> => {
 /**
  * 恢复播放
  */
-export const play = () => {
+export const play = async () => {
   if (playMusicInfo.musicInfo == null) return
   if (isEmpty()) {
     if (createGettingUrlId(playMusicInfo.musicInfo) != gettingUrlId)
       setMusicUrl(playMusicInfo.musicInfo)
     return
   }
-  setPlay()
+  const resumed = await seamlessResume()
+  if (!resumed) setPlay()
 }
 
 /**
  * 暂停播放
  */
-export const pause = () => {
+export const pause = async () => {
+  if (appSetting['player.seamlessPauseEnabled']) {
+    const paused = await seamlessPause()
+    if (paused) return
+  }
   setPause()
 }
 

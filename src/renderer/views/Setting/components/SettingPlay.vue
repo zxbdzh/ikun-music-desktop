@@ -11,7 +11,7 @@ dd
     base-checkbox(id="setting_player_auto_clean_played_list" :model-value="appSetting['player.isAutoCleanPlayedList']" :label="$t('setting__play_auto_clean_played_list')" @update:model-value="updateSetting({ 'player.isAutoCleanPlayedList': $event })")
     svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__play_auto_clean_played_list_tip')")
   .gap-top
-    base-checkbox(id="setting_player_lyric_transition" :model-value="appSetting['player.isShowLyricTranslation']" :label="$t('setting__play_lyric_transition')" @update:model-value="updateSetting({ 'player.isShowLyricTranslation': $event })")
+    base-checkbox(id="setting_player_lyric_transition" :model-value="appSetting['player.isShowLyricTranslation']" :label="$t('setting__play_lyric_translation')" @update:model-value="updateSetting({ 'player.isShowLyricTranslation': $event })")
   .gap-top
     base-checkbox(id="setting_player_lyric_roma" :model-value="appSetting['player.isShowLyricRoma']" :label="$t('setting__play_lyric_roma')" @update:model-value="updateSetting({ 'player.isShowLyricRoma': $event })")
   .gap-top
@@ -65,6 +65,27 @@ dd
       :max="15"
       :step="1"
       @change="updateSetting({ 'player.transitionDuration': $event })"
+    )
+
+dd
+  h3#play_seamless_pause {{ $t('setting__play_seamless_pause_title') }}
+  .gap-top
+    base-checkbox(
+      id="setting_player_seamless_pause_enabled"
+      :model-value="appSetting['player.seamlessPauseEnabled']"
+      :label="$t('setting__play_seamless_pause_enabled')"
+      @update:model-value="updateSetting({ 'player.seamlessPauseEnabled': $event })"
+    )
+  .gap-top(v-if="appSetting['player.seamlessPauseEnabled']")
+    .setting-item-row
+      span.setting-item-label {{ $t('setting__play_seamless_pause_duration') }}
+      span.setting-item-value {{ seamlessPauseDurationDisplay }}
+    base-slider-bar(
+      :value="appSetting['player.seamlessPauseDuration']"
+      :min="0.1"
+      :max="3"
+      :step="0.1"
+      @change="updateSetting({ 'player.seamlessPauseDuration': $event })"
     )
 </template>
 
@@ -164,6 +185,10 @@ export default {
       return t('setting__play_transition_duration_current', { duration: appSetting['player.transitionDuration'] })
     })
 
+    const seamlessPauseDurationDisplay = computed(() => {
+      return t('setting__play_seamless_pause_duration_current', { duration: appSetting['player.seamlessPauseDuration'] })
+    })
+
     return {
       appSetting,
       updateSetting,
@@ -176,6 +201,7 @@ export default {
       playQualityList,
       isMac,
       transitionDurationDisplay,
+      seamlessPauseDurationDisplay,
     }
   },
 }

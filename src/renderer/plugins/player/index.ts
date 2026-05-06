@@ -192,7 +192,7 @@ let cfGainNode1: GainNode
 let cfGainNode2: GainNode
 let activeIndex: 1 | 2 = 1
 
-const getActiveAudio = (): HTMLAudioElementChrome | null => activeIndex === 1 ? audio : audio2
+export const getActiveAudio = (): HTMLAudioElementChrome | null => activeIndex === 1 ? audio : audio2
 const getInactiveAudio = (): HTMLAudioElementChrome | null => activeIndex === 1 ? audio2 : audio
 
 export const createAudio = () => {

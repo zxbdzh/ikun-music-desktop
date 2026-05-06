@@ -59,6 +59,8 @@ const defaultSetting: LX.AppSetting = {
   'player.autoSkipOnError': true,
   'player.transitionEnabled': false,
   'player.transitionDuration': 5,
+  'player.seamlessPauseEnabled': false,
+  'player.seamlessPauseDuration': 1,
   'player.isAutoCleanPlayedList': false,
   'player.soundEffect.convolution.fileName': '',
   'player.soundEffect.convolution.mainGain': 10,

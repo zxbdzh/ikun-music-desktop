@@ -338,6 +338,16 @@ declare global {
       'player.transitionDuration': number
 
       /**
+       * 是否启用无缝暂停
+       */
+      'player.seamlessPauseEnabled': boolean
+
+      /**
+       * 无缝暂停渐入渐出时长（秒）
+       */
+      'player.seamlessPauseDuration': number
+
+      /**
        * 点击相同列表内的歌曲切歌时是否清空已播放列表（随机模式下列表内所有歌曲会重新参与随机）
        */
       'player.isAutoCleanPlayedList': boolean
