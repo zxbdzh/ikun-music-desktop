@@ -6,10 +6,10 @@ import {
   rampCrossfadeGainCurrent,
   getActiveAudio,
   setPause,
-  setPlay,
 } from '@renderer/plugins/player'
 import { appSetting } from '@renderer/store/setting'
 import { isPlay } from '@renderer/store/player/state'
+import { setPlay } from '@renderer/store/player/action'
 
 let pauseAnimId: number | null = null
 
@@ -93,6 +93,7 @@ export const seamlessPause = async (): Promise<boolean> => {
 
     await startFadeOut(duration)
     setPause()
+    setPlay(false)
     return true
   }
   return false
@@ -112,6 +113,7 @@ export const seamlessResume = async (): Promise<boolean> => {
     }
 
     await startFadeIn(duration)
+    setPlay(true)
     return true
   }
   return false
