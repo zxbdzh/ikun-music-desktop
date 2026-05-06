@@ -34,6 +34,7 @@ import { getMusicUrl, getPicPath, getLyricInfo } from '@renderer/core/music'
 import {
   playMusicInfo,
   musicInfo as _musicInfo,
+  isPlay,
 } from '@renderer/store/player/state'
 import {
   setPlayMusicInfo,
@@ -42,7 +43,7 @@ import {
 } from '@renderer/store/player/action'
 import { volume } from '@renderer/store/player/volume'
 import { preloadCache } from './usePreloadNextMusic'
-import { isCrossfading, isCrossfadeCompleting, crossfadeDoneMusicId, lastCrossfadeEndTime, isAfterCrossfade, registerCancelCrossfade } from './crossfadeState'
+import { isCrossfading, isCrossfadeCompleting, crossfadeDoneMusicId, lastCrossfadeEndTime, isAfterCrossfade, registerCancelCrossfade, isSeamlessPausing } from './crossfadeState'
 
 let crossfadeAnimId: number | null = null
 let swapTimeout: NodeJS.Timeout | null = null
@@ -103,6 +104,13 @@ const doCancelCrossfade = () => {
 }
 
 const completeCrossfade = (nextInfo: LX.Player.PlayMusicInfo) => {
+  // 如果正在无缝暂停，取消 crossfade 并停止切换后的音频
+  if (isSeamlessPausing.value) {
+    console.log('completeCrossfade: seamless pausing, cancelling')
+    doCancelCrossfade()
+    return
+  }
+
   isCrossfadeCompleting.value = true
   isCompleting = true
 
@@ -201,6 +209,16 @@ const startGainAnimation = (durationSec: number) => {
 }
 
 const executeCrossfade = (nextInfo: LX.Player.PlayMusicInfo, url: string, duration: number) => {
+  // 如果正在无缝暂停，取消 crossfade
+  if (isSeamlessPausing.value) {
+    console.log('executeCrossfade: seamless pausing, cancelling')
+    doCancelCrossfade()
+    return
+  }
+
+  // 立即同步设置 isCrossfading，防止异步加载期间重入
+  isCrossfading.value = true
+
   setVolumeSecondary(volume.value)
   setResourceSecondary(url)
 
@@ -292,6 +310,8 @@ const fetchNextMusicUrl = async (nextInfo: LX.Player.PlayMusicInfo): Promise<str
 
 const tryStartCrossfade = async (curTime: number) => {
   if (isCrossfading.value || isPreparing) return
+  if (isSeamlessPausing.value) return
+  if (!isPlay.value) return
 
   try {
     initAdvancedAudioFeatures()
@@ -316,10 +336,22 @@ const tryStartCrossfade = async (curTime: number) => {
     return
   }
 
+  // 异步操作后再次检查无缝暂停状态
+  if (isSeamlessPausing.value) {
+    isPreparing = false
+    return
+  }
+
   nextMusicInfoCache = nextInfo
 
   const url = await fetchNextMusicUrl(nextInfo)
   if (!url) {
+    isPreparing = false
+    return
+  }
+
+  // 异步操作后再次检查无缝暂停状态
+  if (isSeamlessPausing.value) {
     isPreparing = false
     return
   }
@@ -333,6 +365,8 @@ export default () => {
 
   const rOnTimeupdate = onTimeupdate(() => {
     if (isCompleting) return
+    if (isSeamlessPausing.value) return
+    if (!isPlay.value) return
     const time = getCurrentTime()
     const duration = playProgress.maxPlayTime
     if (!duration || duration <= 0) return
