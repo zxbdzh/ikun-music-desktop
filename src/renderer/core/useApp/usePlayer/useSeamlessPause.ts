@@ -10,6 +10,7 @@ import {
 import { appSetting } from '@renderer/store/setting'
 import { isPlay } from '@renderer/store/player/state'
 import { setPlay } from '@renderer/store/player/action'
+import { isCrossfading, cancelCrossfade } from './crossfadeState'
 
 let pauseAnimId: number | null = null
 
@@ -85,6 +86,11 @@ export const seamlessPause = async (): Promise<boolean> => {
   if (duration <= 0) return false
 
   if (isPlay.value) {
+    // 如果正在 crossfade，先取消它
+    if (isCrossfading.value) {
+      cancelCrossfade()
+    }
+
     try {
       initAdvancedAudioFeatures()
     } catch (_) {
@@ -106,6 +112,11 @@ export const seamlessResume = async (): Promise<boolean> => {
   if (duration <= 0) return false
 
   if (!isPlay.value) {
+    // 如果正在 crossfade，先取消它
+    if (isCrossfading.value) {
+      cancelCrossfade()
+    }
+
     try {
       initAdvancedAudioFeatures()
     } catch (_) {
