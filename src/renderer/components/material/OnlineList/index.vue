@@ -445,7 +445,7 @@ export default {
       handleShowDownloadModal,
     } = useMusicDownload({ selectedList, props })
 
-    const { handleSearch, handleOpenMusicDetail, handleCopyMusicLink, handleDislikeMusic } = useMusicActions({ props })
+    const { handleSearch, handleOpenMusicDetail, handleCopyMusicLink, handleDownloadCover, handleDislikeMusic } = useMusicActions({ props })
 
     const { isChecking, isLiked, handleToggleLike, handleToggleLikeMultiple, handleToggleUnlikeMultiple } = useLikeMusic({ list: props.list })
 
@@ -462,6 +462,7 @@ export default {
       handleShowMusicAddModal,
       handleOpenMusicDetail,
       handleCopyMusicLink,
+      handleDownloadCover,
       handleDislikeMusic,
       handleToggleLike,
       handleToggleLikeMultiple,

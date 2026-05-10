@@ -22,6 +22,7 @@ export default ({
   handleCopyName,
   handleCopyMusicLink,
   handleShareCard,
+  handleDownloadCover,
   handleDislikeMusic,
   handleRemoveMusic,
   handleToggleLike,
@@ -35,6 +36,7 @@ export default ({
     copyName: true,
     copyLink: true,
     shareCard: true,
+    downloadCover: true,
     addTo: true,
     moveTo: true,
     sort: true,
@@ -74,6 +76,11 @@ export default ({
         name: t('list__share_card'),
         action: 'shareCard',
         disabled: !itemMenuControl.shareCard,
+      },
+      {
+        name: t('list__download_cover'),
+        action: 'downloadCover',
+        disabled: !itemMenuControl.downloadCover,
       },
       {
         name: t('list__play_later'),
@@ -252,6 +259,9 @@ export default ({
         break
       case 'shareCard':
         handleShareCard(index)
+        break
+      case 'downloadCover':
+        handleDownloadCover(index)
         break
       case 'addTo':
         handleShowMusicAddModal(index)

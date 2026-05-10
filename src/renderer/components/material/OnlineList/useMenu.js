@@ -19,6 +19,7 @@ export default ({
   handleShowMusicAddModal,
   handleOpenMusicDetail,
   handleCopyMusicLink,
+  handleDownloadCover,
   handleDislikeMusic,
   handleToggleLike,
   handleToggleLikeMultiple,
@@ -34,6 +35,7 @@ export default ({
     sourceDetail: true,
     copyLink: true,
     shareCard: true,
+    downloadCover: true,
     dislike: true,
     like: true,
     songMemory: true,
@@ -89,6 +91,11 @@ export default ({
         name: t('list__share_card'),
         action: 'shareCard',
         disabled: !itemMenuControl.shareCard,
+      },
+      {
+        name: t('list__download_cover'),
+        action: 'downloadCover',
+        disabled: !itemMenuControl.downloadCover,
       },
     ]
 
@@ -228,6 +235,9 @@ export default ({
         if (musicInfo) {
           openShareMusicCard(musicInfo)
         }
+        break
+      case 'downloadCover':
+        handleDownloadCover(index)
         break
       case 'dislike':
         handleDislikeMusic(index)

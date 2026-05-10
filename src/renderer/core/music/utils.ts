@@ -6,11 +6,13 @@ import {
   // saveOtherSource as saveOtherSourceFromStore,
   getMusicUrl as getStoreMusicUrl,
   getPlayerLyric as getStoreLyric,
+  openSaveDir,
 } from '@renderer/utils/ipc'
 import { appSetting } from '@renderer/store/setting'
 import { langS2T, toNewMusicInfo, toOldMusicInfo } from '@renderer/utils'
 import { requestMsg } from '@renderer/utils/message'
 import { apis } from '@renderer/utils/musicSdk/api-source'
+import { dialog } from '@renderer/plugins/Dialog'
 
 const getOtherSourcePromises = new Map()
 const otherSourceCache = new Map<
@@ -621,4 +623,59 @@ export const handleGetOnlineLyricInfo = async ({
         throw err
       })
     })
+}
+
+/**
+ * 下载歌曲封面到用户选定的位置。
+ * 自动按 source 走在线 / 本地两条路径，文件扩展名按 URL 推断,默认 jpg。
+ */
+export const downloadMusicCover = async (musicInfo: LX.Music.MusicInfo): Promise<void> => {
+  let url: string
+  try {
+    if (musicInfo.source === 'local') {
+      ;({ url } = await getOnlineOtherSourcePicByLocal(musicInfo as LX.Music.MusicInfoLocal))
+    } else {
+      ;({ url } = await handleGetOnlinePicUrl({
+        musicInfo: musicInfo as LX.Music.MusicInfoOnline,
+        isRefresh: false,
+        allowToggleSource: true,
+        onToggleSource: () => {},
+      }))
+    }
+  } catch (err) {
+    console.error('get cover url failed', err)
+    void dialog.confirm({
+      message: window.i18n.t('download__cover_failed'),
+      confirmButtonText: window.i18n.t('ok'),
+    })
+    return
+  }
+  if (!url) return
+
+  const ext = url.match(/\.(jpe?g|png|webp|gif|bmp)(?:\?|$)/i)?.[1]?.toLowerCase() || 'jpg'
+  const safeName = `${musicInfo.name} - ${musicInfo.singer}`.replace(/[\\/:*?"<>|]/g, '_')
+
+  const result = await openSaveDir({
+    title: window.i18n.t('download__cover_save_title'),
+    defaultPath: `${safeName}.${ext}`,
+    filters: [{ name: 'Image', extensions: [ext] }],
+  })
+  if (result.canceled || !result.filePath) return
+
+  try {
+    const response = await fetch(url)
+    if (!response.ok) throw new Error(`fetch failed: ${response.status}`)
+    const arrayBuf = await response.arrayBuffer()
+    await window.lx.worker.main.saveStrToFile(result.filePath, Buffer.from(arrayBuf))
+    void dialog.confirm({
+      message: window.i18n.t('download__cover_success'),
+      confirmButtonText: window.i18n.t('ok'),
+    })
+  } catch (err) {
+    console.error('save cover failed', err)
+    void dialog.confirm({
+      message: window.i18n.t('download__cover_failed'),
+      confirmButtonText: window.i18n.t('ok'),
+    })
+  }
 }

@@ -10,6 +10,7 @@ import { addDislikeInfo, hasDislike } from '@renderer/core/dislikeList'
 import { playNext } from '@renderer/core/player'
 import { playMusicInfo } from '@renderer/store/player/state'
 import { openShareMusicCard } from '@renderer/store/shareMusicCard'
+import { downloadMusicCover } from '@renderer/core/music/utils'
 
 export default ({ props, list, selectedList, removeAllSelect }) => {
   const router = useRouter()
@@ -98,6 +99,12 @@ export default ({ props, list, selectedList, removeAllSelect }) => {
     openShareMusicCard(minfo)
   }
 
+  const handleDownloadCover = (index) => {
+    const minfo = list.value[index]
+    if (!minfo) return
+    void downloadMusicCover(minfo)
+  }
+
   const handleDislikeMusic = async (index) => {
     const minfo = list.value[index]
     const confirm = await dialog.confirm({
@@ -136,6 +143,7 @@ export default ({ props, list, selectedList, removeAllSelect }) => {
     handleCopyName,
     handleCopyMusicLink,
     handleShareCard,
+    handleDownloadCover,
     handleDislikeMusic,
     handleRemoveMusic,
     handleSingerClick,

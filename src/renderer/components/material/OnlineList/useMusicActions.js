@@ -7,6 +7,7 @@ import { playNext } from '@renderer/core/player'
 import { playMusicInfo } from '@renderer/store/player/state'
 import { dialog } from '@renderer/plugins/Dialog'
 import { useI18n } from '@renderer/plugins/i18n'
+import { downloadMusicCover } from '@renderer/core/music/utils'
 
 export default ({ props }) => {
   const router = useRouter()
@@ -36,6 +37,12 @@ export default ({ props }) => {
     clipboardWriteText(`${minfo.name} (${minfo.singer}) ${url}`)
   }
 
+  const handleDownloadCover = (index) => {
+    const minfo = props.list[index]
+    if (!minfo) return
+    void downloadMusicCover(minfo)
+  }
+
   const handleDislikeMusic = async (index) => {
     const minfo = props.list[index]
     const confirm = await dialog.confirm({
@@ -56,6 +63,7 @@ export default ({ props }) => {
     handleSearch,
     handleOpenMusicDetail,
     handleCopyMusicLink,
+    handleDownloadCover,
     handleDislikeMusic,
   }
 }
