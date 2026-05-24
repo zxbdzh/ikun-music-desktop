@@ -5,6 +5,7 @@ import registerTray from './tray'
 import registerAppMenu from './appMenu'
 import registerWinLyric from './winLyric'
 import registerCommonRenderers from './commonRenderers'
+import registerWebdavStream from './webdavStream'
 
 let isRegistered = false
 export default () => {
@@ -16,5 +17,6 @@ export default () => {
   registerTray()
   registerAppMenu()
   registerWinLyric()
+  registerWebdavStream()
   isRegistered = true
 }

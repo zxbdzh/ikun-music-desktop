@@ -69,6 +69,14 @@ const router = createRouter({
       },
     },
     {
+      path: '/webdav-play',
+      name: 'WebdavPlay',
+      component: require('./views/WebdavPlay/index.vue').default,
+      meta: {
+        name: 'WebdavPlay',
+      },
+    },
+    {
       path: '/artist',
       name: 'Artist',
       component: require('./views/Artist/index.vue').default,

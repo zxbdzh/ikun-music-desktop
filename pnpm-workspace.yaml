@@ -1,0 +1,8 @@
+allowBuilds:
+  better-sqlite3: set this to true or false
+  bufferutil: set this to true or false
+  core-js: set this to true or false
+  electron: set this to true or false
+  electron-winstaller: set this to true or false
+  node-hid: set this to true or false
+  utf-8-validate: set this to true or false

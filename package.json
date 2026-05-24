@@ -1,6 +1,6 @@
 {
   "name": "ikun-music-desktop",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "一个免费的音乐查找助手",
   "main": "./dist/main.js",
   "scripts": {
@@ -211,6 +211,7 @@
     "undici": "^7.16.0",
     "vue": "~3.3.13",
     "vue-router": "~4.5.1",
+    "webdav": "^5.10.0",
     "ws": "^8.18.3"
   },
   "overrides": {

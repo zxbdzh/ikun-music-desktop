@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { WIN_MAIN_RENDERER_EVENT_NAME } from '@common/ipcNames'
 import { mainHandle } from '@common/mainIpc'
 import {
@@ -10,6 +11,7 @@ import {
   cancelRequest,
   setAllowShowUpdateAlert,
 } from '@main/modules/userApi'
+import { getScript } from '@main/modules/userApi/utils'
 import { sendEvent } from '@main/modules/winMain/main'
 
 export default () => {
@@ -37,6 +39,17 @@ export default () => {
   mainHandle<LX.UserApi.UserApiInfo[]>(WIN_MAIN_RENDERER_EVENT_NAME.get_user_api_list, async () => {
     return getApiList()
   })
+
+  // 取指定用户 API 插件的原始脚本及其 md5 指纹(用于分享时上传插件)
+  mainHandle<string, { code: string; md5: string } | null>(
+    WIN_MAIN_RENDERER_EVENT_NAME.get_user_api_fingerprint,
+    async ({ params: apiId }) => {
+      const code = await getScript(apiId)
+      if (!code) return null
+      const md5 = createHash('md5').update(code, 'utf8').digest('hex')
+      return { code, md5 }
+    }
+  )
 
   mainHandle<LX.UserApi.UserApiStatus>(
     WIN_MAIN_RENDERER_EVENT_NAME.get_user_api_status,

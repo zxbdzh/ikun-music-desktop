@@ -58,6 +58,15 @@
             <div v-else :class="$style.emptyLyric">{{ $t('share__no_lyric') }}</div>
           </div>
 
+          <button
+            :class="$style.ceruBtn"
+            :disabled="generating"
+            type="button"
+            @click="handleGenerateCeruShare"
+          >
+            {{ generating ? $t('share__generating') : $t('share__generate_ceru_link') }}
+          </button>
+
           <div :class="$style.actions">
             <button :class="$style.actionBtn" @click="handleCopyLink">{{ $t('share__copy_link') }}</button>
             <button :class="$style.actionBtn" @click="handleCopyImage">{{ $t('share__copy_image') }}</button>
@@ -108,6 +117,7 @@
 import { computed, ref, watch, nextTick } from '@common/utils/vueTools'
 import { isShowShareMusicCard, shareMusicInfo, closeShareMusicCard } from '@renderer/store/shareMusicCard'
 import { resolveMusicDetailWebUrl, buildLyricSelectableLines } from '@renderer/utils/shareMusicCard'
+import { createShareForMusic } from '@renderer/utils/cerumusicShare'
 import { clipboardWriteText, clipboardWriteImageDataURL } from '@common/utils/electron'
 import { dialog } from '@renderer/plugins/Dialog'
 import { getPlayerLyric, openSaveDir } from '@renderer/utils/ipc'
@@ -185,9 +195,15 @@ const qrDataUrl = ref('')
 const dom_card = ref(null)
 const dom_cover = ref(null)
 const coverColors = ref(null)
+const rawLyric = ref('')
+const rawTlyric = ref('')
+const cerumusicUrl = ref('')
+const generating = ref(false)
 
 const musicInfo = computed(() => shareMusicInfo.value)
 const detailUrl = computed(() => resolveMusicDetailWebUrl(musicInfo.value))
+// 优先使用 CeruMusic 分享落地页链接,未生成时回退到平台详情链接
+const shareUrl = computed(() => cerumusicUrl.value || detailUrl.value)
 
 const selectedLyricLines = computed(() => {
   if (!selectedLineIndexes.value.length) return lyricLines.value.slice(0, 4)
@@ -229,6 +245,8 @@ const refreshLyricData = async () => {
   if (!mInfo) {
     lyricLines.value = []
     selectedLineIndexes.value = []
+    rawLyric.value = ''
+    rawTlyric.value = ''
     return
   }
 
@@ -248,13 +266,16 @@ const refreshLyricData = async () => {
     sourceTlyric = playerLyric?.tlyric || ''
   }
 
+  rawLyric.value = sourceLyric
+  rawTlyric.value = sourceTlyric
+
   const lines = buildLyricSelectableLines(sourceLyric, sourceTlyric)
   lyricLines.value = lines
   selectedLineIndexes.value = lines.slice(0, 4).map((_, index) => index)
 }
 
 const refreshQRCode = async () => {
-  const url = detailUrl.value
+  const url = shareUrl.value
   qrDataUrl.value = url
     ? await QRCode.toDataURL(url, {
         margin: 1,
@@ -276,10 +297,34 @@ const renderCardPng = async () => {
   })
 }
 
-const handleCopyLink = async () => {
-  if (!detailUrl.value) return
+const handleGenerateCeruShare = async () => {
+  if (!musicInfo.value || generating.value) return
+  generating.value = true
   try {
-    clipboardWriteText(detailUrl.value)
+    const url = await createShareForMusic(musicInfo.value, {
+      lrc: rawLyric.value,
+      trans: rawTlyric.value,
+    })
+    cerumusicUrl.value = url
+    await refreshQRCode()
+    await dialog.confirm({
+      message: window.i18n.t('share__generate_ceru_success'),
+      confirmButtonText: window.i18n.t('ok'),
+    })
+  } catch (err) {
+    await dialog.confirm({
+      message: `${window.i18n.t('share__generate_ceru_failed')}\n${err?.message || ''}`,
+      confirmButtonText: window.i18n.t('ok'),
+    })
+  } finally {
+    generating.value = false
+  }
+}
+
+const handleCopyLink = async () => {
+  if (!shareUrl.value) return
+  try {
+    clipboardWriteText(shareUrl.value)
     await dialog.confirm({
       message: window.i18n.t('share__copy_link_success'),
       confirmButtonText: window.i18n.t('ok'),
@@ -354,6 +399,7 @@ watch(
   () => isShowShareMusicCard.value,
   async (show) => {
     if (!show) return
+    cerumusicUrl.value = ''
     await refreshLyricData()
     await refreshQRCode()
     if (stylePreset.value === 'presetCover') {
@@ -368,6 +414,7 @@ watch(
   () => musicInfo.value?.id,
   async () => {
     if (!isShowShareMusicCard.value) return
+    cerumusicUrl.value = ''
     await refreshLyricData()
     await refreshQRCode()
     if (stylePreset.value === 'presetCover') {
@@ -522,6 +569,21 @@ watch(
   padding: 10px;
   font-size: 13px;
   opacity: 0.7;
+}
+.ceruBtn {
+  margin-top: 10px;
+  width: 100%;
+  border: none;
+  border-radius: 6px;
+  padding: 9px 12px;
+  color: #fff;
+  background: var(--color-primary);
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
 }
 .actions {
   margin-top: 10px;

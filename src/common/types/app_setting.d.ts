@@ -703,6 +703,21 @@ declare global {
       'network.proxy.port': string
 
       /**
+       * WebDAV 远程播放-服务器地址
+       */
+      'webdavPlay.url': string
+
+      /**
+       * WebDAV 远程播放-用户名
+       */
+      'webdavPlay.username': string
+
+      /**
+       * WebDAV 远程播放-密码(凭证仅存 setting,不入 meta/config)
+       */
+      'webdavPlay.password': string
+
+      /**
        * 是否启用托盘
        */
       'tray.enable': boolean

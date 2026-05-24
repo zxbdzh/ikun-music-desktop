@@ -150,6 +150,10 @@ const defaultSetting: LX.AppSetting = {
   'network.proxy.host': '',
   'network.proxy.port': '',
 
+  'webdavPlay.url': '',
+  'webdavPlay.username': '',
+  'webdavPlay.password': '',
+
   'tray.enable': false,
   // 'tray.isToTray': false,
   'tray.themeId': 0,

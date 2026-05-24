@@ -44,6 +44,8 @@ export const DATA_KEYS = {
   songListSetting: 'songListSetting',
   searchSetting: 'searchSetting',
 
+  webdavPlayConfig: 'webdavPlayConfig',
+
   lastStartInfo: 'lastStartInfo',
 } as const
 

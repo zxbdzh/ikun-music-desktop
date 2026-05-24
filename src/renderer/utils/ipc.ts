@@ -188,6 +188,12 @@ export const onUserApiStatus = (
 export const getUserApiList = async () => {
   return rendererInvoke<LX.UserApi.UserApiInfo[]>(WIN_MAIN_RENDERER_EVENT_NAME.get_user_api_list)
 }
+export const getUserApiFingerprint = async (apiId: string) => {
+  return rendererInvoke<string, { code: string; md5: string } | null>(
+    WIN_MAIN_RENDERER_EVENT_NAME.get_user_api_fingerprint,
+    apiId
+  )
+}
 export const sendUserApiRequest = async ({
   requestKey,
   data,
@@ -385,6 +391,20 @@ export const getSystemFonts = async () => {
   return rendererInvoke<string[]>(CMMON_EVENT_NAME.get_system_fonts).catch(() => {
     return []
   })
+}
+
+// WebDAV 远程播放扫描配置(已选目录/歌曲/扫描时间);凭证不在此存储
+export const saveWebdavPlayConfig = (config: LX.WebDAVPlay.Config) => {
+  rendererSend(WIN_MAIN_RENDERER_EVENT_NAME.save_data, {
+    path: DATA_KEYS.webdavPlayConfig,
+    data: config,
+  })
+}
+export const getWebdavPlayConfig = async () => {
+  return rendererInvoke<string, LX.WebDAVPlay.Config | null>(
+    WIN_MAIN_RENDERER_EVENT_NAME.get_data,
+    DATA_KEYS.webdavPlayConfig
+  )
 }
 
 export const getUserSoundEffectEQPresetList = async () => {

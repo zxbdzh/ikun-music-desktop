@@ -79,6 +79,15 @@ export default {
           enable: true,
         },
         {
+          to: '/webdav-play',
+          tips: t('webdav_play'),
+          icon: '#icon-webdav',
+          iconSize: '0 0 24 24',
+          size,
+          name: 'WebdavPlay',
+          enable: true,
+        },
+        {
           to: '/list',
           tips: t('my_list'),
           icon: '#icon-love',

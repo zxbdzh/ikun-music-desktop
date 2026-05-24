@@ -50,6 +50,9 @@ export default () => {
       case 'lastfm':
         await handleLastfmAction(action, params)
         break
+      case 'oauth':
+        // OAuth 回调由 cerumusicShare 模块自行监听 onDeeplink 处理,此处不做动作
+        break
       default:
         throw new Error('Unknown type: ' + type)
     }

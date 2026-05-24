@@ -164,6 +164,17 @@
     />
     <ListSortModal v-model:visible="isShowListSortModal" :list-info="sortListInfo" />
     <ListUpdateModal v-model:visible="isShowListUpdateModal" />
+    <WebdavTransferModal
+      v-model:show="isShowWebdavTransfer"
+      :list-info="transferListInfo"
+      @confirm="handleWebdavTransferConfirm"
+    />
+    <WebdavTransferProgressModal
+      :show="transferProgress.show"
+      :done="transferProgress.done"
+      :total="transferProgress.total"
+      :current="transferProgress.current"
+    />
   </div>
 </template>
 
@@ -174,11 +185,13 @@ import musicSdk from '@renderer/utils/musicSdk'
 import DuplicateMusicModal from './components/DuplicateMusicModal.vue'
 import ListSortModal from './components/ListSortModal.vue'
 import ListUpdateModal from './components/ListUpdateModal.vue'
+import WebdavTransferModal from '@renderer/components/common/WebdavTransferModal.vue'
+import WebdavTransferProgressModal from '@renderer/components/common/WebdavTransferProgressModal.vue'
 
 import { defaultList, loveList, userLists, fetchingListStatus } from '@renderer/store/list/state'
 import { removeUserList } from '@renderer/store/list/action'
 
-import { ref, watch } from '@common/utils/vueTools'
+import { ref, reactive, watch } from '@common/utils/vueTools'
 import { useRouter } from '@common/utils/vueRouter'
 import { LIST_IDS } from '@common/constants'
 
@@ -203,6 +216,8 @@ export default {
     DuplicateMusicModal,
     ListSortModal,
     ListUpdateModal,
+    WebdavTransferModal,
+    WebdavTransferProgressModal,
   },
   props: {
     listId: {
@@ -217,6 +232,11 @@ export default {
 
     const dom_lists_list = ref(null)
     const rightClickItemIndex = ref(-10)
+
+    const isShowWebdavTransfer = ref(false)
+    const transferListInfo = ref({})
+    const transferring = ref(false)
+    const transferProgress = reactive({ show: false, done: 0, total: 0, current: '' })
 
     const { handleImportList, handleExportList } = useShare()
     const { isShowListUpdateModal, handleUpdateSourceList } = useListUpdate()
@@ -255,6 +275,69 @@ export default {
         })
     }
 
+    // 配置门 + 音质选择前置:未配置直接提示;否则弹音质选择弹窗,确认后执行转存
+    const handleTransferToWebDAV = async (listInfo) => {
+      if (transferring.value) {
+        void dialog({
+          message: t('lists__webdav_transfer_in_progress'),
+          confirmButtonText: t('ok'),
+        })
+        return
+      }
+      const { getWebDAVBaseUrl, getWebDAVPlayConfig } = await import(
+        '@renderer/core/webdavPlay/client'
+      )
+      const config = await getWebDAVPlayConfig()
+      if (!getWebDAVBaseUrl() || !config.selectedFolder) {
+        void dialog({
+          message: t('webdav_play__not_configured'),
+          confirmButtonText: t('ok'),
+        })
+        return
+      }
+      transferListInfo.value = listInfo
+      isShowWebdavTransfer.value = true
+    }
+
+    const handleWebdavTransferConfirm = async (quality) => {
+      const listInfo = transferListInfo.value
+      if (!listInfo?.id || transferring.value) return
+      const { downloadListToWebDAV } = await import('@renderer/core/webdavPlay/upload')
+      transferring.value = true
+      transferProgress.show = true
+      transferProgress.done = 0
+      transferProgress.total = 0
+      transferProgress.current = ''
+      try {
+        const result = await downloadListToWebDAV({
+          listId: listInfo.id,
+          playlistName: listInfo.name,
+          quality,
+          onProgress: (done, total, current) => {
+            transferProgress.done = done
+            transferProgress.total = total
+            transferProgress.current = current
+          },
+        })
+        void dialog({
+          message: t('lists__webdav_transfer_done', {
+            uploaded: result.uploaded,
+            skipped: result.skipped,
+            failed: result.failed,
+          }),
+          confirmButtonText: t('ok'),
+        })
+      } catch (err) {
+        void dialog({
+          message: `${t('lists__webdav_transfer_failed')}: ${err instanceof Error ? err.message : String(err)}`,
+          confirmButtonText: t('ok'),
+        })
+      } finally {
+        transferring.value = false
+        transferProgress.show = false
+      }
+    }
+
     const { menus, menuLocation, isShowMenu, showMenu, menuClick } = useMenu({
       emit,
 
@@ -266,6 +349,7 @@ export default {
       handleDuplicateList,
       handleRename,
       handleRemove,
+      handleTransferToWebDAV,
     })
 
     const handleListsItemRigthClick = (event, index) => {
@@ -324,6 +408,10 @@ export default {
       sortListInfo,
       isShowDuplicateMusicModal,
       duplicateListInfo,
+      isShowWebdavTransfer,
+      transferListInfo,
+      transferProgress,
+      handleWebdavTransferConfirm,
       handleSaveListName,
       isShowNewList,
       isNewListLeave,

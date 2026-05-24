@@ -15,6 +15,7 @@ export default ({
   handleExportList,
   handleUpdateSourceList,
   handleRemove,
+  handleTransferToWebDAV,
 }) => {
   const menuControl = reactive({
     rename: true,
@@ -25,6 +26,7 @@ export default ({
     import: true,
     export: true,
     sync: true,
+    webdav_transfer: true,
     remove: true,
   })
   const t = useI18n()
@@ -72,6 +74,11 @@ export default ({
         name: t('lists__export'),
         action: 'export',
         disabled: !menuControl.export,
+      },
+      {
+        name: t('lists__webdav_transfer'),
+        action: 'webdav_transfer',
+        disabled: !menuControl.webdav_transfer,
       },
       {
         name: t('lists__remove'),
@@ -175,6 +182,9 @@ export default ({
         break
       case 'sync':
         handleUpdateSourceList(listInfo)
+        break
+      case 'webdav_transfer':
+        handleTransferToWebDAV(listInfo)
         break
       case 'remove':
         handleRemove(listInfo)
