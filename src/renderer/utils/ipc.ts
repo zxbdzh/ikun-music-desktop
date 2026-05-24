@@ -393,6 +393,10 @@ export const getSystemFonts = async () => {
   })
 }
 
+export const getHaloPixelStatus = async () => {
+  return rendererInvoke<boolean>(CMMON_EVENT_NAME.get_halo_pixel_status).catch(() => false)
+}
+
 // WebDAV 远程播放扫描配置(已选目录/歌曲/扫描时间);凭证不在此存储
 export const saveWebdavPlayConfig = (config: LX.WebDAVPlay.Config) => {
   rendererSend(WIN_MAIN_RENDERER_EVENT_NAME.save_data, {

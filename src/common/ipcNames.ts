@@ -9,6 +9,7 @@ const modules = {
     get_app_setting: 'get_app_setting',
     set_app_setting: 'set_app_setting',
     get_audio_match_files: 'get_audio_match_files',
+    get_halo_pixel_status: 'get_halo_pixel_status',
   },
   player: {
     invoke_play_music: 'play_music',

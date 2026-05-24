@@ -65,6 +65,7 @@ import SettingLastfm from './components/SettingLastfm.vue'
 import SettingPlay from './components/SettingPlay.vue'
 import SettingPlayDetail from './components/SettingPlayDetail.vue'
 import SettingDesktopLyric from './components/SettingDesktopLyric.vue'
+import SettingHaloPixel from './components/SettingHaloPixel.vue'
 import SettingSearch from './components/SettingSearch.vue'
 import SettingList from './components/SettingList.vue'
 import SettingDownload from './components/SettingDownload.vue'
@@ -88,6 +89,7 @@ export default {
     SettingPlay,
     SettingPlayDetail,
     SettingDesktopLyric,
+    SettingHaloPixel,
     SettingSearch,
     SettingList,
     SettingDownload,
@@ -116,6 +118,7 @@ export default {
         { id: 'SettingPlay', title: t('setting__play') },
         { id: 'SettingPlayDetail', title: t('setting__play_detail') },
         { id: 'SettingDesktopLyric', title: t('setting__desktop_lyric') },
+        { id: 'SettingHaloPixel', title: t('setting__halo_pixel') },
         { id: 'SettingSearch', title: t('setting__search') },
         { id: 'SettingList', title: t('setting__list') },
         { id: 'SettingDownload', title: t('setting__download') },

@@ -1,6 +1,7 @@
 import { mainHandle, mainOn } from '@common/mainIpc'
 import { CMMON_EVENT_NAME } from '@common/ipcNames'
 import { getFonts } from '@main/utils/fontManage'
+import { isDeviceConnected } from '@main/modules/haloPixel'
 import fs from 'fs'
 import path from 'path'
 
@@ -26,6 +27,10 @@ export default () => {
 
   mainHandle<string[]>(CMMON_EVENT_NAME.get_system_fonts, async () => {
     return getFonts()
+  })
+
+  mainHandle<boolean>(CMMON_EVENT_NAME.get_halo_pixel_status, async () => {
+    return isDeviceConnected()
   })
 
   mainHandle<void, { afpJs: string; wasmJs: string }>(CMMON_EVENT_NAME.get_audio_match_files, async () => {

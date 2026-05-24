@@ -178,6 +178,11 @@ const defaultSetting: LX.AppSetting = {
 
   'odc.isAutoClearSearchInput': false,
   'odc.isAutoClearSearchList': false,
+
+  'haloPixel.enable': false,
+  'haloPixel.lyricMode': 'original',
+  'haloPixel.autoScroll': true,
+  'haloPixel.scrollThreshold': 30,
 }
 
 // 使用新年皮肤
