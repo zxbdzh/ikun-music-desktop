@@ -31,6 +31,8 @@ declare namespace LX {
       playbackRate: number
       lyricLineText: string
       lyricLineAllText: string
+      /** 当前歌词行被点亮时的播放位置(ms,来自歌词播放器 onPlay,已含 offset 校正) */
+      lyricLineStartMs: number
       lyric: string
       tlyric: string
       rlyric: string

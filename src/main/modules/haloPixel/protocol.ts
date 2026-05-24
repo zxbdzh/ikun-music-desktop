@@ -5,9 +5,30 @@
 export const PACKET_LEN = 64
 export const DEVICE_NAME = '花再 Halo PixelBar'
 export const DEVICE_USAGE_PAGE = 0xff14
-export const MAX_TEXT_CHARS = 50
 
 const TEXT_HEADER = [0x2e, 0xaa, 0xec, 0xe8, 0x00]
+
+// A text packet is HEADER(5) + totalLen(2) + textLen(1) + textBytes(N) + checksum(1),
+// all padded to PACKET_LEN. The UTF-8 text body can therefore be at most this many
+// bytes; anything longer would be silently truncated (possibly mid-character) by pad().
+export const TEXT_BYTE_BUDGET = PACKET_LEN - TEXT_HEADER.length - 2 - 1 - 1
+
+// Clip text to at most TEXT_BYTE_BUDGET UTF-8 bytes without splitting a multi-byte char.
+export const clipToByteBudget = (text: string): string => {
+  let bytes = 0
+  let out = ''
+  for (const ch of text) {
+    const len = Buffer.byteLength(ch, 'utf8')
+    if (bytes + len > TEXT_BYTE_BUDGET) break
+    bytes += len
+    out += ch
+  }
+  return out
+}
+
+// Whether the text fits in a single packet (no marquee/segmentation needed).
+export const fitsSinglePacket = (text: string): boolean =>
+  Buffer.byteLength(text, 'utf8') <= TEXT_BYTE_BUDGET
 
 export type HaloPixelLayout = 'center' | 'left' | 'right' | 'stretch' | 'scrollLeft' | 'scrollRight'
 
@@ -45,8 +66,7 @@ const checksum = (textBytes: Buffer): number => {
 }
 
 export const buildTextPacket = (text: string): number[] => {
-  const chars = [...text]
-  const clipped = chars.length > MAX_TEXT_CHARS ? chars.slice(0, MAX_TEXT_CHARS).join('') : text
+  const clipped = clipToByteBudget(text)
   const textBytes = Buffer.from(clipped, 'utf8')
   const textLen = textBytes.length
   const totalLen = 1 + textLen + 1 // textLen(1) + text(N) + checksum(1)

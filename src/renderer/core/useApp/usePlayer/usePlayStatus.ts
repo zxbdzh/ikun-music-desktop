@@ -66,11 +66,12 @@ export default () => {
       picUrl: musicInfo.pic ?? '',
     })
   }
-  const handleSetLyricLine = (text: string, line: number) => {
+  const handleSetLyricLine = (text: string, line: number, time?: number) => {
     let curLine = lyric.lines[line]?.extendedLyrics.join('\n') ?? ''
     sendPlayerStatus({
       lyricLineText: text,
       lyricLineAllText: curLine ? text + '\n' + curLine : text,
+      lyricLineStartMs: time,
     })
   }
 

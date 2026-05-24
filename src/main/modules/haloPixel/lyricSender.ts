@@ -1,5 +1,5 @@
 import type { HaloPixelDevice } from './device'
-import { buildLayoutPacket, buildTextPacket, buildUIModelPacket, displayWidth } from './protocol'
+import { buildLayoutPacket, buildTextPacket, buildUIModelPacket, displayWidth, fitsSinglePacket, TEXT_BYTE_BUDGET } from './protocol'
 import type { CharTiming } from './lyricTimer'
 
 export interface LyricSenderOptions {
@@ -11,10 +11,12 @@ export interface LyricSenderOptions {
   playbackRate: number
   alternateSplit: boolean
   alternateInterval: number
+  latencyCompMs: number
 }
 
 const FLUSH_DELAY = 30
 const MIN_ALTERNATE_INTERVAL = 1000
+const CLOCK_TICK = 50
 
 // Split text into two halves by display width, respecting CJK double-width chars.
 const splitByWidth = (text: string, maxWidth: number): [string, string] => {
@@ -42,7 +44,10 @@ export class LyricSender {
   private pendingLine: string | null = null
   private pendingTimings: CharTiming[] | null = null
   private pendingLineDurationMs = 0
-  private pendingProgress = 0
+  private pendingProgressMs = 0
+  private pendingAnchorWallMs = 0
+  private pendingAnchorMs = 0
+  private lastAnchorMs = 0
   private currentTypeText: string | null = null
 
   constructor(
@@ -54,8 +59,11 @@ export class LyricSender {
     this.options = options
   }
 
-  updateProgress(progress: number): void {
-    this.pendingProgress = progress
+  updateProgressMs(progressMs: number): void {
+    this.pendingProgressMs = progressMs
+    // Pair the playback position with a wall-clock reading so the typewriter clock
+    // can interpolate the live position later instead of relying on a stale anchor.
+    this.pendingAnchorWallMs = Date.now()
   }
 
   reset(): void {
@@ -65,6 +73,7 @@ export class LyricSender {
     this.pendingLine = null
     this.pendingTimings = null
     this.lastText = null
+    this.lastAnchorMs = 0
     this.showingClock = false
   }
 
@@ -96,10 +105,16 @@ export class LyricSender {
     return this.device.isConnected || this.device.open()
   }
 
-  sendLyric(text: string | null | undefined, timings: CharTiming[] | null = null, lineDurationMs = 0): void {
+  sendLyric(
+    text: string | null | undefined,
+    timings: CharTiming[] | null = null,
+    lineDurationMs = 0,
+    anchorMs = 0,
+  ): void {
     this.pendingLine = (text ?? '').trim()
     this.pendingTimings = timings
     this.pendingLineDurationMs = lineDurationMs
+    this.pendingAnchorMs = anchorMs
     if (this.flushTimer) return
     this.flushTimer = setTimeout(() => {
       this.flush()
@@ -111,26 +126,36 @@ export class LyricSender {
     const line = this.pendingLine
     const timings = this.pendingTimings
     const lineDurationMs = this.pendingLineDurationMs
+    const anchorMs = this.pendingAnchorMs
     this.pendingLine = null
     this.pendingTimings = null
     this.pendingLineDurationMs = 0
     if (!line) return
-    if (!this.showingClock && line === this.lastText) return
+    // 同一行文本只在锚点未明显跳变时去重;锚点大幅变化(相邻重复歌词、行内拖动进度)时仍需重渲染
+    if (!this.showingClock && line === this.lastText && Math.abs(anchorMs - this.lastAnchorMs) < 500) return
     if (!this.ensureOpen()) return
 
     this.stopTypewriter()
     this.stopAlternation()
     this.showingClock = false
     this.lastText = line
+    this.lastAnchorMs = anchorMs
 
     const isLong = displayWidth(line) > this.options.scrollThreshold
     if (isLong && this.options.alternateSplit) {
-      this.typeFullThenStart(line, timings, lineDurationMs, () => this.startAlternation(line, timings))
+      this.startAlternation(line, lineDurationMs)
     } else if (isLong && this.options.autoScroll) {
-      this.typeFullThenStart(line, timings, lineDurationMs, () => {
-        this.device.write(buildLayoutPacket('scrollRight'))
-        this.device.write(buildTextPacket(line))
-      })
+      // Hardware scroll can only marquee what fits in one 64-byte packet (~18 CJK
+      // chars). Longer lines would have their tail silently dropped, so fall back
+      // to a software window marquee that pages the whole line through the display.
+      if (fitsSinglePacket(line)) {
+        this.typeFullThenStart(line, lineDurationMs, () => {
+          this.device.write(buildLayoutPacket('scrollRight'))
+          this.device.write(buildTextPacket(line))
+        })
+      } else {
+        this.startMarquee(line, lineDurationMs)
+      }
     } else if (this.options.typewriter && this.options.typewriterSync && timings?.length) {
       this.startTypewriterSync(line, timings)
     } else if (this.options.typewriter) {
@@ -141,14 +166,13 @@ export class LyricSender {
     }
   }
 
-  // For long lines: show the full text first (typewriter or instant),
-  // then trigger the secondary effect (alternation or scroll).
-  private typeFullThenStart(
-    text: string,
-    timings: CharTiming[] | null,
-    lineDurationMs: number,
-    andThen: () => void,
-  ): void {
+  // For long lines: reveal the full text character-by-character first, then
+  // trigger the secondary effect (alternation or scroll). The reveal is paced to
+  // finish within the first half of the line so the effect still has time to run.
+  // Per-character sync timing is intentionally NOT used here: it would end the
+  // reveal at the line's last character (≈ line end), leaving no time to scroll
+  // before the next line arrives.
+  private typeFullThenStart(text: string, lineDurationMs: number, andThen: () => void): void {
     if (!this.options.typewriter) {
       // No typewriter: show full text centered, then immediately start effect
       this.device.write(buildLayoutPacket('center'))
@@ -157,101 +181,142 @@ export class LyricSender {
       return
     }
 
-    if (this.options.typewriterSync && timings?.length) {
-      // Sync mode: use actual timing, schedule effect after last character
-      const chars = [...text]
-      const rate = this.options.playbackRate || 1
-      const progressMs = this.pendingProgress * 1000
-      this.currentTypeText = text
+    const chars = [...text]
+    let pos = 0
+    this.currentTypeText = text
 
-      this.device.write(buildLayoutPacket('center'))
+    const budget = lineDurationMs > 0 ? lineDurationMs / 2 : Infinity
+    const maxInterval = Math.floor(budget / Math.max(chars.length, 1))
+    const interval = Math.min(Math.max(this.options.typewriterSpeed, 30), maxInterval)
 
-      // Send already-visible characters
-      let sentCount = 0
-      for (let i = 0; i < chars.length && i < timings.length; i++) {
-        if (timings[i].startMs <= progressMs) sentCount = i + 1
-        else break
-      }
-      if (sentCount > 0) this.device.write(buildTextPacket(chars.slice(0, sentCount).join('')))
+    this.device.write(buildLayoutPacket('center'))
 
-      if (sentCount >= chars.length) {
+    const finish = (): void => {
+      this.currentTypeText = null
+      this.stopTypewriter() // clears the reveal interval before the effect starts
+      andThen()
+    }
+    const tick = (): void => {
+      if (!this.device.write(buildTextPacket(chars.slice(0, pos + 1).join('')))) {
         this.currentTypeText = null
-        andThen()
+        this.stopTypewriter()
         return
       }
+      pos++
+      if (pos >= chars.length) finish()
+    }
 
-      for (let i = sentCount; i < chars.length && i < timings.length; i++) {
-        const delay = (timings[i].startMs - progressMs) / rate
-        if (delay < 0) {
-          this.device.write(buildTextPacket(chars.slice(0, i + 1).join('')))
-          continue
-        }
-        const isLast = i === chars.length - 1 || i === timings.length - 1
-        const t = setTimeout(() => {
-          if (this.lastText !== text) return
-          this.device.write(buildTextPacket(chars.slice(0, i + 1).join('')))
-          if (isLast) {
-            this.currentTypeText = null
-            andThen()
-          }
-        }, delay)
-        this.typeTimers.push(t)
-      }
-    } else {
-      // Non-sync typewriter: cap to half the line duration so effect still has time
-      const chars = [...text]
-      let pos = 0
-      this.currentTypeText = text
-
-      const halfDuration = lineDurationMs > 0 ? lineDurationMs / 2 : Infinity
-      const maxInterval = Math.floor(halfDuration / Math.max(chars.length, 1))
-      const interval = Math.min(Math.max(this.options.typewriterSpeed, 30), maxInterval)
-
-      this.device.write(buildLayoutPacket('center'))
-
-      const tick = (): void => {
-        if (!this.device.write(buildTextPacket(chars.slice(0, pos + 1).join('')))) {
-          this.currentTypeText = null
-          this.stopTypewriter()
-          return
-        }
-        pos++
-        if (pos >= chars.length) {
-          this.currentTypeText = null
-          andThen()
-        }
-      }
-      tick()
-      if (pos < chars.length) {
-        const t = setInterval(() => tick(), interval)
-        this.typeTimers.push(t as unknown as NodeJS.Timeout)
-      }
+    tick()
+    if (pos < chars.length) {
+      const t = setInterval(() => tick(), interval)
+      this.typeTimers.push(t as unknown as NodeJS.Timeout)
     }
   }
 
-  private startAlternation(text: string, timings: CharTiming[] | null): void {
-    const [first, second] = splitByWidth(text, this.options.scrollThreshold)
-    if (!second) {
-      // Text fits in one screen after all — just show it
+  // Software marquee for lines too long to fit a single hardware-scroll packet.
+  // Slides a display-width window across the full text (capped to the packet byte
+  // budget so an over-large scrollThreshold can never overflow), holds briefly at
+  // both ends, then loops. Reuses altTimer so flush/reset/showClock clean it up.
+  private startMarquee(text: string, lineDurationMs = 0): void {
+    const chars = [...text]
+    const width = this.options.scrollThreshold
+    const charWidth = (ch: string): number => ((ch.codePointAt(0) ?? 0) > 0x2e80 ? 2 : 1)
+
+    // Smallest start index whose remaining suffix already fits the window — the
+    // frame at which the line's tail becomes fully visible.
+    let lastStart = chars.length
+    let tailWidth = 0
+    let tailBytes = 0
+    while (lastStart > 0) {
+      const ch = chars[lastStart - 1]
+      const cb = Buffer.byteLength(ch, 'utf8')
+      if (tailWidth + charWidth(ch) > width || tailBytes + cb > TEXT_BYTE_BUDGET) break
+      tailWidth += charWidth(ch)
+      tailBytes += cb
+      lastStart--
+    }
+    if (lastStart <= 0) {
+      // Whole line fits the window after all; show it once.
       this.device.write(buildLayoutPacket('center'))
-      this.device.write(buildTextPacket(first))
+      this.device.write(buildTextPacket(text))
       return
     }
 
-    const interval = Math.max(this.options.alternateInterval, MIN_ALTERNATE_INTERVAL)
-    let showFirst = true
+    const windowAt = (start: number): string => {
+      let w = 0
+      let b = 0
+      let end = start
+      while (end < chars.length) {
+        const cb = Buffer.byteLength(chars[end], 'utf8')
+        if (w + charWidth(chars[end]) > width || b + cb > TEXT_BYTE_BUDGET) break
+        w += charWidth(chars[end])
+        b += cb
+        end++
+      }
+      return chars.slice(start, end).join('')
+    }
+
+    const HOLD = 800 // pause at the first and last frame for readability
+    const step =
+      lineDurationMs > 0 ? Math.max(Math.floor((lineDurationMs - 2 * HOLD) / lastStart), 120) : 300
 
     this.device.write(buildLayoutPacket('center'))
-    this.device.write(buildTextPacket(first))
 
-    this.altTimer = setInterval(() => {
-      showFirst = !showFirst
-      const half = showFirst ? first : second
-      this.device.write(buildTextPacket(half))
-    }, interval) as unknown as NodeJS.Timeout
+    let start = 0
+    const tick = (): void => {
+      if (this.lastText !== text) return // line changed; abandon the chain
+      if (!this.device.write(buildTextPacket(windowAt(start)))) return
+      const atEnd = start >= lastStart
+      const delay = atEnd || start === 0 ? HOLD + step : step
+      start = atEnd ? 0 : start + 1
+      this.altTimer = setTimeout(tick, delay) as unknown as NodeJS.Timeout
+    }
+    tick()
   }
 
-  private startTypewriter(text: string, lineDurationMs = 0): void {
+  // "逐字截断": reveal the first screen-segment character-by-character, hold for
+  // alternateInterval, then reveal the second segment character-by-character,
+  // replacing the first. Ends on the second segment (no looping). When the line
+  // turns out to fit one screen, just show/type it once. Honors the typewriter
+  // option: with it off, each segment is shown instantly instead of typed.
+  private startAlternation(text: string, lineDurationMs = 0): void {
+    const [first, second] = splitByWidth(text, this.options.scrollThreshold)
+    if (!second) {
+      if (this.options.typewriter) {
+        this.startTypewriter(first, lineDurationMs)
+      } else {
+        this.device.write(buildLayoutPacket('center'))
+        this.device.write(buildTextPacket(first))
+      }
+      return
+    }
+
+    const hold = Math.max(this.options.alternateInterval, MIN_ALTERNATE_INTERVAL)
+    // Share the line's time budget between the two segments, reserving the hold gap.
+    const segBudget = lineDurationMs > 0 ? Math.max((lineDurationMs - hold) / 2, 0) : 0
+
+    const showSecond = (): void => {
+      if (this.lastText !== text) return // line already changed
+      if (this.options.typewriter) {
+        this.startTypewriter(second, segBudget)
+      } else {
+        this.device.write(buildLayoutPacket('center'))
+        this.device.write(buildTextPacket(second))
+      }
+    }
+
+    if (this.options.typewriter) {
+      this.startTypewriter(first, segBudget, () => {
+        this.altTimer = setTimeout(showSecond, hold) as unknown as NodeJS.Timeout
+      })
+    } else {
+      this.device.write(buildLayoutPacket('center'))
+      this.device.write(buildTextPacket(first))
+      this.altTimer = setTimeout(showSecond, hold) as unknown as NodeJS.Timeout
+    }
+  }
+
+  private startTypewriter(text: string, lineDurationMs = 0, onDone: (() => void) | null = null): void {
     const chars = [...text]
     let pos = 0
     this.currentTypeText = text
@@ -281,57 +346,59 @@ export class LyricSender {
     }
   }
 
+  // Drive the reveal from a live, wall-clock-anchored playback estimate rather than
+  // pre-scheduling one timeout per char. Each tick recomputes the estimated playback
+  // position (anchor + elapsed wall time * rate + latency compensation) and shows the
+  // chars whose start time has passed. This self-corrects FLUSH_DELAY/IPC lag, never
+  // accumulates timer drift, and re-bases automatically on the next flush after a seek
+  // or rate change. Device writes happen only when the visible count grows.
   private startTypewriterSync(text: string, timings: CharTiming[]): void {
     const chars = [...text]
     if (!chars.length) return
 
-    this.device.write(buildLayoutPacket('center'))
-
     const rate = this.options.playbackRate || 1
-    const progressMs = this.pendingProgress * 1000
+    const anchorPlaybackMs = this.pendingProgressMs
+    const anchorWallMs = this.pendingAnchorWallMs || Date.now()
     const lineStartMs = timings[0].startMs
-    const drift = Math.abs(progressMs - lineStartMs)
 
-    // If progress is wildly off from the timing data (stale progress or seek),
-    // fall back to non-sync typewriter to avoid scheduling all characters at once.
-    if (drift > 5000 || progressMs === 0) {
-      this.startTypewriter(text, 0)
+    // If the anchor is missing or wildly off the timing data (stale progress or a
+    // seek not yet reflected), fall back to plain speed-based typewriter.
+    if (anchorPlaybackMs === 0 || Math.abs(anchorPlaybackMs - lineStartMs) > 5000) {
+      const last = timings[timings.length - 1]
+      this.startTypewriter(text, last.startMs + last.durationMs - lineStartMs)
       return
     }
 
-    let sentCount = 0
+    this.device.write(buildLayoutPacket('center'))
+    this.currentTypeText = text
 
-    // Send characters that should already be visible
-    for (let i = 0; i < chars.length && i < timings.length; i++) {
-      if (timings[i].startMs <= progressMs) {
-        sentCount = i + 1
-      } else {
-        break
+    const limit = Math.min(chars.length, timings.length)
+    let lastCount = 0
+    const render = (): void => {
+      if (this.lastText !== text) return // line changed; abandon the clock
+      const est = anchorPlaybackMs + (Date.now() - anchorWallMs) * rate + this.options.latencyCompMs
+      let count = 0
+      for (let i = 0; i < limit; i++) {
+        if (timings[i].startMs <= est) count = i + 1
+        else break
+      }
+      if (count > lastCount) {
+        lastCount = count
+        if (!this.device.write(buildTextPacket(chars.slice(0, count).join('')))) {
+          this.stopTypewriter()
+          return
+        }
+      }
+      if (count >= chars.length) {
+        this.currentTypeText = null
+        this.stopTypewriter()
       }
     }
-    if (sentCount > 0) {
-      this.device.write(buildTextPacket(chars.slice(0, sentCount).join('')))
-    }
-    if (sentCount >= chars.length) {
-      this.currentTypeText = null
-      return
-    }
 
-    // Schedule remaining characters
-    for (let i = sentCount; i < chars.length && i < timings.length; i++) {
-      const delay = (timings[i].startMs - progressMs) / rate
-      if (delay < 0) {
-        this.device.write(buildTextPacket(chars.slice(0, i + 1).join('')))
-        sentCount = i + 1
-        continue
-      }
-      const isLast = i === chars.length - 1 || i === timings.length - 1
-      const t = setTimeout(() => {
-        if (this.lastText !== text) return
-        this.device.write(buildTextPacket(chars.slice(0, i + 1).join('')))
-        if (isLast) this.currentTypeText = null
-      }, delay)
-      this.typeTimers.push(t)
+    render() // show the already-elapsed prefix immediately
+    if (lastCount < chars.length) {
+      const t = setInterval(render, CLOCK_TICK)
+      this.typeTimers.push(t as unknown as NodeJS.Timeout)
     }
   }
 

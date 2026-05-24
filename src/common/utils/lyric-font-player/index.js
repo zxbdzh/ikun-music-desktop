@@ -19,7 +19,7 @@ export default class Lyric {
     activeLineClassName = 'active',
     shadowContent = false,
     isVertical = false,
-    onPlay = function (line, text) {},
+    onPlay = function (line, text, time) {},
     onSetLyric = function (lines, offset) {},
     onUpdateLyric = function (lines) {},
   }) {
@@ -108,7 +108,7 @@ export default class Lyric {
       font.lineContent.classList.add(this.activeLineClassName)
       font.play(curTime - this._lines[num].time)
     }
-    this.onPlay(num, this._lines[num]?.text ?? '')
+    this.onPlay(num, this._lines[num]?.text ?? '', curTime)
   }
 
   _initLines = (lyricLines, offset, isUpdate) => {

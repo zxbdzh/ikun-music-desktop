@@ -186,6 +186,7 @@ const defaultSetting: LX.AppSetting = {
   'haloPixel.typewriter': false,
   'haloPixel.typewriterSpeed': 100,
   'haloPixel.typewriterSync': true,
+  'haloPixel.latencyCompMs': 100,
   'haloPixel.alternateSplit': true,
   'haloPixel.alternateInterval': 3000,
 }

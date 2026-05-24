@@ -90,10 +90,10 @@ const handleDesktopLyricMessage = (action: LX.DesktopLyric.WinMainActions) => {
 export const init = () => {
   lrc = new Lyric({
     shadowContent: false,
-    onPlay(line, text) {
+    onPlay(line: number, text: string, time: number) {
       setText(text, Math.max(line, 0))
       setStatusText(text)
-      window.app_event.lyricLinePlay(text, line)
+      window.app_event.lyricLinePlay(text, line, time)
     },
     onSetLyric(lines, offset) {
       // listening lyrics seting event

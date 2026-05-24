@@ -67,13 +67,29 @@ const parseLrc = (lrc: string): LrcLine[] => {
   return lines.sort((a, b) => a.timeMs - b.timeMs)
 }
 
+// Rough per-character timing weight for the plain-LRC fallback: spaces and
+// punctuation barely consume time, CJK syllables take a full beat, Latin
+// letters/digits sit in between. Used to spread a line's duration more naturally
+// than a flat even split.
+const charWeight = (c: string): number => {
+  if (/\s/.test(c)) return 0.2
+  if (/[.,!?;:'"()[\]{}\-—…、。，！？；：「」『』“”‘’]/.test(c)) return 0.3
+  return (c.codePointAt(0) ?? 0) > 0x2e80 ? 1.4 : 0.7
+}
+
 const buildFallbackTimings = (line: LrcLine, lineDuration: number, chars: string[]): CharTiming[] => {
-  const dur = Math.max(lineDuration, 500) / chars.length
-  return chars.map((c, i) => ({
-    text: c,
-    startMs: line.timeMs + Math.round(i * dur),
-    durationMs: Math.round(dur),
-  }))
+  const dur = Math.max(lineDuration, 500)
+  const weights = chars.map(charWeight)
+  const total = weights.reduce((a, b) => a + b, 0) || chars.length
+  const timings: CharTiming[] = []
+  let acc = 0
+  for (let i = 0; i < chars.length; i++) {
+    const startMs = line.timeMs + Math.round((acc / total) * dur)
+    acc += weights[i]
+    const endMs = line.timeMs + Math.round((acc / total) * dur)
+    timings.push({ text: chars[i], startMs, durationMs: Math.max(endMs - startMs, 0) })
+  }
+  return timings
 }
 
 // ---- LyricTimer ----

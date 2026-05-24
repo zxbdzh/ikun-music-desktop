@@ -64,6 +64,7 @@ export const initGlobalData = () => {
       playbackRate: 1,
       lyricLineText: '',
       lyricLineAllText: '',
+      lyricLineStartMs: 0,
       lyric: '',
       tlyric: '',
       rlyric: '',

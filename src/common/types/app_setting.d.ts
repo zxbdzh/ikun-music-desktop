@@ -818,6 +818,11 @@ declare global {
       'haloPixel.typewriterSync': boolean
 
       /**
+       * 花再音响:逐字同步延迟补偿(毫秒,正值=提前显示)
+       */
+      'haloPixel.latencyCompMs': number
+
+      /**
        * 花再音响:长行来回切换前后半段
        */
       'haloPixel.alternateSplit': boolean

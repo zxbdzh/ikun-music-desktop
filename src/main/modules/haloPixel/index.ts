@@ -22,6 +22,7 @@ const DISPLAY_KEYS = [
   'haloPixel.typewriterSync',
   'haloPixel.alternateSplit',
   'haloPixel.alternateInterval',
+  'haloPixel.latencyCompMs',
 ] satisfies Array<keyof LX.AppSetting>
 
 const readOptions = (): LyricSenderOptions => ({
@@ -33,6 +34,7 @@ const readOptions = (): LyricSenderOptions => ({
   playbackRate: global.lx.player_status.playbackRate || 1,
   alternateSplit: global.lx.appSetting['haloPixel.alternateSplit'],
   alternateInterval: global.lx.appSetting['haloPixel.alternateInterval'],
+  latencyCompMs: global.lx.appSetting['haloPixel.latencyCompMs'],
 })
 
 const getProgress = (): number => global.lx.player_status.progress || 0
@@ -76,12 +78,18 @@ const resolveText = (rawText: string): string => {
   return matcher.resolve(rawText, global.lx.player_status.lyric ?? '', extLrc ?? '')
 }
 
-const sendResolved = (rawText: string): void => {
+const sendResolved = (rawText: string, anchorMs?: number): void => {
   if (!sender) return
-  sender.updateProgress(getProgress())
+  const progressMs = anchorMs ?? getProgress() * 1000
+  sender.updateProgressMs(progressMs)
   const resolved = resolveText(rawText)
   const { timings, lineDurationMs } = timer.getTimingsWithDuration(rawText)
-  sender.sendLyric(resolved, timings, lineDurationMs)
+  // Per-char timings are indexed against the original text. If translation/roma mode
+  // changed the displayed text, the indices no longer line up, so drop sync timings
+  // and let the sender fall back to even speed-based reveal over the (still valid)
+  // line duration.
+  const syncTimings = resolved === rawText ? timings : null
+  sender.sendLyric(resolved, syncTimings, lineDurationMs, progressMs)
 }
 
 const handlePlayerStatus = (status: Partial<LX.Player.Status>): void => {
@@ -109,7 +117,7 @@ const handlePlayerStatus = (status: Partial<LX.Player.Status>): void => {
         break
     }
   } else if (status.lyricLineText != null) {
-    sendResolved(status.lyricLineText as string)
+    sendResolved(status.lyricLineText as string, status.lyricLineStartMs)
   }
 }
 
