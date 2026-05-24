@@ -801,6 +801,31 @@ declare global {
        * 花再音响:滚动阈值(按显示宽度计)
        */
       'haloPixel.scrollThreshold': number
+
+      /**
+       * 花再音响:逐字显示
+       */
+      'haloPixel.typewriter': boolean
+
+      /**
+       * 花再音响:逐字显示速度(毫秒/字)
+       */
+      'haloPixel.typewriterSpeed': number
+
+      /**
+       * 花再音响:逐字同步歌词时间轴
+       */
+      'haloPixel.typewriterSync': boolean
+
+      /**
+       * 花再音响:长行来回切换前后半段
+       */
+      'haloPixel.alternateSplit': boolean
+
+      /**
+       * 花再音响:来回切换间隔(毫秒)
+       */
+      'haloPixel.alternateInterval': number
     }
   }
 }

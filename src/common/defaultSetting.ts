@@ -183,6 +183,11 @@ const defaultSetting: LX.AppSetting = {
   'haloPixel.lyricMode': 'original',
   'haloPixel.autoScroll': true,
   'haloPixel.scrollThreshold': 30,
+  'haloPixel.typewriter': false,
+  'haloPixel.typewriterSpeed': 100,
+  'haloPixel.typewriterSync': true,
+  'haloPixel.alternateSplit': true,
+  'haloPixel.alternateInterval': 3000,
 }
 
 // 使用新年皮肤

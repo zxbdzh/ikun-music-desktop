@@ -5,6 +5,30 @@ dd
     base-checkbox(id="setting_halo_pixel_enable" :model-value="appSetting['haloPixel.enable']" :label="$t('setting__halo_pixel_enable')" @update:model-value="updateSetting({ 'haloPixel.enable': $event })")
   .gap-top
     base-checkbox(id="setting_halo_pixel_auto_scroll" :model-value="appSetting['haloPixel.autoScroll']" :label="$t('setting__halo_pixel_auto_scroll')" @update:model-value="updateSetting({ 'haloPixel.autoScroll': $event })")
+  .gap-top
+    base-checkbox(id="setting_halo_pixel_alternate_split" :model-value="appSetting['haloPixel.alternateSplit']" :label="$t('setting__halo_pixel_alternate_split')" @update:model-value="updateSetting({ 'haloPixel.alternateSplit': $event })")
+  .gap-top
+    base-checkbox(id="setting_halo_pixel_typewriter" :model-value="appSetting['haloPixel.typewriter']" :label="$t('setting__halo_pixel_typewriter')" @update:model-value="updateSetting({ 'haloPixel.typewriter': $event })")
+  .gap-top(v-if="appSetting['haloPixel.typewriter']")
+    base-checkbox(id="setting_halo_pixel_typewriter_sync" :model-value="appSetting['haloPixel.typewriterSync']" :label="$t('setting__halo_pixel_typewriter_sync')" @update:model-value="updateSetting({ 'haloPixel.typewriterSync': $event })")
+dd(v-if="appSetting['haloPixel.alternateSplit']")
+  h3#halo_pixel_alternate_interval {{ $t('setting__halo_pixel_alternate_interval', { num: appSetting['haloPixel.alternateInterval'] }) }}
+  div
+    .p
+      base-btn.btn(min @click="changeAlternateInterval(-500)") {{ $t('setting__halo_pixel_alternate_interval_faster') }}
+      base-btn.btn(min @click="changeAlternateInterval(500)") {{ $t('setting__halo_pixel_alternate_interval_slower') }}
+dd(v-if="appSetting['haloPixel.typewriter'] && !appSetting['haloPixel.typewriterSync']")
+  h3#halo_pixel_typewriter_speed {{ $t('setting__halo_pixel_typewriter_speed', { num: appSetting['haloPixel.typewriterSpeed'] }) }}
+  div
+    .p
+      base-btn.btn(min @click="changeTypewriterSpeed(-20)") {{ $t('setting__halo_pixel_typewriter_speed_faster') }}
+      base-btn.btn(min @click="changeTypewriterSpeed(20)") {{ $t('setting__halo_pixel_typewriter_speed_slower') }}
+dd
+  h3#halo_pixel_lyric_mode {{ $t('setting__halo_pixel_lyric_mode') }}
+  div
+    base-checkbox.gap-left(id="setting_halo_pixel_lyric_mode_original" :model-value="appSetting['haloPixel.lyricMode']" need value="original" :label="$t('setting__halo_pixel_lyric_mode_original')" @update:model-value="updateSetting({ 'haloPixel.lyricMode': $event })")
+    base-checkbox.gap-left(id="setting_halo_pixel_lyric_mode_translation" :model-value="appSetting['haloPixel.lyricMode']" need value="translation" :label="$t('setting__halo_pixel_lyric_mode_translation')" @update:model-value="updateSetting({ 'haloPixel.lyricMode': $event })")
+    base-checkbox.gap-left(id="setting_halo_pixel_lyric_mode_roma" :model-value="appSetting['haloPixel.lyricMode']" need value="roma" :label="$t('setting__halo_pixel_lyric_mode_roma')" @update:model-value="updateSetting({ 'haloPixel.lyricMode': $event })")
 dd
   h3#halo_pixel_scroll_threshold {{ $t('setting__halo_pixel_scroll_threshold', { num: appSetting['haloPixel.scrollThreshold'] }) }}
   div
@@ -39,6 +63,16 @@ export default {
       updateSetting({ 'haloPixel.scrollThreshold': Math.min(Math.max(val, 4), 100) })
     }
 
+    const changeTypewriterSpeed = (step) => {
+      const val = appSetting['haloPixel.typewriterSpeed'] + step
+      updateSetting({ 'haloPixel.typewriterSpeed': Math.min(Math.max(val, 30), 500) })
+    }
+
+    const changeAlternateInterval = (step) => {
+      const val = appSetting['haloPixel.alternateInterval'] + step
+      updateSetting({ 'haloPixel.alternateInterval': Math.min(Math.max(val, 1000), 10000) })
+    }
+
     onMounted(() => {
       refreshStatus()
       timer = setInterval(refreshStatus, 2000)
@@ -51,6 +85,8 @@ export default {
       appSetting,
       updateSetting,
       changeThreshold,
+      changeTypewriterSpeed,
+      changeAlternateInterval,
       deviceConnected,
     }
   },
