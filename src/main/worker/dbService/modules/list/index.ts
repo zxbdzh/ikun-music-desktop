@@ -186,6 +186,13 @@ export const getListMusics = (listId: string): LX.Music.MusicInfo[] => {
  */
 export const musicOverwrite = (listId: string, musicInfos: LX.Music.MusicInfo[]) => {
   let targetList = getListMusics(listId)
+  // 覆盖前按 id 去重,避免传入重复歌曲触发 (id, listId) 唯一约束冲突
+  const set = new Set<string>()
+  musicInfos = musicInfos.filter((item) => {
+    if (set.has(item.id)) return false
+    set.add(item.id)
+    return true
+  })
   overwriteMusicInfo(listId, toDBMusicInfo(musicInfos, listId))
   if (targetList) {
     targetList.splice(0, targetList.length)
