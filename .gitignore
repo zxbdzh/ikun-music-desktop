@@ -75,3 +75,7 @@ todo.md
 .idea
 .claude
 CLAUDE.md
+
+# 新版 pnpm 本地生成的工作区/构建脚本审批文件;CI 固定 pnpm 9,跟踪它会导致 pnpm store 报错
+pnpm-workspace.yaml
+
