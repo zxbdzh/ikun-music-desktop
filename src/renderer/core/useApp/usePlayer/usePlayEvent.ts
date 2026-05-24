@@ -6,6 +6,9 @@ import { playNext, setMusicUrl } from '@renderer/core/player'
 import { setAllStatus } from '@renderer/store/player/action'
 import { appSetting } from '@renderer/store/setting'
 
+// 浏览器(Chromium)无法解码的本地/WebDAV 音频扩展名,这类文件刷新 URL 无效,直接提示并切歌
+const UNSUPPORTED_EXTS = new Set(['wma', 'ape', 'dsf', 'dff', 'wv', 'tak', 'tta', 'alac'])
+
 export default () => {
   const t = useI18n()
   let retryNum = 0
@@ -86,7 +89,13 @@ export default () => {
     clearLoadingTimeout()
     if (window.lx.isPlayedStop) return
     if (!isEmpty()) setStop()
-    if (playMusicInfo.musicInfo && errCode !== 1 && retryNum < 2) {
+    // 仅当本地/WebDAV 文件扩展名属于浏览器无法解码的编码时,才判定为格式不受支持;
+    // errCode 4 (SRC_NOT_SUPPORTED) 同样会在 WebDAV 鉴权/网络失败返回非音频时触发,不能据此判定格式。
+    const info = playMusicInfo.musicInfo
+    const ext =
+      info && 'source' in info && info.source === 'local' ? info.meta.ext.toLowerCase() : ''
+    const isUnsupported = !!ext && UNSUPPORTED_EXTS.has(ext)
+    if (playMusicInfo.musicInfo && errCode !== 1 && !isUnsupported && retryNum < 2) {
       // 若音频URL无效则尝试刷新2次URL
       // console.log(this.retryNum)
       retryNum++
@@ -100,7 +109,7 @@ export default () => {
         console.warn('error skip to next')
         void playNext(true)
       } else {
-        setAllStatus(t('player__error'))
+        setAllStatus(t(isUnsupported ? 'player__error_unsupported' : 'player__error'))
         setTimeout(addDelayNextTimeout)
       }
     }

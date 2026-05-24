@@ -247,6 +247,7 @@
   "player__desktop_lyric_unlock": "右击解锁歌词",
   "player__end": "播放完毕",
   "player__error": "音频加载出错，5 秒后切换下一首",
+  "player__error_unsupported": "音频格式不受支持，5 秒后切换下一首",
   "player__getting_url": "歌曲链接获取中...",
   "player__getting_url_delay_retry": "服务繁忙，{time} 秒后重试...",
   "player__hide_detail_tip": "隐藏详情页（界面内右键双击可快速隐藏详情页）",

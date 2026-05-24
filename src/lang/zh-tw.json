@@ -225,6 +225,7 @@
   "player__desktop_lyric_unlock": "右擊解鎖歌詞",
   "player__end": "播放完畢",
   "player__error": "音訊載入出錯，5 秒後切換下一首",
+  "player__error_unsupported": "音訊格式不受支援，5 秒後切換下一首",
   "player__getting_url": "歌曲連結獲取中...",
   "player__getting_url_delay_retry": "服務繁忙，{time} 秒後重試...",
   "player__hide_detail_tip": "隱藏詳情頁（介面內右鍵雙擊可快速隱藏詳情頁）",

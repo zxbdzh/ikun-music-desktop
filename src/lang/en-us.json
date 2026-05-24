@@ -247,6 +247,7 @@
   "player__desktop_lyric_unlock": "Right-click to unlock lyric window",
   "player__end": "Stopped",
   "player__error": "Error loading music. Switch to the next song after 5 seconds",
+  "player__error_unsupported": "Audio format not supported. Switch to the next song after 5 seconds",
   "player__getting_url": "Getting music link...",
   "player__getting_url_delay_retry": "The server is busy. Try again in {time} seconds...",
   "player__hide_detail_tip": "Hide detail page\n(Right-click in the app window to quickly hide the detail page)",

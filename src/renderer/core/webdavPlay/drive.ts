@@ -22,8 +22,6 @@ const audioExts = new Set([
   'ogg',
   'oga',
   'opus',
-  'wma',
-  'ape',
 ])
 
 const getExt = (name: string) => {
