@@ -31,6 +31,15 @@ const options = {
     'node_modules/node-gyp-build',
     'node_modules/bufferutil',
     'node_modules/utf-8-validate',
+    // node-hid(花再音响 HID 设备):JS 入口 + 各 Windows 架构预编译二进制,
+    // 以及其运行时加载器 pkg-prebuilds(pnpm 下为传递依赖,必须显式列出)。
+    'node_modules/node-hid/package.json',
+    'node_modules/node-hid/nodehid.js',
+    'node_modules/node-hid/binding-options.js',
+    'node_modules/node-hid/prebuilds/HID-win32-x64/**',
+    'node_modules/node-hid/prebuilds/HID-win32-ia32/**',
+    'node_modules/node-hid/prebuilds/HID-win32-arm64/**',
+    'node_modules/pkg-prebuilds',
     'dist/**/*',
   ],
   asar: {
