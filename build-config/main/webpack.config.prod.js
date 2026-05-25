@@ -9,6 +9,7 @@ module.exports = merge(baseConfig, {
   devtool: false,
   entry: {
     main: path.join(__dirname, '../../src/main/index.ts'),
+    smtcWorker: path.join(__dirname, '../../src/main/modules/haloPixel/smtcWorker.ts'),
   },
   node: { __dirname: false, __filename: false },
   plugins: [

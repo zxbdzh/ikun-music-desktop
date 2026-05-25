@@ -189,6 +189,7 @@ const defaultSetting: LX.AppSetting = {
   'haloPixel.latencyCompMs': 100,
   'haloPixel.alternateSplit': true,
   'haloPixel.alternateInterval': 3000,
+  'haloPixel.smtcMirror': false,
 }
 
 // 使用新年皮肤

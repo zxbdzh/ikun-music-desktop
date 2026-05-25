@@ -454,6 +454,7 @@
   "setting__halo_pixel_latency_comp_inc": "增加",
   "setting__halo_pixel_latency_comp_dec": "减少",
   "setting__halo_pixel_alternate_split": "长歌词来回切换前后半段",
+  "setting__halo_pixel_smtc_mirror": "空闲时镜像系统媒体(浏览器/其他播放器标题)",
   "setting__halo_pixel_alternate_interval": "切换间隔（{num} 毫秒）",
   "setting__halo_pixel_alternate_interval_faster": "加快",
   "setting__halo_pixel_alternate_interval_slower": "减慢",

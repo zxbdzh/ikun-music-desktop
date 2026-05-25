@@ -40,6 +40,13 @@ const options = {
     'node_modules/node-hid/prebuilds/HID-win32-ia32/**',
     'node_modules/node-hid/prebuilds/HID-win32-arm64/**',
     'node_modules/pkg-prebuilds',
+    // windows-smtc-monitor(空闲时镜像系统媒体标题):JS 入口 + 各 Windows 架构 napi
+    // 预编译二进制(独立平台包,optionalDependencies 仅安装当前架构,缺失的架构包静态
+    // 路径匹配不到即跳过,运行时 require 失败时本功能静默降级)。
+    'node_modules/@coooookies/windows-smtc-monitor',
+    'node_modules/@coooookies/windows-smtc-monitor-win32-x64-msvc',
+    'node_modules/@coooookies/windows-smtc-monitor-win32-ia32-msvc',
+    'node_modules/@coooookies/windows-smtc-monitor-win32-arm64-msvc',
     'dist/**/*',
   ],
   asar: {

@@ -4,6 +4,8 @@ dd
   .gap-top
     base-checkbox(id="setting_halo_pixel_enable" :model-value="appSetting['haloPixel.enable']" :label="$t('setting__halo_pixel_enable')" @update:model-value="updateSetting({ 'haloPixel.enable': $event })")
   .gap-top
+    base-checkbox(id="setting_halo_pixel_smtc_mirror" :model-value="appSetting['haloPixel.smtcMirror']" :label="$t('setting__halo_pixel_smtc_mirror')" @update:model-value="updateSetting({ 'haloPixel.smtcMirror': $event })")
+  .gap-top
     base-checkbox(id="setting_halo_pixel_auto_scroll" :model-value="appSetting['haloPixel.autoScroll']" :label="$t('setting__halo_pixel_auto_scroll')" @update:model-value="toggleAutoScroll")
   .gap-top
     base-checkbox(id="setting_halo_pixel_alternate_split" :model-value="appSetting['haloPixel.alternateSplit']" :label="$t('setting__halo_pixel_alternate_split')" @update:model-value="toggleAlternate")

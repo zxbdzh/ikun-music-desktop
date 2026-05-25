@@ -25,35 +25,46 @@ const matchDevice = (info: Device): boolean =>
 
 export class HaloPixelDevice {
   private hid: HIDInstance | null = null
+  // node-hid 的设备枚举是原生同步调用,在 HID 设备多的机器上会阻塞主线程数秒(尤其设备
+  // 未连接时反复枚举)。因此枚举走 devicesAsync(libuv 工作线程),并用该标志保证 3s 重连
+  // 循环与显示路径并发触发时同一时刻只跑一次枚举,避免任务堆叠。
+  private opening = false
 
   get isConnected(): boolean {
     return this.hid != null
   }
 
-  static findDeviceInfo(): Device | null {
+  static async findDeviceInfoAsync(): Promise<Device | null> {
     const mod = getHid()
     if (!mod) return null
     let list: Device[]
     try {
-      list = mod.devices()
+      list = await mod.devicesAsync()
     } catch {
       return null
     }
     return list.find(matchDevice) ?? null
   }
 
-  open(): boolean {
+  // 非阻塞打开:枚举在工作线程完成后再在主线程同步 new HID(path)。new HID 只在确实匹配到
+  // 设备(即设备已连接)时才执行,开销很小,不是卡顿来源;真正昂贵的全量枚举已移出主线程。
+  async openAsync(): Promise<boolean> {
     if (this.hid) return true
+    if (this.opening) return false
     const mod = getHid()
     if (!mod) return false
-    const info = HaloPixelDevice.findDeviceInfo()
-    if (!info?.path) return false
+    this.opening = true
     try {
+      const info = await HaloPixelDevice.findDeviceInfoAsync()
+      if (this.hid) return true // 期间已被其它调用打开
+      if (!info?.path) return false
       this.hid = new mod.HID(info.path)
       return true
     } catch {
       this.hid = null
       return false
+    } finally {
+      this.opening = false
     }
   }
 

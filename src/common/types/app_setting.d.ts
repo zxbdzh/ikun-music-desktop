@@ -831,6 +831,11 @@ declare global {
        * 花再音响:来回切换间隔(毫秒)
        */
       'haloPixel.alternateInterval': number
+
+      /**
+       * 花再音响:空闲时镜像系统媒体(浏览器/其他播放器)标题
+       */
+      'haloPixel.smtcMirror': boolean
     }
   }
 }

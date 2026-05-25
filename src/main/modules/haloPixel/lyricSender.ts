@@ -101,8 +101,12 @@ export class LyricSender {
     }
   }
 
+  // 显示路径绝不能阻塞:已连接才写设备,未连接时只触发一次后台异步重连(openAsync 内有
+  // 重入守卫,与 3s 重连循环并发也只跑一次枚举),本轮显示直接放弃,待连上后的下一次刷新生效。
   private ensureOpen(): boolean {
-    return this.device.isConnected || this.device.open()
+    if (this.device.isConnected) return true
+    void this.device.openAsync()
+    return false
   }
 
   sendLyric(
@@ -399,6 +403,30 @@ export class LyricSender {
     if (lastCount < chars.length) {
       const t = setInterval(render, CLOCK_TICK)
       this.typeTimers.push(t as unknown as NodeJS.Timeout)
+    }
+  }
+
+  // Plain-text display for the SMTC mirror: no typewriter / sync / alternation. The dedup
+  // check comes first so a still-scrolling long title isn't torn down and restarted on every
+  // debounce tick. Long titles reuse startMarquee with duration 0 → continuous looping scroll.
+  showText(text: string | null | undefined): void {
+    const line = (text ?? '').trim()
+    if (!line) return
+    if (!this.showingClock && line === this.lastText) return
+    if (!this.ensureOpen()) return
+    this.clearFlush()
+    this.stopTypewriter()
+    this.stopAlternation()
+    this.pendingLine = null
+    this.pendingTimings = null
+    this.showingClock = false
+    this.lastText = line
+    this.lastAnchorMs = 0
+    if (displayWidth(line) > this.options.scrollThreshold) {
+      this.startMarquee(line, 0)
+    } else {
+      this.device.write(buildLayoutPacket('center'))
+      this.device.write(buildTextPacket(line))
     }
   }
 

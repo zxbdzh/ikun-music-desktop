@@ -454,6 +454,7 @@
   "setting__halo_pixel_latency_comp_inc": "Increase",
   "setting__halo_pixel_latency_comp_dec": "Decrease",
   "setting__halo_pixel_alternate_split": "Alternate long lyrics between first and second half",
+  "setting__halo_pixel_smtc_mirror": "Mirror system media title when idle (browser/other players)",
   "setting__halo_pixel_alternate_interval": "Switch Interval ({num} ms)",
   "setting__halo_pixel_alternate_interval_faster": "Faster",
   "setting__halo_pixel_alternate_interval_slower": "Slower",

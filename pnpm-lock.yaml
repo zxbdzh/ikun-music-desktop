@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@coooookies/windows-smtc-monitor':
+        specifier: ^1.0.12
+        version: 1.0.12
       '@simonwep/pickr':
         specifier: ^1.9.1
         version: 1.9.1
@@ -861,6 +864,28 @@ packages:
 
   '@buttercup/fetch@0.2.1':
     resolution: {integrity: sha512-sCgECOx8wiqY8NN1xN22BqqKzXYIG2AicNLlakOAI4f0WgyLVUbAigMf8CZhBtJxdudTcB1gD5lciqi44jwJvg==}
+
+  '@coooookies/windows-smtc-monitor-win32-arm64-msvc@1.0.12':
+    resolution: {integrity: sha512-vokTNsUJ3UDWJGFboxIFzGjgyUY89cSySDrm0+Oat1ajBDfaJYCcBohN4K67NcjLfb1Auc06zKmmdlApH9ksjQ==}
+    engines: {node: '>=16.0.0'}
+    cpu: [arm64]
+    os: [win32]
+
+  '@coooookies/windows-smtc-monitor-win32-ia32-msvc@1.0.12':
+    resolution: {integrity: sha512-iX25W+blahFGTE66pirN36Eq5DMlSrOUPeHkcAd8hB3YWhpHOK9OHXOhuaCIHUNCrfrb2pWOZfjIgpAJs7jyIQ==}
+    engines: {node: '>=16.0.0'}
+    cpu: [ia32]
+    os: [win32]
+
+  '@coooookies/windows-smtc-monitor-win32-x64-msvc@1.0.12':
+    resolution: {integrity: sha512-Ktj3p8m/emw1GnptAFuOhoD680DPegLUrUaoOuHiT3obQTa5LCd+W93kSLn8N8C+DwrJsPBEIs0Kg7vUCWXDDw==}
+    engines: {node: '>=16.0.0'}
+    cpu: [x64]
+    os: [win32]
+
+  '@coooookies/windows-smtc-monitor@1.0.12':
+    resolution: {integrity: sha512-sIubsDCPsnFmR9T1anMgHBVfNxubXTt7mmv3X+ZJWPecwbWAGo41TI3iCzRChCpuLWpEMG3Zoo8n1m2/Hly+XQ==}
+    engines: {node: '>=16.0.0'}
 
   '@develar/schema-utils@2.6.5':
     resolution: {integrity: sha512-0cp4PsWQ/9avqTVMCtZ+GirikIA36ikvjtHweU4/j8yLtgObI0+JUPhYFScgwlteveGB1rt3Cm8UhN04XayDig==}
@@ -7025,6 +7050,21 @@ snapshots:
   '@buttercup/fetch@0.2.1':
     optionalDependencies:
       node-fetch: 3.3.2
+
+  '@coooookies/windows-smtc-monitor-win32-arm64-msvc@1.0.12':
+    optional: true
+
+  '@coooookies/windows-smtc-monitor-win32-ia32-msvc@1.0.12':
+    optional: true
+
+  '@coooookies/windows-smtc-monitor-win32-x64-msvc@1.0.12':
+    optional: true
+
+  '@coooookies/windows-smtc-monitor@1.0.12':
+    optionalDependencies:
+      '@coooookies/windows-smtc-monitor-win32-arm64-msvc': 1.0.12
+      '@coooookies/windows-smtc-monitor-win32-ia32-msvc': 1.0.12
+      '@coooookies/windows-smtc-monitor-win32-x64-msvc': 1.0.12
 
   '@develar/schema-utils@2.6.5':
     dependencies:

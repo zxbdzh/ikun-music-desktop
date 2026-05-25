@@ -185,6 +185,7 @@
     "webpack-merge": "^6.0.1"
   },
   "dependencies": {
+    "@coooookies/windows-smtc-monitor": "^1.0.12",
     "@simonwep/pickr": "^1.9.1",
     "better-sqlite3": "^12.5.0",
     "comlink": "~4.3.1",

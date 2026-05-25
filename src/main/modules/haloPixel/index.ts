@@ -2,6 +2,7 @@ import { HaloPixelDevice } from './device'
 import { LyricSender, type LyricSenderOptions } from './lyricSender'
 import { LyricMatcher } from './lyricMatcher'
 import { LyricTimer } from './lyricTimer'
+import * as smtcMirror from './smtcMirror'
 import { app } from 'electron'
 
 const RECONNECT_INTERVAL = 3000
@@ -42,7 +43,7 @@ const getProgress = (): number => global.lx.player_status.progress || 0
 const startReconnect = (): void => {
   if (reconnectTimer) return
   reconnectTimer = setInterval(() => {
-    if (enabled && device && !device.isConnected) device.open()
+    if (enabled && device && !device.isConnected) void device.openAsync()
   }, RECONNECT_INTERVAL)
 }
 
@@ -59,8 +60,9 @@ const enable = (): void => {
   sender ??= new LyricSender(device, readOptions())
   sender.setOptions(readOptions())
   sender.reset()
-  device.open()
+  void device.openAsync()
   startReconnect()
+  syncMirror()
 }
 
 const disable = (): void => {
@@ -69,6 +71,39 @@ const disable = (): void => {
   stopReconnect()
   sender?.reset()
   device?.close()
+  syncMirror()
+}
+
+// What to show when this app isn't actively playing: an external SMTC title (if the
+// mirror setting is on and something external is playing), otherwise the clock.
+const renderIdle = (): void => {
+  if (!sender) return
+  if (global.lx.appSetting['haloPixel.smtcMirror']) {
+    const text = smtcMirror.getMirrorText(
+      global.lx.player_status.name,
+      global.lx.player_status.singer,
+    )
+    if (text) {
+      sender.showText(text)
+      return
+    }
+  }
+  sender.showClock()
+}
+
+// SMTC events fire while this app may be playing too; this app's own lyrics always win,
+// so external changes are ignored unless we're idle.
+const onSmtcChange = (): void => {
+  if (!enabled || !sender) return
+  if (global.lx.player_status.status === 'playing') return
+  renderIdle()
+}
+
+// Start/stop the SMTC listener to match the current enable + setting + availability state.
+const syncMirror = (): void => {
+  const on =
+    enabled && global.lx.appSetting['haloPixel.smtcMirror'] && smtcMirror.isAvailable()
+  on ? smtcMirror.start(onSmtcChange) : smtcMirror.stop()
 }
 
 const resolveText = (rawText: string): string => {
@@ -113,7 +148,7 @@ const handlePlayerStatus = (status: Partial<LX.Player.Status>): void => {
       case 'paused':
       case 'stoped':
       case 'error':
-        sender.showClock()
+        renderIdle()
         break
     }
   } else if (status.lyricLineText != null) {
@@ -130,6 +165,10 @@ export default () => {
       global.lx.appSetting['haloPixel.enable'] ? enable() : disable()
     }
     sender?.setOptions(readOptions())
+    if (keys.includes('haloPixel.smtcMirror')) {
+      syncMirror()
+      if (enabled && global.lx.player_status.status !== 'playing') renderIdle()
+    }
     if (enabled && DISPLAY_KEYS.some((k) => keys.includes(k))) {
       sender?.reset()
       sendResolved(global.lx.player_status.lyricLineText)
@@ -139,6 +178,7 @@ export default () => {
   if (global.lx.appSetting['haloPixel.enable']) enable()
 
   app.on('will-quit', () => {
+    smtcMirror.stop()
     sender?.showClock()
     device?.close()
   })
