@@ -1,5 +1,5 @@
 const builder = require('electron-builder')
-const beforePack = require('./build-before-pack').default
+const beforePack = require('./build-before-pack')
 const afterPack = require('./build-after-pack')
 
 /**
@@ -40,13 +40,11 @@ const options = {
     'node_modules/node-hid/prebuilds/HID-win32-ia32/**',
     'node_modules/node-hid/prebuilds/HID-win32-arm64/**',
     'node_modules/pkg-prebuilds',
-    // windows-smtc-monitor(空闲时镜像系统媒体标题):JS 入口 + 各 Windows 架构 napi
-    // 预编译二进制(独立平台包,optionalDependencies 仅安装当前架构,缺失的架构包静态
-    // 路径匹配不到即跳过,运行时 require 失败时本功能静默降级)。
+    // windows-smtc-monitor(空闲时镜像系统媒体标题):主包(JS 入口 + binding.js)。
+    // 平台 napi 预编译二进制(.node)在独立平台包里,pnpm 不会 hoist 到顶层,故由
+    // beforePack 钩子把当前架构的 .node 复制进主包目录,随主包一起进 asar,运行时
+    // binding.js 走 existsSync 本地加载分支;缺失架构(如非本机架构)则静默降级。
     'node_modules/@coooookies/windows-smtc-monitor',
-    'node_modules/@coooookies/windows-smtc-monitor-win32-x64-msvc',
-    'node_modules/@coooookies/windows-smtc-monitor-win32-ia32-msvc',
-    'node_modules/@coooookies/windows-smtc-monitor-win32-arm64-msvc',
     'dist/**/*',
   ],
   asar: {
