@@ -45,7 +45,7 @@ declare namespace LX {
     [key: string]: boolean | number | string
   }
 
-  type OnlineSource = 'kw' | 'kg' | 'tx' | 'wy' | 'mg' | 'git'
+  type OnlineSource = 'kw' | 'kg' | 'tx' | 'wy' | 'mg' | 'git' | 'bilibili'
   type Source = OnlineSource | 'local'
   type Quality = '128k' | '320k' | 'flac' | 'hires' | 'atmos' | 'atmos_plus' | 'master' | '192k'
 

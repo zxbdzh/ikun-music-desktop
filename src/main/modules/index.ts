@@ -6,6 +6,7 @@ import registerAppMenu from './appMenu'
 import registerWinLyric from './winLyric'
 import registerCommonRenderers from './commonRenderers'
 import registerWebdavStream from './webdavStream'
+import registerBilibiliHeaders from './bilibiliHeaders'
 import registerHaloPixel from './haloPixel'
 
 let isRegistered = false
@@ -19,6 +20,7 @@ export default () => {
   registerAppMenu()
   registerWinLyric()
   registerWebdavStream()
+  registerBilibiliHeaders()
   registerHaloPixel()
   isRegistered = true
 }

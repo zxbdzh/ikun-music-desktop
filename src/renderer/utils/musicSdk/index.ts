@@ -4,6 +4,7 @@ import tx from './tx/index'
 import wy from './wy/index'
 import mg from './mg/index'
 import git from './git/index'
+import bilibili from './bilibili/index'
 import { supportQuality } from './api-source'
 
 interface SourceEntry {
@@ -60,6 +61,10 @@ const sources: Record<string, any> & { sources: SourceEntry[] } = {
       name: 'Gitcode',
       id: 'git',
     },
+    {
+      name: '哔哩哔哩',
+      id: 'bilibili',
+    },
   ],
   kw,
   kg,
@@ -67,6 +72,7 @@ const sources: Record<string, any> & { sources: SourceEntry[] } = {
   wy,
   mg,
   git,
+  bilibili,
 }
 const musicSdk: Record<string, any> & { sources: SourceEntry[]; init: () => Promise<any[]>; supportQuality: typeof supportQuality; searchMusic: (params: SearchMusicParams) => Promise<any[]>; findMusic: (params: FindMusicParams) => Promise<any[]> } = {
   ...sources,
@@ -84,7 +90,8 @@ const musicSdk: Record<string, any> & { sources: SourceEntry[]; init: () => Prom
     const trimStr = (str: any): any => (typeof str == 'string' ? str.trim() : str)
     const musicName = trimStr(name)
     const tasks: Promise<any>[] = []
-    const excludeSource = ['xm']
+    // bilibili 为视频源，排除出聚合搜索/换源匹配，避免按歌名误配到无关视频
+    const excludeSource = ['xm', 'bilibili']
     for (const source of sources.sources) {
       if (!sources[source.id].musicSearch || source.id == s || excludeSource.includes(source.id))
         continue

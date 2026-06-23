@@ -121,6 +121,15 @@ const createTask = async (
     path: savePath,
     fileName: downloadInfo.metadata.fileName,
     method: 'get',
+    // B 站音频 CDN 校验 referer/UA,否则 403。下载走 node http,不经主窗口会话,需在此注入。
+    headers:
+      downloadInfo.metadata.musicInfo.source === 'bilibili'
+        ? {
+            Referer: 'https://www.bilibili.com',
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.90 Safari/537.36 Edg/89.0.774.63',
+          }
+        : undefined,
     proxy,
     onCompleted() {
       // if (downloadInfo.progress.progress != '100.00') {

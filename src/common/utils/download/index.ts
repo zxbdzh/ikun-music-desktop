@@ -36,6 +36,7 @@ export const createDownload = ({
   path,
   fileName,
   method = 'get',
+  headers,
   forceResume,
   proxy,
   // resumeTime = 5000,
@@ -52,6 +53,7 @@ export const createDownload = ({
       headers: {
         'User-Agent':
           'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/69.0.3497.100 Safari/537.36',
+        ...headers,
       },
       agent: getRequestAgent(url, proxy),
       timeout: 60 * 1000,
