@@ -68,6 +68,39 @@ dd
     )
 
 dd
+  h3#play_external_media_ducking {{ $t('setting__play_external_media_ducking_title') }}
+  .gap-top
+    base-checkbox(
+      id="setting_player_external_media_ducking_enabled"
+      :model-value="appSetting['player.externalMediaDuckingEnabled']"
+      :label="$t('setting__play_external_media_ducking_enabled')"
+      @update:model-value="updateSetting({ 'player.externalMediaDuckingEnabled': $event })"
+    )
+  template(v-if="appSetting['player.externalMediaDuckingEnabled']")
+    .gap-top
+      .setting-item-row
+        span.setting-item-label {{ $t('setting__play_external_media_ducking_volume') }}
+        span.setting-item-value {{ externalMediaDuckingVolumeDisplay }}
+      base-slider-bar(
+        :value="appSetting['player.externalMediaDuckingVolume']"
+        :min="0"
+        :max="100"
+        :step="5"
+        @change="updateSetting({ 'player.externalMediaDuckingVolume': $event })"
+      )
+    .gap-top
+      .setting-item-row
+        span.setting-item-label {{ $t('setting__play_external_media_ducking_duration') }}
+        span.setting-item-value {{ externalMediaDuckingDurationDisplay }}
+      base-slider-bar(
+        :value="appSetting['player.externalMediaDuckingDuration']"
+        :min="200"
+        :max="3000"
+        :step="100"
+        @change="updateSetting({ 'player.externalMediaDuckingDuration': $event })"
+      )
+
+dd
   h3#play_seamless_pause {{ $t('setting__play_seamless_pause_title') }}
   .gap-top
     base-checkbox(
@@ -189,6 +222,14 @@ export default {
       return t('setting__play_seamless_pause_duration_current', { duration: appSetting['player.seamlessPauseDuration'] })
     })
 
+    const externalMediaDuckingVolumeDisplay = computed(() => {
+      return t('setting__play_external_media_ducking_volume_current', { volume: appSetting['player.externalMediaDuckingVolume'] })
+    })
+
+    const externalMediaDuckingDurationDisplay = computed(() => {
+      return t('setting__play_external_media_ducking_duration_current', { duration: appSetting['player.externalMediaDuckingDuration'] })
+    })
+
     return {
       appSetting,
       updateSetting,
@@ -202,6 +243,8 @@ export default {
       isMac,
       transitionDurationDisplay,
       seamlessPauseDurationDisplay,
+      externalMediaDuckingVolumeDisplay,
+      externalMediaDuckingDurationDisplay,
     }
   },
 }

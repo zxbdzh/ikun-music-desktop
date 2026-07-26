@@ -338,6 +338,21 @@ declare global {
       'player.transitionDuration': number
 
       /**
+       * 外部媒体播放时自动降低音量
+       */
+      'player.externalMediaDuckingEnabled': boolean
+
+      /**
+       * 外部媒体播放时保留的音量百分比
+       */
+      'player.externalMediaDuckingVolume': number
+
+      /**
+       * 外部媒体音量避让的渐变时长（毫秒）
+       */
+      'player.externalMediaDuckingDuration': number
+
+      /**
        * 是否启用无缝暂停
        */
       'player.seamlessPauseEnabled': boolean

@@ -3,6 +3,9 @@ interface HTMLAudioElementChrome extends HTMLAudioElement {
 }
 let audio: HTMLAudioElementChrome | null = null
 let audio2: HTMLAudioElementChrome | null = null
+let baseVolume = 1
+let duckingGain = 1
+let duckingAnimationFrame: number | null = null
 let audioContext: AudioContext
 let mediaSource: MediaElementAudioSourceNode
 let analyser: AnalyserNode
@@ -209,6 +212,7 @@ export const createAudio = () => {
   audio2.autoplay = true
   audio2.preload = 'auto'
   audio2.crossOrigin = 'anonymous'
+  applyEffectiveVolume()
 }
 
 const initAnalyser = () => {
@@ -626,8 +630,47 @@ export const setMediaDeviceId = async (mediaDeviceId: string): Promise<void> => 
 }
 
 export const setVolume = (volume: number) => {
-  if (audio) audio.volume = volume
-  if (audio2) audio2.volume = volume
+  baseVolume = Math.min(Math.max(volume, 0), 1)
+  applyEffectiveVolume()
+}
+
+const applyEffectiveVolume = (): void => {
+  const effectiveVolume = baseVolume * duckingGain
+  if (audio) audio.volume = effectiveVolume
+  if (audio2) audio2.volume = effectiveVolume
+}
+
+/**
+ * Applies a temporary output gain without changing the persisted player volume.
+ * This composes with the user volume while leaving crossfade and mute state untouched, so both
+ * audio elements keep the same effective level during seamless transitions.
+ */
+export const setDuckingGain = (gain: number, durationMs = 0): void => {
+  const targetGain = Math.min(Math.max(gain, 0), 1)
+  if (duckingAnimationFrame != null) {
+    cancelAnimationFrame(duckingAnimationFrame)
+    duckingAnimationFrame = null
+  }
+  // 兜底：若页面已被宿主隐藏，动画帧可能被完全暂停。直接更新目标音量，
+  // 确保后台外部媒体开始或停止时，避让状态不会丢失。
+  if (document.hidden || durationMs <= 0 || duckingGain === targetGain) {
+    duckingGain = targetGain
+    applyEffectiveVolume()
+    return
+  }
+
+  const startGain = duckingGain
+  const startedAt = performance.now()
+  const animate = (now: number) => {
+    const progress = Math.min((now - startedAt) / durationMs, 1)
+    // Smoothstep avoids an audible step at either end of the transition.
+    const easedProgress = progress * progress * (3 - 2 * progress)
+    duckingGain = startGain + (targetGain - startGain) * easedProgress
+    applyEffectiveVolume()
+    if (progress < 1) duckingAnimationFrame = requestAnimationFrame(animate)
+    else duckingAnimationFrame = null
+  }
+  duckingAnimationFrame = requestAnimationFrame(animate)
 }
 
 export const getDuration = () => {
@@ -715,7 +758,7 @@ export const stopSecondary = () => {
 
 export const setVolumeSecondary = (vol: number) => {
   const a = getInactiveAudio()
-  if (a) a.volume = vol
+  if (a) a.volume = Math.min(Math.max(vol, 0), 1) * duckingGain
 }
 
 export const setCrossfadeGain1 = (val: number) => {

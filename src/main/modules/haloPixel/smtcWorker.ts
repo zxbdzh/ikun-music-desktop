@@ -9,6 +9,7 @@ const PLAYBACK_PLAYING = 4
 const DEBOUNCE_MS = 200
 
 interface PlayingSession {
+  sourceAppId: string
   title: string
   artist: string
   lastUpdatedTime: number
@@ -46,10 +47,9 @@ const collect = (): void => {
   const result: PlayingSession[] = []
   for (const info of sessions) {
     if (info.playback.playbackStatus !== PLAYBACK_PLAYING) continue
-    const title = (info.media.title ?? '').trim()
-    if (!title) continue
     result.push({
-      title,
+      sourceAppId: info.sourceAppId,
+      title: (info.media.title ?? '').trim(),
       artist: (info.media.artist ?? '').trim(),
       lastUpdatedTime: info.lastUpdatedTime,
     })

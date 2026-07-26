@@ -1,13 +1,8 @@
 import { utilityProcess, type UtilityProcess } from 'electron'
 import path from 'node:path'
 
-// 主进程侧的 SMTC 镜像封装。真正的原生监听跑在 utilityProcess 子进程(smtcWorker.js)里——
-// 因为 new SMTCMonitor() 的同步 WinRT 调用在主进程 COM STA 线程上会死锁(整个应用卡死)。
-// 这里只负责:fork/kill 子进程、缓存子进程回传的「正在播放」会话快照,并在 getMirrorText 中
-// 纯内存读取该缓存(绝不触碰原生模块,故主线程永不阻塞)。
-// 非 Windows / fork 失败 / 子进程报告加载失败 → isAvailable()=false,全部 no-op,回退显示时钟。
-
 interface PlayingSession {
+  sourceAppId: string
   title: string
   artist: string
   lastUpdatedTime: number
@@ -25,64 +20,102 @@ type WorkerMessage = SessionsMessage | ErrorMessage
 
 let child: UtilityProcess | null = null
 let sessions: PlayingSession[] = []
-let changeCb: (() => void) | null = null
+const subscribers = new Set<() => void>()
+let legacyUnsubscribe: (() => void) | null = null
 let loadFailed = false
+let isStopping = false
 
 export const isAvailable = (): boolean => process.platform === 'win32' && !loadFailed
 
-export const start = (onChange: () => void): void => {
-  changeCb = onChange
-  if (child) return // 已在监听,仅更新回调即可(幂等)
-  if (!isAvailable()) return
+const notify = (): void => {
+  for (const listener of subscribers) listener()
+}
+
+const stopWorker = (): void => {
+  sessions = []
+  const worker = child
+  if (!worker) return
+  child = null
+  isStopping = true
+  try {
+    worker.postMessage('dispose')
+  } catch {}
+  try {
+    worker.kill()
+  } catch {}
+}
+
+const startWorker = (): void => {
+  if (child || !isAvailable()) return
   const scriptPath = path.join(__dirname, 'smtcWorker.js')
   try {
-    child = utilityProcess.fork(scriptPath, [], { serviceName: 'smtc-monitor' })
+    const worker = utilityProcess.fork(scriptPath, [], { serviceName: 'smtc-monitor' })
+    child = worker
+    worker.on('message', (msg: WorkerMessage) => {
+      if (!msg) return
+      if (msg.type === 'sessions') {
+        sessions = msg.sessions ?? []
+        notify()
+      } else if (msg.type === 'error') {
+        console.warn('[haloPixel] SMTC worker unavailable:', msg.message)
+        loadFailed = true
+        sessions = []
+        stopWorker()
+        notify()
+      }
+    })
+    worker.on('exit', () => {
+      if (child === worker) child = null
+      if (isStopping) {
+        isStopping = false
+        return
+      }
+      loadFailed = true
+      sessions = []
+      notify()
+    })
   } catch (err) {
-    console.warn('[haloPixel] SMTC utilityProcess fork 失败:', err)
+    console.warn('[haloPixel] SMTC utilityProcess fork failed:', err)
     child = null
     loadFailed = true
+    notify()
     return
   }
-  child.on('message', (msg: WorkerMessage) => {
-    if (!msg) return
-    if (msg.type === 'sessions') {
-      sessions = msg.sessions ?? []
-      changeCb?.()
-    } else if (msg.type === 'error') {
-      console.warn('[haloPixel] SMTC 子进程不可用:', msg.message)
-      loadFailed = true
-      stop()
-    }
-  })
-  child.on('exit', () => {
-    child = null
-  })
+}
+
+/**
+ * Subscribe to cached Windows SMTC playing sessions. Every subscriber shares one worker.
+ */
+export const subscribe = (onChange: () => void): (() => void) => {
+  subscribers.add(onChange)
+  startWorker()
+  return () => {
+    subscribers.delete(onChange)
+    if (!subscribers.size) stopWorker()
+  }
+}
+
+// Compatibility facade for HaloPixel's existing lifecycle.
+export const start = (onChange: () => void): void => {
+  legacyUnsubscribe?.()
+  legacyUnsubscribe = subscribe(onChange)
 }
 
 export const stop = (): void => {
-  sessions = []
-  changeCb = null
-  if (!child) return
-  try {
-    child.postMessage('dispose')
-  } catch {}
-  try {
-    child.kill()
-  } catch {}
-  child = null
+  legacyUnsubscribe?.()
+  legacyUnsubscribe = null
 }
 
-// 从缓存的外部会话里取「正在播放」且非本软件的最新一条,返回「标题 - 艺术家」。
-// 本软件判定:标题与艺术家同时等于传入的 player_status(代码库未设 AppUserModelId,无法靠
-// sourceAppId 精确识别自身,以标题+艺术家兜底)。
+export const getPlayingSessions = (): readonly PlayingSession[] => sessions
+
 export const getMirrorText = (excludeName: string, excludeSinger: string): string => {
   const exName = excludeName.trim()
   const exSinger = excludeSinger.trim()
   let best: PlayingSession | null = null
-  for (const s of sessions) {
-    if (!s.title) continue
-    if (s.title === exName && s.artist === exSinger) continue
-    if (!best || s.lastUpdatedTime > best.lastUpdatedTime) best = s
+  for (const session of sessions) {
+    if (!session.title) continue
+    if (session.title === exName && session.artist === exSinger) continue
+    if (!best || session.lastUpdatedTime > best.lastUpdatedTime) best = session
   }
   if (!best) return ''
   return best.artist ? `${best.title} - ${best.artist}` : best.title

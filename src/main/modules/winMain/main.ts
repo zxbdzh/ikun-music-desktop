@@ -93,6 +93,8 @@ export const createWindow = () => {
       webSecurity: false,
       nodeIntegration: true,
       sandbox: false,
+      // 音量避让依赖渲染进程的音频渐变；窗口失焦、隐藏或最小化后仍需继续执行。
+      backgroundThrottling: false,
       enableWebSQL: false,
       webgl: false,
       spellcheck: false, // 禁用拼写检查器

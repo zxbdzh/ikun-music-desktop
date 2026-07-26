@@ -62,6 +62,7 @@ const modules = {
     set_power_save_blocker: 'set_power_save_blocker',
 
     player_status: 'player_status',
+    external_media_playing: 'external_media_playing',
     change_tray: 'change_tray',
     quit_update: 'quit_update',
     update_check: 'update_check',
