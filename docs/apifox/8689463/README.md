@@ -34,7 +34,7 @@ apifox mock get <mockId> --project 8689463 --branch main
 
 `test-cases/` 保存 22 条单接口用例的完整 payload：18 条成功路径，以及 `/auth/me` 无 Bearer、`/sync/pull` 无 Bearer、`/proxy` 缺少 URL、iTunes 限流共 4 条安全或边界路径。
 
-`mock-server.mjs` 只读取本目录的固定 Mock payload，并监听 `127.0.0.1:48765`。`environment-cli-mock.json` 将 Apifox 的 `default`、`core`、`edge` 三个服务映射到该服务器；项目中的对应环境名为“AurioClub CLI 隔离 Mock”。隔离限流使用 `term=__rate_limit__`，不会依赖或消耗生产 iTunes 配额。
+`mock-server.mjs` 只读取本目录的固定 Mock payload，并监听 `127.0.0.1:48765`。`environment-cli-mock.json` 将 Apifox 的 `default`、`core`、`edge` 三个服务映射到该服务器；项目中的对应环境名为“AurioClub CLI 隔离 Mock”。隔离限流使用 `term=__rate_limit__`，不会依赖或消耗生产 iTunes 配额。CI 可通过 `AURIO_MOCK_AUDIT_FILE` 记录实际命中的方法、路径、状态、Host 和来源地址；审计文件不记录查询参数、请求头或请求体，并且只允许在不存在的新文件上创建。
 
 ```powershell
 node docs/apifox/8689463/mock-server.mjs
@@ -64,14 +64,21 @@ apifox test-scenario run <scenarioId> --project 8689463 --environment <environme
 
 `test-suites/full-contract-regression.create.json` 使用前端兼容的 `STATIC_TEST_SCENARIO` 结构引用全接口场景。远端“AurioClub 隔离契约回归套件”包含 1 个非空套件项；2026-08-12 上传的云报告 `25268012` 状态为 `done`，22/22 步骤通过。本地报告额外确认 22/22 请求、60/60 断言、0 失败和 0 个非本机目标。
 
-`scripts/apifox/run-aurio-contract-regression.mjs` 负责启动隔离 Mock、运行套件、校验固定统计、拒绝非本机请求，并在 `finally` 中停止子进程和删除含凭据快照的临时报告。可通过以下入口运行：
+`scripts/apifox/run-aurio-contract-regression.mjs` 负责启动隔离 Mock、运行套件，并以三类证据共同判定结果：JSON 执行明细必须有 22 个实际执行且 60 条断言均显式通过、JUnit 必须包含 22 个套件和 60 个无失败断言、Mock JSONL 必须精确命中预期的 22 组方法/路径/状态。运行拒绝 HTTP 重定向，并在静态定义和执行明细中拒绝脚本额外请求；任一证据缺失都会失败。编排器在 `finally` 与 `SIGINT`/`SIGTERM` 路径中停止 Mock 和 Apifox 子进程，并删除含凭据快照的临时报告。
+
+门禁固定使用 Apifox CLI `2.2.9`。该版本的 JSON reporter 默认省略执行明细，编排器使用 CLI 已实现但未展示在帮助页的详细报告开关，并在明细缺失时关闭失败；升级 CLI 前必须先运行验证器单测和本地端到端回归。
+
+可通过以下入口运行：
 
 ```powershell
 npm run test:apifox
+npm run test:apifox:unit
 $env:APIFOX_ACCESS_TOKEN = '<repository-secret>'
 npm run test:apifox -- --upload-report
 ```
 
-`.github/workflows/aurio-contract-regression.yml` 在 `main` 的治理资产发生变化时、手动触发时，以及每天 `02:30 UTC` 定时运行同一编排器。工作流要求仓库 Secret `APIFOX_ACCESS_TOKEN`；当前远端尚未配置该 Secret，因此工作流在首次远端运行前仍有一个外部配置步骤。
+GitHub Actions 使用两个含义独立的工作流。`.github/workflows/aurio-contract-verifier.yml` 对每个指向 `main` 的 PR 运行 PR 代码中的无 Secret 验证器单测，并关闭 checkout 凭据持久化；该检查不使用 `paths` 过滤，因此可稳定配置为 Required Check。`.github/workflows/aurio-contract-regression.yml` 只在 `main` 治理资产变更、手动触发和每天 `02:30 UTC` 定时任务中使用 Secret 运行实时契约；不使用 `pull_request_target`，避免不受信任的 Fork PR 消耗 Apifox 调用或云报告配额。实时工作流先运行验证器单测，再直接 `exec node`，让取消信号到达编排器。
+
+当前远端尚未配置 `APIFOX_ACCESS_TOKEN`，因此实时工作流在首次运行前仍有一个外部配置步骤。PR 阶段只能强制执行无 Secret 单测；完整实时契约对 PR 代码的最终验证发生在合并后的 `main` push，除非未来引入不需要长期 Secret 的隔离 Runner 或短期凭据代理。
 
 项目当前没有 Apifox Runner。Apifox 云端定时任务无法启动本仓库的 Mock，也无法访问 `127.0.0.1:48765`，因此未创建一个必然失败的 Apifox 定时任务；定时门禁由能在作业内启动 Mock 的 GitHub Actions 承担。

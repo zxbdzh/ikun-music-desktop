@@ -1,15 +1,26 @@
 import { createServer } from 'node:http'
-import { readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { appendFileSync, readFileSync, writeFileSync } from 'node:fs'
+import { dirname, isAbsolute, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const rootDir = dirname(fileURLToPath(import.meta.url))
 const host = process.env.AURIO_MOCK_HOST || '127.0.0.1'
 const port = Number.parseInt(process.env.AURIO_MOCK_PORT || '48765', 10)
+const auditFile = process.env.AURIO_MOCK_AUDIT_FILE || ''
+
+if (host !== '127.0.0.1') {
+  throw new Error('AURIO_MOCK_HOST must remain 127.0.0.1.')
+}
 
 if (!Number.isInteger(port) || port < 1 || port > 65535) {
   throw new Error(`Invalid AURIO_MOCK_PORT: ${process.env.AURIO_MOCK_PORT}`)
 }
+
+if (auditFile && !isAbsolute(auditFile)) {
+  throw new Error('AURIO_MOCK_AUDIT_FILE must be an absolute path.')
+}
+
+if (auditFile) writeFileSync(auditFile, '', { encoding: 'utf8', mode: 0o600, flag: 'wx' })
 
 const routeFiles = new Map([
   ['GET /auth/me', 'auth-me-success.json'],
@@ -83,6 +94,18 @@ const server = createServer((request, response) => {
   const url = new URL(request.url, `http://${request.headers.host || host}`)
   const pathname = normalizePath(url.pathname)
   const route = `${request.method} ${pathname}`
+
+  if (auditFile) {
+    response.once('finish', () => {
+      appendFileSync(auditFile, `${JSON.stringify({
+        method: request.method,
+        path: url.pathname,
+        status: response.statusCode,
+        host: request.headers.host || '',
+        remoteAddress: request.socket.remoteAddress || ''
+      })}\n`, 'utf8')
+    })
+  }
 
   if (route === 'GET /auth/me' && !hasBearer(request)) {
     sendJson(response, 401, {
