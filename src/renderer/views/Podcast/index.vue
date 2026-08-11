@@ -317,8 +317,12 @@
         <button type="button" :disabled="loadingLibrary" @click="loadLibrary">刷新</button>
       </header>
       <p v-if="error" :class="$style.error" role="alert">{{ error }}</p>
-      <div :class="$style.libraryList">
-        <article v-for="(item, index) in libraryItems" :key="item.episode.id" :class="$style.libraryItem">
+      <div id="podcast-library-list" :class="$style.libraryList">
+        <article
+          v-for="(item, index) in visibleLibraryItems"
+          :key="item.episode.id"
+          :class="$style.libraryItem"
+        >
           <PodcastArtwork
             :src="item.episode.artworkUrl || item.source.artworkUrl"
             :alt="`${item.episode.title} 封面`"
@@ -345,6 +349,15 @@
             <button type="button" @click="playLibraryEpisode(index)">播放</button>
           </div>
         </article>
+        <button
+          v-if="hasMoreLibraryItems"
+          type="button"
+          :class="$style.loadMore"
+          aria-controls="podcast-library-list"
+          @click="loadMoreLibrary"
+        >
+          加载更多（剩余 {{ libraryItems.length - visibleLibraryItems.length }} 集）
+        </button>
       </div>
       <p v-if="!loadingLibrary && !libraryItems.length" :class="$style.empty">
         {{ activeView === 'favorites' ? '还没有收藏单集' : '还没有播放记录' }}
@@ -734,6 +747,7 @@ import {
   transcriptionWarning,
 } from './transcriptionStatus'
 import { syncStatusPresentation } from './syncStatus'
+import { nextVisibleItemCount, visibleListItems } from './progressiveList'
 import PodcastArtwork from './PodcastArtwork.vue'
 
 const toMusicInfo = (episode: LX.Podcast.Episode, source: LX.Podcast.Source): LX.Music.MusicInfoPodcast => ({
@@ -810,6 +824,13 @@ export default {
     const popularSources = ref<LX.Podcast.PopularSource[]>([])
     const loadingPopular = ref(false)
     const libraryItems = ref<LX.Podcast.LibraryItem[]>([])
+    const visibleLibraryCount = ref(EPISODE_PAGE_SIZE)
+    const visibleLibraryItems = computed(() =>
+      visibleListItems(libraryItems.value, visibleLibraryCount.value)
+    )
+    const hasMoreLibraryItems = computed(() =>
+      visibleLibraryCount.value < libraryItems.value.length
+    )
     const loadingLibrary = ref(false)
     const subscriptionGroups = ref<LX.Podcast.SubscriptionGroup[]>([])
     const newGroupName = ref('')
@@ -1210,6 +1231,7 @@ export default {
           action: 'library',
           kind: activeView.value,
         })
+        visibleLibraryCount.value = EPISODE_PAGE_SIZE
       } catch (value) {
         error.value = value instanceof Error ? value.message : String(value)
       } finally {
@@ -1219,6 +1241,13 @@ export default {
     const changeView = (view: PodcastView) => {
       activeView.value = view
       if (view !== 'discover') void loadLibrary()
+    }
+    const loadMoreLibrary = () => {
+      visibleLibraryCount.value = nextVisibleItemCount(
+        visibleLibraryCount.value,
+        libraryItems.value.length,
+        EPISODE_PAGE_SIZE
+      )
     }
     const toggleFavorite = async (
       episode: LX.Podcast.Episode,
@@ -1677,6 +1706,8 @@ export default {
       popularSources,
       loadingPopular,
       libraryItems,
+      visibleLibraryItems,
+      hasMoreLibraryItems,
       loadingLibrary,
       subscriptionGroups,
       newGroupName,
@@ -1737,6 +1768,7 @@ export default {
       popularKey,
       popularRank,
       loadLibrary,
+      loadMoreLibrary,
       changeView,
       openPopular,
       popularMetric,
@@ -1868,7 +1900,7 @@ export default {
 .episode h3 { margin: 0; font-size: 14px; letter-spacing: 0; }
 .episode p { margin: 5px 0 0; opacity: .62; font-size: 11px; }
 .episodeActionError { display: block; margin-top: 7px; color: #d84a4a; font-size: 12px; }
-.loadMore { display: block; margin: 14px auto 2px; }
+.loadMore { display: block; min-height: 44px; margin: 14px auto 2px; }
 .transcriptionStatus { display: grid; gap: 3px; min-height: 16px; margin-top: 7px; font-family: Consolas, "Microsoft YaHei UI", sans-serif; font-size: 11px; opacity: .82; }
 .transcriptionHeadline { display: flex; align-items: center; gap: 9px; min-width: 0; }
 .transcriptionHeadline strong { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 11px; font-weight: 600; }
