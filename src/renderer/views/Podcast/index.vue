@@ -32,7 +32,7 @@
             <button type="button" :disabled="loadingPopular" @click="loadPopular">刷新</button>
           </div>
           <div :class="$style.popularFilters">
-            <select v-model.number="popularPeriod" aria-label="热门统计周期" @change="loadPopular">
+            <select :value="popularPeriod" aria-label="热门统计周期" @change="changePopularPeriod">
               <option :value="1">24 小时</option>
               <option :value="7">7 天</option>
               <option :value="30">30 天</option>
@@ -43,13 +43,91 @@
             </select>
           </div>
           <ol v-if="popularSources.length" :class="$style.popularList">
-            <li v-for="(item, index) in popularSources" :key="`${item.source}:${index}`">
-              <span>{{ index + 1 }}</span>
+            <li v-for="(item, index) in popularSources" :key="popularKey(item, index)">
+              <span>{{ popularRank(index) }}</span>
               <button type="button" @click="openPopular(item)">{{ item.source }}</button>
               <small>{{ popularMetric(item) }}</small>
             </li>
           </ol>
           <small v-else-if="!loadingPopular">暂无热门数据</small>
+        </section>
+        <section :class="$style.groupManager" aria-labelledby="groups-title">
+          <div :class="$style.sectionTitle">
+            <strong id="groups-title">订阅分组</strong>
+            <span :class="$style.groupTools">
+              <button type="button" :disabled="groupBusy" @click="importOpml">导入 OPML</button>
+              <button
+                type="button"
+                :disabled="groupBusy || !hasSubscriptions"
+                @click="exportOpml"
+              >
+                导出
+              </button>
+            </span>
+          </div>
+          <form :class="$style.groupCreate" @submit.prevent="createGroup">
+            <input v-model="newGroupName" aria-label="新分组名称" placeholder="新建分组" />
+            <button type="submit" :disabled="groupBusy || !newGroupName.trim()">添加</button>
+          </form>
+          <p v-if="groupMessage" :class="{ [$style.error]: groupError }" role="status">
+            {{ groupMessage }}
+          </p>
+          <div v-for="group in subscriptionGroups" :key="group.id" :class="$style.groupBlock">
+            <div :class="$style.groupHeading">
+              <button
+                type="button"
+                :title="group.isExpanded ? '收起分组' : '展开分组'"
+                :aria-expanded="group.isExpanded"
+                @click="toggleGroup(group)"
+              >
+                {{ group.isExpanded ? '−' : '+' }}
+              </button>
+              <input
+                :value="group.name"
+                :aria-label="`${group.name} 分组名称`"
+                @change="renameGroup(group, $event)"
+              />
+              <small>{{ groupSources(group.id).length }}</small>
+              <button
+                type="button"
+                title="上移分组"
+                :disabled="isFirstGroup(group)"
+                @click="reorderGroup(group.id, -1)"
+              >
+                ↑
+              </button>
+              <button
+                type="button"
+                title="下移分组"
+                :disabled="isLastGroup(group)"
+                @click="reorderGroup(group.id, 1)"
+              >
+                ↓
+              </button>
+              <button
+                v-if="group.id !== 'default_group'"
+                type="button"
+                title="删除分组，节目将移至默认分组"
+                @click="deleteGroup(group)"
+              >
+                删除
+              </button>
+            </div>
+            <ul v-if="group.isExpanded && groupSources(group.id).length" :class="$style.groupSources">
+              <li v-for="source in groupSources(group.id)" :key="source.id">
+                <span :title="source.title">{{ source.title }}</span>
+                <select
+                  :value="source.groupId"
+                  :aria-label="`移动 ${source.title} 到分组`"
+                  @change="moveSource(source, $event)"
+                >
+                  <option v-for="target in subscriptionGroups" :key="target.id" :value="target.id">
+                    {{ target.name }}
+                  </option>
+                </select>
+              </li>
+            </ul>
+          </div>
         </section>
         <div :class="$style.sectionTitle">
           <strong>{{ query ? '搜索结果' : '节目目录' }}</strong>
@@ -409,7 +487,7 @@
 <script lang="ts">
 import { computed, onBeforeUnmount, ref } from '@common/utils/vueTools'
 import { LIST_IDS } from '@common/constants'
-import { sendPodcastCommand, showSelectDialog } from '@renderer/utils/ipc'
+import { openSaveDir, sendPodcastCommand, showSelectDialog } from '@renderer/utils/ipc'
 import { setTempList } from '@renderer/store/list/action'
 import { playList } from '@renderer/core/player'
 import { appSetting, updateSetting } from '@renderer/store/setting'
@@ -476,6 +554,12 @@ export default {
     const loadingPopular = ref(false)
     const libraryItems = ref<LX.Podcast.LibraryItem[]>([])
     const loadingLibrary = ref(false)
+    const subscriptionGroups = ref<LX.Podcast.SubscriptionGroup[]>([])
+    const newGroupName = ref('')
+    const groupBusy = ref(false)
+    const groupMessage = ref('')
+    const groupError = ref(false)
+    const hasSubscriptions = computed(() => sources.value.some((source) => source.subscribed))
     const selectedSource = ref<LX.Podcast.Source | null>(null)
     const subscribeTarget = ref<LX.Podcast.Source | null>(null)
     const downloaded = ref(new Set<string>())
@@ -531,6 +615,118 @@ export default {
       } finally {
         loadingPopular.value = false
       }
+    }
+    const changePopularPeriod = (event: Event) => {
+      popularPeriod.value = Number((event.target as HTMLSelectElement).value) as LX.Podcast.PopularPeriod
+      void loadPopular()
+    }
+    const popularKey = (item: LX.Podcast.PopularSource, index: unknown) =>
+      `${item.source}:${String(index)}`
+    const popularRank = (index: unknown) => Number(index) + 1
+    const loadGroups = async () => {
+      subscriptionGroups.value = await sendPodcastCommand<LX.Podcast.SubscriptionGroup[]>({
+        action: 'subscription-groups',
+      })
+    }
+    const withGroupAction = async (action: () => Promise<void>, success: string) => {
+      groupBusy.value = true
+      groupMessage.value = ''
+      groupError.value = false
+      try {
+        await action()
+        groupMessage.value = success
+      } catch (value) {
+        groupError.value = true
+        groupMessage.value = value instanceof Error ? value.message : String(value)
+      } finally {
+        groupBusy.value = false
+      }
+    }
+    const createGroup = () => withGroupAction(async () => {
+      const group = await sendPodcastCommand<LX.Podcast.SubscriptionGroup>({
+        action: 'subscription-group-save',
+        group: { name: newGroupName.value.trim() },
+      })
+      subscriptionGroups.value = [...subscriptionGroups.value, group]
+      newGroupName.value = ''
+    }, '分组已创建')
+    const updateGroup = async (group: LX.Podcast.SubscriptionGroup) => {
+      const saved = await sendPodcastCommand<LX.Podcast.SubscriptionGroup>({
+        action: 'subscription-group-save',
+        group,
+      })
+      subscriptionGroups.value = subscriptionGroups.value.map((item) =>
+        item.id === saved.id ? saved : item
+      ).sort((left, right) => left.sortOrder - right.sortOrder)
+    }
+    const renameGroup = (group: LX.Podcast.SubscriptionGroup, event: Event) => {
+      const input = event.target as HTMLInputElement
+      const name = input.value.trim()
+      if (!name || name === group.name) {
+        input.value = group.name
+        return
+      }
+      void withGroupAction(() => updateGroup({ ...group, name }), '分组已重命名')
+    }
+    const toggleGroup = (group: LX.Podcast.SubscriptionGroup) =>
+      withGroupAction(() => updateGroup({ ...group, isExpanded: !group.isExpanded }), '')
+    const isFirstGroup = (group: LX.Podcast.SubscriptionGroup) =>
+      subscriptionGroups.value[0]?.id === group.id
+    const isLastGroup = (group: LX.Podcast.SubscriptionGroup) =>
+      subscriptionGroups.value.at(-1)?.id === group.id
+    const reorderGroup = (groupId: string, offset: -1 | 1) => withGroupAction(async () => {
+      const index = subscriptionGroups.value.findIndex((group) => group.id === groupId)
+      const targetIndex = index + offset
+      if (index < 0 || targetIndex < 0 || targetIndex >= subscriptionGroups.value.length) return
+      const ordered = [...subscriptionGroups.value]
+      const [moving] = ordered.splice(index, 1)
+      ordered.splice(targetIndex, 0, moving)
+      const updated = ordered.map((group, sortOrder) => ({ ...group, sortOrder }))
+      await Promise.all(updated.map(updateGroup))
+      subscriptionGroups.value = updated
+    }, '分组顺序已更新')
+    const deleteGroup = (group: LX.Podcast.SubscriptionGroup) => withGroupAction(async () => {
+      await sendPodcastCommand({ action: 'subscription-group-delete', groupId: group.id })
+      subscriptionGroups.value = subscriptionGroups.value.filter((item) => item.id !== group.id)
+      sources.value = sources.value.map((source) =>
+        source.groupId === group.id ? { ...source, groupId: 'default_group' } : source
+      )
+    }, '分组已删除，节目已移至默认分组')
+    const groupSources = (groupId: string) => sources.value
+      .filter((source) => source.subscribed && source.groupId === groupId)
+      .sort((left, right) => left.subscriptionOrder - right.subscriptionOrder)
+    const moveSource = (source: LX.Podcast.Source, event: Event) => {
+      const groupId = (event.target as HTMLSelectElement).value
+      if (groupId === source.groupId) return
+      void withGroupAction(async () => {
+        await sendPodcastCommand({ action: 'subscription-source-move', sourceId: source.id, groupId })
+        sources.value = sources.value.map((item) => item.id === source.id ? { ...item, groupId } : item)
+        if (selectedSource.value?.id === source.id) selectedSource.value = { ...source, groupId }
+      }, '节目已移动')
+    }
+    const importOpml = async () => {
+      const result = await showSelectDialog({
+        title: '导入播客订阅 OPML',
+        properties: ['openFile'],
+        filters: [{ name: 'OPML 文件', extensions: ['opml', 'xml'] }],
+      })
+      const filePath = result.filePaths[0]
+      if (result.canceled || !filePath) return
+      await withGroupAction(async () => {
+        await sendPodcastCommand({ action: 'opml-import', path: filePath })
+        await Promise.all([loadGroups(), loadSources()])
+      }, 'OPML 导入完成')
+    }
+    const exportOpml = async () => {
+      const result = await openSaveDir({
+        title: '导出播客订阅 OPML',
+        defaultPath: 'ikun-podcast-subscriptions.opml',
+        filters: [{ name: 'OPML 文件', extensions: ['opml'] }],
+      })
+      if (result.canceled || !result.filePath) return
+      await withGroupAction(async () => {
+        await sendPodcastCommand({ action: 'opml-export', path: result.filePath! })
+      }, 'OPML 已导出')
     }
     const loadEpisodeStates = async (episodeIds: string[]) => {
       const states = await sendPodcastCommand<LX.Podcast.EpisodeState[]>({
@@ -864,6 +1060,7 @@ export default {
 
     void loadSources()
     void loadPopular()
+    void loadGroups()
     void loadSession()
     void loadAiConfig()
     void loadBackendStatus()
@@ -884,6 +1081,12 @@ export default {
       loadingPopular,
       libraryItems,
       loadingLibrary,
+      subscriptionGroups,
+      newGroupName,
+      groupBusy,
+      groupMessage,
+      groupError,
+      hasSubscriptions,
       selectedSource,
       subscribeTarget,
       downloaded,
@@ -907,10 +1110,24 @@ export default {
       rates,
       loadSources,
       loadPopular,
+      changePopularPeriod,
+      popularKey,
+      popularRank,
       loadLibrary,
       changeView,
       openPopular,
       popularMetric,
+      createGroup,
+      renameGroup,
+      toggleGroup,
+      reorderGroup,
+      isFirstGroup,
+      isLastGroup,
+      deleteGroup,
+      groupSources,
+      moveSource,
+      importOpml,
+      exportOpml,
       loadEpisodes,
       selectSource,
       subscribe,
@@ -975,6 +1192,19 @@ export default {
 .popularList li > span { text-align: center; opacity: .55; font-size: 11px; }
 .popularList button { overflow: hidden; padding: 4px 2px; border: 0; background: transparent; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
 .popularList small { opacity: .58; font-size: 10px; }
+.groupManager { margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--color-primary-light-900-alpha-100); }
+.groupTools { display: flex; gap: 4px; }
+.groupTools button { padding: 4px 6px; font-size: 10px; }
+.groupCreate { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; margin-bottom: 8px; }
+.groupBlock { border-top: 1px solid var(--color-primary-light-900-alpha-100); }
+.groupHeading { display: grid; grid-template-columns: auto minmax(0, 1fr) auto repeat(3, auto); align-items: center; gap: 4px; padding: 5px 0; }
+.groupHeading button { min-width: 26px; padding: 4px 5px; }
+.groupHeading input { min-width: 0; padding: 4px 6px; border-color: transparent; background: transparent; font-weight: 600; }
+.groupHeading small { min-width: 18px; text-align: center; opacity: .55; }
+.groupSources { margin: 0 0 6px; padding: 0 0 0 30px; list-style: none; }
+.groupSources li { display: grid; grid-template-columns: minmax(0, 1fr) 92px; align-items: center; gap: 6px; padding: 3px 0; }
+.groupSources span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.groupSources select { min-width: 0; padding: 3px 5px; font-size: 10px; }
 .sectionTitle { display: flex; align-items: center; justify-content: space-between; margin: 0 4px 8px; }
 .source { width: 100%; display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: 10px; text-align: left; margin-bottom: 5px; border-color: transparent !important; background: transparent !important; }
 .source:hover, .source.selected { background: var(--color-primary-light-300-alpha-700) !important; }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   createSubscriptionSnapshot,
+  parseSubscriptionPreferences,
   serializeSubscriptionSnapshot,
   subscriptionIdentifiers,
 } from './syncPreferences'
@@ -15,13 +16,15 @@ const source = (value: Partial<LX.Podcast.Source> = {}): LX.Podcast.Source => ({
   categories: [],
   subscribed: true,
   autoDownload: false,
+  groupId: 'default_group',
+  subscriptionOrder: 0,
   updatedAt: 1,
   ...value,
 })
 
 describe('podcast subscription preferences', () => {
   it('serializes the Apifox SubscriptionSnapshot contract', () => {
-    expect(JSON.parse(serializeSubscriptionSnapshot([
+    expect(JSON.parse(serializeSubscriptionSnapshot([], [
       source(),
       source({ id: 'not-subscribed', subscribed: false }),
     ]))).toEqual({
@@ -38,7 +41,7 @@ describe('podcast subscription preferences', () => {
   })
 
   it('returns a reusable snapshot object for future group persistence', () => {
-    expect(createSubscriptionSnapshot([source()]).groups[0]).toMatchObject({
+    expect(createSubscriptionSnapshot([], [source()]).groups[0]).toMatchObject({
       id: 'default_group',
       name: '默认',
     })
@@ -55,6 +58,30 @@ describe('podcast subscription preferences', () => {
         groupId: 'default_group',
       }],
     }))).toEqual(['source-1', 'https://example.com/feed.xml'])
+  })
+
+  it('keeps groups and source membership when parsing a current snapshot', () => {
+    expect(parseSubscriptionPreferences(JSON.stringify({
+      groups: [{ id: 'group-1', name: '访谈', isExpanded: false, sortOrder: 2 }],
+      sources: [{
+        id: 'source-1',
+        label: '节目',
+        type: 0,
+        url: 'https://example.com/feed.xml',
+        groupId: 'group-1',
+        image: null,
+      }],
+    }))).toEqual({
+      groups: [{ id: 'group-1', name: '访谈', isExpanded: false, sortOrder: 2 }],
+      sources: [{
+        id: 'source-1',
+        label: '节目',
+        type: 0,
+        url: 'https://example.com/feed.xml',
+        groupId: 'group-1',
+        image: null,
+      }],
+    })
   })
 
   it('migrates legacy arrays without losing object identifiers', () => {

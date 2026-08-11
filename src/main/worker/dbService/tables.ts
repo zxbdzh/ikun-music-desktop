@@ -114,6 +114,12 @@ type Tables =
   | 'music_url'
   | 'download_list'
   | 'dislike_list'
+  | 'podcast_source'
+  | 'podcast_subscription_group'
+  | 'podcast_episode'
+  | 'podcast_episode_state'
+  | 'podcast_transcript'
+  | 'podcast_sync_state'
 
 const tables = new Map<Tables, string>()
 
@@ -262,6 +268,107 @@ tables.set(
 `
 )
 
+tables.set(
+  'podcast_source',
+  `
+  CREATE TABLE "podcast_source" (
+    "id" TEXT NOT NULL,
+    "title" TEXT NOT NULL,
+    "author" TEXT NOT NULL,
+    "description" TEXT NOT NULL,
+    "artwork_url" TEXT NOT NULL,
+    "feed_url" TEXT NOT NULL,
+    "categories_json" TEXT NOT NULL,
+    "subscribed" INTEGER NOT NULL,
+    "auto_download" INTEGER NOT NULL,
+    "group_id" TEXT NOT NULL DEFAULT 'default_group',
+    "subscription_order" INTEGER NOT NULL DEFAULT 0,
+    "updated_at" INTEGER NOT NULL,
+    PRIMARY KEY("id")
+  );
+`
+)
+tables.set(
+  'podcast_subscription_group',
+  `
+  CREATE TABLE "podcast_subscription_group" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "is_expanded" INTEGER NOT NULL,
+    "sort_order" INTEGER NOT NULL,
+    PRIMARY KEY("id")
+  );
+  INSERT INTO "podcast_subscription_group" ("id", "name", "is_expanded", "sort_order")
+  VALUES ('default_group', '默认', 1, 0);
+`
+)
+tables.set(
+  'podcast_episode',
+  `
+  CREATE TABLE "podcast_episode" (
+    "id" TEXT NOT NULL,
+    "source_id" TEXT NOT NULL,
+    "guid" TEXT NOT NULL,
+    "title" TEXT NOT NULL,
+    "description" TEXT NOT NULL,
+    "artwork_url" TEXT NOT NULL,
+    "audio_url" TEXT NOT NULL,
+    "published_at" INTEGER NOT NULL,
+    "duration_seconds" INTEGER NOT NULL,
+    "transcript_references_json" TEXT NOT NULL,
+    "chapters_url" TEXT,
+    "chapters_json" TEXT NOT NULL,
+    "updated_at" INTEGER NOT NULL,
+    PRIMARY KEY("id")
+  );
+`
+)
+tables.set(
+  'podcast_episode_state',
+  `
+  CREATE TABLE "podcast_episode_state" (
+    "account_id" TEXT NOT NULL,
+    "episode_id" TEXT NOT NULL,
+    "position_seconds" REAL NOT NULL,
+    "is_finished" INTEGER NOT NULL,
+    "is_favorite" INTEGER NOT NULL,
+    "dirty_mask" INTEGER NOT NULL,
+    "client_updated_at" INTEGER NOT NULL,
+    "server_updated_at" INTEGER NOT NULL,
+    PRIMARY KEY("account_id", "episode_id")
+  );
+`
+)
+tables.set(
+  'podcast_transcript',
+  `
+  CREATE TABLE "podcast_transcript" (
+    "episode_id" TEXT NOT NULL,
+    "version_id" TEXT NOT NULL,
+    "source" TEXT NOT NULL,
+    "language" TEXT NOT NULL,
+    "revision" INTEGER NOT NULL,
+    "state" TEXT NOT NULL,
+    "is_active" INTEGER NOT NULL,
+    "snapshot_json" TEXT NOT NULL,
+    "updated_at" INTEGER NOT NULL,
+    PRIMARY KEY("episode_id", "version_id")
+  );
+`
+)
+tables.set(
+  'podcast_sync_state',
+  `
+  CREATE TABLE "podcast_sync_state" (
+    "account_id" TEXT NOT NULL,
+    "watermark" INTEGER NOT NULL,
+    "outbox_json" TEXT NOT NULL,
+    "updated_at" INTEGER NOT NULL,
+    PRIMARY KEY("account_id")
+  );
+`
+)
+
 export default tables
 
-export const DB_VERSION = '2'
+export const DB_VERSION = '4'

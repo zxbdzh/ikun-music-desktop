@@ -20,8 +20,13 @@ import { applySpeakerLabels, reuseSpeakerLabels } from './speakerLabels'
 import { PodcastSpeakerIdentification } from './speakerIdentification'
 import { MAX_PODCAST_SPEAKER_COUNT } from './speakerClustering'
 import { simplifyAsrSnapshot } from './simplifiedChinese'
-import { serializeSubscriptionSnapshot, subscriptionIdentifiers } from './syncPreferences'
+import {
+  createSubscriptionSnapshot,
+  parseSubscriptionPreferences,
+  serializeSubscriptionSnapshot,
+} from './syncPreferences'
 import { normalizePopularSources } from './discovery'
+import { buildOpml, parseOpml } from './opml'
 import {
   createPodcastComputeBackendStatus,
   inspectPodcastComputeBackendCapabilities,
@@ -125,6 +130,18 @@ export class PodcastModule {
         return this.library(command.kind)
       case 'set-favorite':
         return this.setFavorite(command.episodeId, command.isFavorite)
+      case 'subscription-groups':
+        return global.lx.worker.dbService.podcastSubscriptionGroupsGet()
+      case 'subscription-group-save':
+        return this.saveSubscriptionGroup(command.group)
+      case 'subscription-group-delete':
+        return this.deleteSubscriptionGroup(command.groupId)
+      case 'subscription-source-move':
+        return this.moveSubscriptionSource(command.sourceId, command.groupId)
+      case 'opml-import':
+        return this.importOpml(command.path)
+      case 'opml-export':
+        return this.exportOpml(command.path)
       case 'subscribe':
         return this.subscribe(command.source, command.autoDownload)
       case 'unsubscribe':
@@ -310,7 +327,14 @@ export class PodcastModule {
     const merged = remote.map((source) => {
       const existing = subscribed.get(source.feedUrl)
       return existing
-        ? { ...source, id: existing.id, subscribed: existing.subscribed, autoDownload: existing.autoDownload }
+        ? {
+            ...source,
+            id: existing.id,
+            subscribed: existing.subscribed,
+            autoDownload: existing.autoDownload,
+            groupId: existing.groupId,
+            subscriptionOrder: existing.subscriptionOrder,
+          }
         : source
     })
     await global.lx.worker.dbService.podcastSourcesSave(merged)
@@ -338,6 +362,8 @@ export class PodcastModule {
       id: source.id,
       subscribed: source.subscribed,
       autoDownload: source.autoDownload,
+      groupId: source.groupId,
+      subscriptionOrder: source.subscriptionOrder,
     }
     const episodes = feed.episodes.map((episode) => ({ ...episode, sourceId: source.id }))
     await global.lx.worker.dbService.podcastSourcesSave([mergedSource])
@@ -1241,13 +1267,18 @@ export class PodcastModule {
       const preferencesDirty = syncState.outbox.includes(PREFERENCES_OUTBOX_KEY)
       if (preferencesDirty) {
         const sources = await global.lx.worker.dbService.podcastSourcesGet()
+        const groups = await global.lx.worker.dbService.podcastSubscriptionGroupsGet()
         await this.client.pushPreferences({
           user_id: account.id,
           client_updated_at: unixNow(),
-          subscriptions_json: serializeSubscriptionSnapshot(sources),
+          subscriptions_json: serializeSubscriptionSnapshot(groups, sources),
         })
       } else if (pull.subscriptions) {
-        await global.lx.worker.dbService.podcastSourceSubscriptionsReplace(pull.subscriptions)
+        if (Array.isArray(pull.subscriptions)) {
+          await global.lx.worker.dbService.podcastSourceSubscriptionsReplace(pull.subscriptions)
+        } else {
+          await global.lx.worker.dbService.podcastSubscriptionSnapshotReplace(pull.subscriptions)
+        }
       }
 
       syncState = {
@@ -1343,6 +1374,50 @@ export class PodcastModule {
     await global.lx.worker.dbService.podcastEpisodeStateSave(next)
     this.scheduleSync()
     return next
+  }
+
+  private async saveSubscriptionGroup(
+    value: Partial<LX.Podcast.SubscriptionGroup> & { name: string }
+  ) {
+    const name = value.name.trim()
+    if (!name) throw new Error('分组名称不能为空')
+    const groups = await global.lx.worker.dbService.podcastSubscriptionGroupsGet()
+    const group: LX.Podcast.SubscriptionGroup = {
+      id: value.id?.trim() || `group_${randomUUID()}`,
+      name,
+      isExpanded: value.isExpanded ?? true,
+      sortOrder: value.sortOrder ?? groups.length,
+    }
+    await global.lx.worker.dbService.podcastSubscriptionGroupSave(group)
+    await this.markPreferencesDirty()
+    return group
+  }
+
+  private async deleteSubscriptionGroup(groupId: string) {
+    if (groupId === 'default_group') throw new Error('默认分组不能删除')
+    await global.lx.worker.dbService.podcastSubscriptionGroupDelete(groupId)
+    await this.markPreferencesDirty()
+  }
+
+  private async moveSubscriptionSource(sourceId: string, groupId: string) {
+    const groups = await global.lx.worker.dbService.podcastSubscriptionGroupsGet()
+    if (!groups.some((group) => group.id === groupId)) throw new Error('目标分组不存在')
+    await global.lx.worker.dbService.podcastSourceGroupSet(sourceId, groupId)
+    await this.markPreferencesDirty()
+  }
+
+  private async importOpml(filePath: string) {
+    const snapshot = parseOpml(await readFile(filePath, 'utf8'))
+    await global.lx.worker.dbService.podcastSubscriptionSnapshotReplace(snapshot)
+    await this.markPreferencesDirty()
+    return snapshot
+  }
+
+  private async exportOpml(filePath: string) {
+    const groups = await global.lx.worker.dbService.podcastSubscriptionGroupsGet()
+    const sources = await global.lx.worker.dbService.podcastSourcesGet()
+    await writeFile(filePath, buildOpml(createSubscriptionSnapshot(groups, sources)), 'utf8')
+    return filePath
   }
 
   private async markPreferencesDirty() {
@@ -1508,6 +1583,8 @@ const normalizeSource = (value: unknown): LX.Podcast.Source => {
       : [],
     subscribed: false,
     autoDownload: false,
+    groupId: 'default_group',
+    subscriptionOrder: 0,
     updatedAt: Date.now(),
   }
 }
@@ -1559,7 +1636,7 @@ interface RemoteEpisodeState {
 
 const normalizePull = (value: unknown): {
   states: RemoteEpisodeState[]
-  subscriptions: string[] | null
+  subscriptions: LX.Podcast.SubscriptionSnapshot | string[] | null
   serverTime: number
 } => {
   const item = asRecord(value)
@@ -1580,7 +1657,7 @@ const normalizePull = (value: unknown): {
   const preferences = asRecord(item.preferences)
   return {
     states,
-    subscriptions: subscriptionIdentifiers(preferences.subscriptions_json),
+    subscriptions: parseSubscriptionPreferences(preferences.subscriptions_json),
     serverTime: Math.max(0, Number(item.server_time) || 0),
   }
 }

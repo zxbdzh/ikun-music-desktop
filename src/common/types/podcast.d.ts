@@ -114,7 +114,30 @@ declare namespace LX {
       categories: string[]
       subscribed: boolean
       autoDownload: boolean
+      groupId: string
+      subscriptionOrder: number
       updatedAt: number
+    }
+
+    interface SubscriptionGroup {
+      id: string
+      name: string
+      isExpanded: boolean
+      sortOrder: number
+    }
+
+    interface SubscriptionSource {
+      id: string
+      label: string
+      type: 0 | 1
+      url: string
+      groupId: string
+      image: string | null
+    }
+
+    interface SubscriptionSnapshot {
+      groups: SubscriptionGroup[]
+      sources: SubscriptionSource[]
     }
 
     interface TranscriptReference {
@@ -261,6 +284,12 @@ declare namespace LX {
       | { action: 'episode-states'; episodeIds: string[] }
       | { action: 'library'; kind: 'favorites' | 'history' }
       | { action: 'set-favorite'; episodeId: string; isFavorite: boolean }
+      | { action: 'subscription-groups' }
+      | { action: 'subscription-group-save'; group: Partial<SubscriptionGroup> & { name: string } }
+      | { action: 'subscription-group-delete'; groupId: string }
+      | { action: 'subscription-source-move'; sourceId: string; groupId: string }
+      | { action: 'opml-import'; path: string }
+      | { action: 'opml-export'; path: string }
       | { action: 'subscribe'; source: Source; autoDownload: boolean }
       | { action: 'unsubscribe'; sourceId: string }
       | { action: 'transcript'; episodeId: string; sinceRevision?: number }

@@ -31,6 +31,8 @@ const source: LX.Podcast.Source = {
   categories: [],
   subscribed: true,
   autoDownload: false,
+  groupId: 'default_group',
+  subscriptionOrder: 0,
   updatedAt: 1,
 }
 
