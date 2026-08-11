@@ -1,0 +1,18 @@
+{
+  "name": "默认成功 - 批量上报分析事件",
+  "apiDetailId": 498765779,
+  "conditions": [],
+  "ipCondition": {
+    "enable": false,
+    "value": ""
+  },
+  "response": {
+    "code": 204,
+    "delay": 0,
+    "headers": [],
+    "bodyType": "raw",
+    "bodyData": "",
+    "disableMockJs": true,
+    "disableTemplating": true
+  }
+}

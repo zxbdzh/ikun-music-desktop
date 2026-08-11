@@ -1,0 +1,23 @@
+{
+  "name": "默认成功 - 关联设备",
+  "apiDetailId": 498765771,
+  "conditions": [],
+  "ipCondition": { "enable": false, "value": "" },
+  "response": {
+    "code": 200,
+    "delay": 0,
+    "headers": [
+      { "key": "Content-Type", "value": "application/json; charset=utf-8" }
+    ],
+    "bodyType": "json",
+    "bodyData": {
+      "success": true,
+      "code": "SUCCESS",
+      "message": "Device linked successfully.",
+      "trace_id": "mock_auth_link_device",
+      "data": {}
+    },
+    "disableMockJs": true,
+    "disableTemplating": true
+  }
+}

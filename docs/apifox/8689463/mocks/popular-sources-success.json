@@ -1,0 +1,29 @@
+{
+  "name": "默认成功 - 获取热门播客来源",
+  "apiDetailId": 498765777,
+  "conditions": [],
+  "ipCondition": { "enable": false, "value": "" },
+  "response": {
+    "code": 200,
+    "delay": 0,
+    "headers": [
+      { "key": "Content-Type", "value": "application/json; charset=utf-8" }
+    ],
+    "bodyType": "json",
+    "bodyData": {
+      "success": true,
+      "code": "SUCCESS",
+      "message": "Operation successful.",
+      "trace_id": "mock_popular_sources",
+      "data": [
+        {
+          "source": "Mock Podcast",
+          "total_duration": 3600,
+          "view_count": 10
+        }
+      ]
+    },
+    "disableMockJs": true,
+    "disableTemplating": true
+  }
+}
