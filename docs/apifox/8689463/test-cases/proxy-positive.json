@@ -8,7 +8,7 @@
   "parameters": {
     "path": [],
     "query": [
-      { "id": "YgkP5zfYiA", "name": "url", "value": "http://www.ximalaya.com/album/30516031.xml", "type": "string", "enable": true }
+      { "id": "YgkP5zfYiA", "name": "url", "value": "https://example.invalid/feed.xml", "type": "string", "enable": true }
     ],
     "header": [],
     "cookie": []
@@ -18,7 +18,9 @@
   "preProcessors": [],
   "postProcessors": [
     { "id": "proxy.assert.status", "type": "assertion", "data": { "name": "HTTP 状态码为 200", "subject": "httpCode", "comparison": "equal", "value": "200", "path": "" }, "defaultEnable": true, "enable": true },
-    { "id": "proxy.assert.rss", "type": "assertion", "data": { "name": "返回 RSS XML", "subject": "responseText", "comparison": "include", "value": "<rss", "path": "" }, "defaultEnable": true, "enable": true }
+    { "id": "proxy.assert.rss", "type": "assertion", "data": { "name": "返回 RSS XML", "subject": "responseText", "comparison": "include", "value": "<rss", "path": "" }, "defaultEnable": true, "enable": true },
+    { "id": "proxy.assert.article-link", "type": "assertion", "data": { "name": "RSS 包含原始文章地址", "subject": "responseText", "comparison": "include", "value": "<link>https://example.invalid/articles/mock-long-form-episode</link>", "path": "" }, "defaultEnable": true, "enable": true },
+    { "id": "proxy.assert.audio-enclosure", "type": "assertion", "data": { "name": "RSS 包含音频地址", "subject": "responseText", "comparison": "include", "value": "<enclosure url=\"https://example.invalid/audio/mock-long-form-episode.mp3\"", "path": "" }, "defaultEnable": true, "enable": true }
   ],
   "inheritPreProcessors": {},
   "inheritPostProcessors": {},

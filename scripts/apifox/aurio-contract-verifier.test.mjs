@@ -12,6 +12,10 @@ const regressionWorkflow = readFileSync(
   new URL('../../.github/workflows/aurio-contract-regression.yml', import.meta.url),
   'utf8'
 )
+const readContractFixture = path => JSON.parse(readFileSync(
+  new URL(`../../docs/apifox/8689463/${path}`, import.meta.url),
+  'utf8'
+))
 
 function reportItem ([method, path], index) {
   return {
@@ -32,7 +36,7 @@ function reportItem ([method, path], index) {
 function validJsonReport () {
   let assertion = 0
   const executions = aurioExpected.hits.map(([method, path], index) => {
-    const assertionCount = index < 16 ? 3 : 2
+    const assertionCount = index < 19 ? 3 : 2
     return {
       request: { method, url: `http://127.0.0.1:48765${path}` },
       requestError: null,
@@ -52,7 +56,7 @@ function validJsonReport () {
       stats: {
         steps: { total: 22, passed: 22, failed: 0 },
         requests: { total: 22, pending: 0, failed: 0 },
-        assertions: { total: 60, pending: 0, failed: 0 }
+        assertions: { total: 63, pending: 0, failed: 0 }
       },
       failures: [],
       error: null,
@@ -68,7 +72,7 @@ function validJsonReport () {
 function validJunitReport () {
   let assertion = 0
   const suites = Array.from({ length: aurioExpected.steps }, (_, suiteIndex) => {
-    const tests = suiteIndex < 16 ? 3 : 2
+    const tests = suiteIndex < 19 ? 3 : 2
     const cases = Array.from({ length: tests }, () => {
       assertion += 1
       return `<testcase name="assertion-${assertion}"/>`
@@ -94,12 +98,12 @@ test('accepts complete JSON, JUnit, and Mock audit evidence', () => {
   assert.deepEqual(verifyJsonReport(report), {
     steps: 22,
     requests: 22,
-    assertions: 60,
+    assertions: 63,
     executions: 22
   })
   assert.deepEqual(verifyJunitReport(validJunitReport()), {
     suites: 22,
-    assertions: 60
+    assertions: 63
   })
   assert.deepEqual(verifyAuditLog(validAuditLog()), { requests: 22 })
 })
@@ -113,6 +117,49 @@ test('keeps privileged regression on main and the protected environment', () => 
   )
   assert.doesNotMatch(regressionWorkflow, /^  pull_request(?:_target)?:/m)
   assert.doesNotMatch(regressionWorkflow, /APIFOX_ACCESS_TOKEN repository secret/i)
+})
+
+test('pins long-form article metadata and article-first share fixtures', () => {
+  const pullMock = readContractFixture('mocks/sync-pull-success.json')
+  const pullCase = readContractFixture('test-cases/sync-pull-positive.json')
+  const progressCase = readContractFixture('test-cases/sync-progress-positive.json')
+  const batchCase = readContractFixture('test-cases/sync-progress-batch-positive.json')
+  const proxyMock = readContractFixture('mocks/proxy-success.json')
+  const proxyCase = readContractFixture('test-cases/proxy-positive.json')
+
+  const remoteState = pullMock.response.bodyData.data.states[0]
+  const pulledMetadata = JSON.parse(remoteState.article_metadata_json)
+  assert.equal(remoteState.history_hidden, 1)
+  assert.match(pulledMetadata.content, /\S/)
+  assert.equal(pulledMetadata.url, 'https://example.invalid/articles/mock-long-form-episode')
+  assert.equal(
+    pulledMetadata.audioUrl,
+    'https://example.invalid/audio/mock-long-form-episode.mp3'
+  )
+
+  const pullAssertions = new Map(pullCase.postProcessors.map(item => [item.id, item.data]))
+  assert.equal(pullAssertions.get('sync-pull.assert.metadata')?.comparison, 'include')
+  assert.equal(pullAssertions.get('sync-pull.assert.history-hidden')?.value, '1')
+
+  const progressBody = JSON.parse(progressCase.requestBody.data)
+  const batchBody = JSON.parse(batchCase.requestBody.data).items[0]
+  for (const body of [progressBody, batchBody]) {
+    assert.equal(body.history_hidden, 1)
+    const metadata = JSON.parse(body.article_metadata_json)
+    assert.match(metadata.content, /\S/)
+    assert.equal(metadata.url, pulledMetadata.url)
+    assert.equal(metadata.audioUrl, pulledMetadata.audioUrl)
+  }
+
+  const proxyBody = proxyMock.response.bodyData
+  const articleLink = '<link>https://example.invalid/articles/mock-long-form-episode</link>'
+  const audioEnclosure = '<enclosure url="https://example.invalid/audio/mock-long-form-episode.mp3"'
+  assert.ok(proxyBody.includes(articleLink))
+  assert.ok(proxyBody.includes(audioEnclosure))
+  assert.equal(proxyCase.parameters.query[0].value, 'https://example.invalid/feed.xml')
+  const proxyAssertions = new Map(proxyCase.postProcessors.map(item => [item.id, item.data.value]))
+  assert.equal(proxyAssertions.get('proxy.assert.article-link'), articleLink)
+  assert.equal(proxyAssertions.get('proxy.assert.audio-enclosure'), audioEnclosure)
 })
 
 test('rejects JSON stats that do not explicitly pass every step', () => {

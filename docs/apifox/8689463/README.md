@@ -64,7 +64,9 @@ apifox test-scenario run <scenarioId> --project 8689463 --environment <environme
 
 `test-suites/full-contract-regression.create.json` 使用前端兼容的 `STATIC_TEST_SCENARIO` 结构引用全接口场景。远端“AurioClub 隔离契约回归套件”包含 1 个非空套件项；2026-08-12 上传的云报告 `25268012` 状态为 `done`，22/22 步骤通过。本地报告额外确认 22/22 请求、60/60 断言、0 失败和 0 个非本机目标。
 
-`scripts/apifox/run-aurio-contract-regression.mjs` 负责启动隔离 Mock、运行套件，并以三类证据共同判定结果：JSON 执行明细必须有 22 个实际执行且 60 条断言均显式通过、JUnit 必须包含 22 个套件和 60 个无失败断言、Mock JSONL 必须精确命中预期的 22 组方法/路径/状态。运行拒绝 HTTP 重定向，并在静态定义和执行明细中拒绝脚本额外请求；任一证据缺失都会失败。编排器在 `finally` 与 `SIGINT`/`SIGTERM` 路径中停止 Mock 和 Apifox 子进程，并删除含凭据快照的临时报告。
+`scripts/apifox/run-aurio-contract-regression.mjs` 负责启动隔离 Mock、运行套件，并以三类证据共同判定结果：JSON 执行明细必须有 22 个实际执行且 63 条断言均显式通过、JUnit 必须包含 22 个套件和 63 个无失败断言、Mock JSONL 必须精确命中预期的 22 组方法/路径/状态。运行拒绝 HTTP 重定向，并在静态定义和执行明细中拒绝脚本额外请求；任一证据缺失都会失败。编排器在 `finally` 与 `SIGINT`/`SIGTERM` 路径中停止 Mock 和 Apifox 子进程，并删除含凭据快照的临时报告。
+
+2026-08-12 长内容契约补强：`/sync/pull` 默认 Mock 改为返回一条包含 `content`、原始文章地址、音频地址和 `history_hidden` 的非空状态；progress 与 batch 用例上传同一语义字段；`/proxy` 同时断言文章 `<link>` 与音频 `<enclosure>`。场景断言基线因此从历史验收的 60 条提升到 63 条。
 
 门禁固定使用 Apifox CLI `2.2.9`。该版本的 JSON reporter 默认省略执行明细，编排器使用 CLI 已实现但未展示在帮助页的详细报告开关，并在明细缺失时关闭失败；升级 CLI 前必须先运行验证器单测和本地端到端回归。
 

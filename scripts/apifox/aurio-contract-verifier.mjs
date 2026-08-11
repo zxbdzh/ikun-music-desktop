@@ -4,7 +4,7 @@ const mockPort = '48765'
 export const aurioExpected = Object.freeze({
   steps: 22,
   requests: 22,
-  assertions: 60,
+  assertions: 63,
   hits: Object.freeze([
     ['GET', '/api/v1/auth/me', 401],
     ['GET', '/api/v1/auth/me', 200],

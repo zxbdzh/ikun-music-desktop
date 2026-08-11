@@ -7,7 +7,7 @@
   "path": "/sync/progress",
   "parameters": { "path": [], "query": [], "header": [], "cookie": [] },
   "commonParameters": {},
-  "requestBody": { "type": "application/json", "data": "{\n  \"podcast_id\": \"mock_episode_id\",\n  \"user_id\": \"AU_MOCK_0001\",\n  \"device_id\": \"00000000-0000-4000-8000-000000000000\",\n  \"client_updated_at\": 1786032000,\n  \"position_seconds\": 120,\n  \"is_finished\": 0,\n  \"is_favorite\": 0\n}" },
+  "requestBody": { "type": "application/json", "data": "{\n  \"podcast_id\": \"mock-long-form-episode\",\n  \"user_id\": \"AU_MOCK_0001\",\n  \"device_id\": \"00000000-0000-4000-8000-000000000000\",\n  \"client_updated_at\": 1786032000,\n  \"position_seconds\": 120,\n  \"is_finished\": 0,\n  \"is_favorite\": 1,\n  \"history_hidden\": 1,\n  \"article_metadata_json\": \"{\\\"articleId\\\":\\\"mock-long-form-episode\\\",\\\"title\\\":\\\"Mock Long-form Episode\\\",\\\"content\\\":\\\"Mock long-form article body used to verify blog metadata synchronization.\\\",\\\"url\\\":\\\"https://example.invalid/articles/mock-long-form-episode\\\",\\\"audioUrl\\\":\\\"https://example.invalid/audio/mock-long-form-episode.mp3\\\",\\\"audioDuration\\\":1800}\"\n}" },
   "preProcessors": [],
   "postProcessors": [
     { "id": "sync-progress.assert.status", "type": "assertion", "data": { "name": "HTTP 状态码为 200", "subject": "httpCode", "comparison": "equal", "value": "200", "path": "" }, "defaultEnable": true, "enable": true },

@@ -16,7 +16,17 @@
       "message": "Synchronization data loaded successfully.",
       "trace_id": "mock_sync_pull",
       "data": {
-        "states": [],
+        "states": [
+          {
+            "podcast_id": "mock-long-form-episode",
+            "server_updated_at": 1786032000,
+            "position_seconds": 120,
+            "is_finished": 0,
+            "is_favorite": 1,
+            "history_hidden": 1,
+            "article_metadata_json": "{\"articleId\":\"mock-long-form-episode\",\"title\":\"Mock Long-form Episode\",\"content\":\"Mock long-form article body used to verify blog metadata synchronization.\",\"url\":\"https://example.invalid/articles/mock-long-form-episode\",\"audioUrl\":\"https://example.invalid/audio/mock-long-form-episode.mp3\",\"audioDuration\":1800}"
+          }
+        ],
         "server_time": 1786032000
       }
     },
