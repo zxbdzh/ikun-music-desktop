@@ -3,18 +3,19 @@ import { getDuration, getPlaybackRate, getCurrentTime } from '@renderer/plugins/
 import { isPlay, musicInfo, playMusicInfo } from '@renderer/store/player/state'
 import { playProgress } from '@renderer/store/player/playProgress'
 import { pause, play, playNext, playPrev, stop } from '@renderer/core/player'
+import silenceAudio from '@renderer/assets/medias/Silence02s.mp3'
 
 export default () => {
   // 创建一个空白音频以保持对 Media Session 的注册
   const emptyAudio = new Audio()
   emptyAudio.autoplay = false
-  emptyAudio.src = require('@renderer/assets/medias/Silence02s.mp3')
+  emptyAudio.src = silenceAudio
   emptyAudio.controls = false
   emptyAudio.preload = 'auto'
-  emptyAudio.onplaying = () => {
-    emptyAudio.pause()
-  }
-  void emptyAudio.play()
+  emptyAudio.loop = true
+  emptyAudio.hidden = true
+  document.body.append(emptyAudio)
+  void emptyAudio.play().catch(() => undefined)
   let prevPicUrl = ''
 
   const updateMediaSessionInfo = () => {
@@ -65,17 +66,32 @@ export default () => {
   const setStop = () => {
     stop()
   }
+  const handleMediaSessionActivate = () => {
+    void emptyAudio.play().catch(() => undefined)
+  }
   const handlePlay = () => {
     navigator.mediaSession.playbackState = 'playing'
+    void emptyAudio.play()
+      .catch(() => undefined)
+      .finally(() => {
+        updateMediaSessionInfo()
+        updatePositionState({
+          position: playProgress.nowPlayTime,
+          duration: playProgress.maxPlayTime,
+        })
+        navigator.mediaSession.playbackState = 'playing'
+      })
   }
   const handlePause = () => {
+    emptyAudio.pause()
     navigator.mediaSession.playbackState = 'paused'
   }
   const handleStop = () => {
+    emptyAudio.pause()
     navigator.mediaSession.playbackState = 'none'
   }
   const handleSetPlayInfo = () => {
-    void emptyAudio.play().finally(() => {
+    void emptyAudio.play().catch(() => undefined).finally(() => {
       updateMediaSessionInfo()
       updatePositionState({
         position: playProgress.nowPlayTime,
@@ -132,6 +148,7 @@ export default () => {
 
   window.app_event.on('playerLoadeddata', updatePositionState)
   window.app_event.on('playerPlaying', updatePositionState)
+  window.app_event.on('mediaSessionActivate', handleMediaSessionActivate)
   window.app_event.on('play', handlePlay)
   window.app_event.on('pause', handlePause)
   window.app_event.on('stop', handleStop)
@@ -142,8 +159,11 @@ export default () => {
   window.app_event.on('picUpdated', updateMediaSessionInfo)
 
   onBeforeUnmount(() => {
+    emptyAudio.pause()
+    emptyAudio.remove()
     window.app_event.off('playerLoadeddata', updatePositionState)
     window.app_event.off('playerPlaying', updatePositionState)
+    window.app_event.off('mediaSessionActivate', handleMediaSessionActivate)
     window.app_event.off('play', handlePlay)
     window.app_event.off('pause', handlePause)
     window.app_event.off('stop', handleStop)

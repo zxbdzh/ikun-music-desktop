@@ -53,6 +53,14 @@ const router = createRouter({
       },
     },
     {
+      path: '/podcast',
+      name: 'Podcast',
+      component: require('./views/Podcast/index.vue').default,
+      meta: {
+        name: 'Podcast',
+      },
+    },
+    {
       path: '/setting',
       name: 'Setting',
       component: require('./views/Setting/index.vue').default,

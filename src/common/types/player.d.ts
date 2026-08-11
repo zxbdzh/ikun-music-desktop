@@ -40,6 +40,9 @@ declare namespace LX {
       collect: boolean
       volume: number
       mute: boolean
+      mediaKind: 'music' | 'podcast'
+      contentId: string
+      transcript: LX.Podcast.TranscriptDescriptor | null
     }
   }
 }

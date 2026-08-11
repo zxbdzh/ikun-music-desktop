@@ -1,0 +1,11 @@
+{
+  "name": "AurioClub 全接口契约回归",
+  "description": "在 AurioClub CLI 隔离 Mock 环境串行验证 18 个 HTTP 接口的成功、安全与边界契约，不访问生产服务。",
+  "folderId": 0,
+  "priority": 0,
+  "tags": [
+    "AurioClub",
+    "契约回归",
+    "隔离 Mock"
+  ]
+}

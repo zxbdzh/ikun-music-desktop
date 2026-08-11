@@ -66,6 +66,10 @@ export class AppEvent extends Event {
   }
 
   // 播放器事件
+  mediaSessionActivate() {
+    this.emit('mediaSessionActivate')
+  }
+
   play() {
     this.emit('play')
   }

@@ -1,0 +1,35 @@
+{
+  "name": "默认成功 - 获取播客目录",
+  "apiDetailId": 498765776,
+  "conditions": [],
+  "ipCondition": { "enable": false, "value": "" },
+  "response": {
+    "code": 200,
+    "delay": 0,
+    "headers": [
+      { "key": "Content-Type", "value": "application/json; charset=utf-8" }
+    ],
+    "bodyType": "json",
+    "bodyData": {
+      "success": true,
+      "code": "SUCCESS",
+      "message": "Operation successful.",
+      "trace_id": "mock_podcasts",
+      "data": [
+        {
+          "id": 1,
+          "rss_url": "https://example.invalid/feed.xml",
+          "cover_url": "https://example.invalid/cover.jpg",
+          "host": "Mock Host",
+          "rating": 4.8,
+          "tags": ["技术", "播客"],
+          "name": { "en": "Mock Podcast", "zh": "示例播客" },
+          "description": { "en": "Long-form articles and audio.", "zh": "长文章与音频节目。" },
+          "hot_comment": { "en": "Mock data only.", "zh": "仅用于 Mock。" }
+        }
+      ]
+    },
+    "disableMockJs": true,
+    "disableTemplating": true
+  }
+}

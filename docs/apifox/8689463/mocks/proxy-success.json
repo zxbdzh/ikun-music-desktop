@@ -1,0 +1,17 @@
+{
+  "name": "默认成功 - 代理获取 RSS 或 HTTP 内容",
+  "apiDetailId": 498765778,
+  "conditions": [],
+  "ipCondition": { "enable": false, "value": "" },
+  "response": {
+    "code": 200,
+    "delay": 0,
+    "headers": [
+      { "key": "Content-Type", "value": "application/rss+xml; charset=utf-8" }
+    ],
+    "bodyType": "raw",
+    "bodyData": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><rss version=\"2.0\"><channel><title>Mock Podcast</title><link>https://example.invalid/podcast</link><description>Mock feed for long-form article and audio sharing.</description><item><title>Mock Long-form Episode</title><link>https://example.invalid/articles/mock-long-form-episode</link><guid isPermaLink=\"true\">https://example.invalid/articles/mock-long-form-episode</guid><enclosure url=\"https://example.invalid/audio/mock-long-form-episode.mp3\" type=\"audio/mpeg\" length=\"12345\" /></item></channel></rss>",
+    "disableMockJs": true,
+    "disableTemplating": true
+  }
+}

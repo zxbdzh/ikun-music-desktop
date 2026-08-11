@@ -176,6 +176,10 @@ const modules = {
   desktopCapturer: {
     get_sources: 'desktopCapturer_get_sources',
   },
+  podcast: {
+    action: 'podcast_action',
+    changed: 'podcast_changed',
+  },
 }
 
 for (const moduleName of Object.keys(modules) as Array<keyof typeof modules>) {
@@ -199,3 +203,4 @@ export const WIN_MAIN_RENDERER_EVENT_NAME = modules.winMain
 export const WIN_LYRIC_RENDERER_EVENT_NAME = modules.winLyric
 export const HOTKEY_RENDERER_EVENT_NAME = modules.hotKey
 export const DESKTOP_CAPTURER_EVENT_NAME = modules.desktopCapturer
+export const PODCAST_EVENT_NAME = modules.podcast

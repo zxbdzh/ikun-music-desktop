@@ -1,0 +1,33 @@
+{
+  "name": "默认成功 - 更新用户名",
+  "apiDetailId": 498765764,
+  "conditions": [],
+  "ipCondition": { "enable": false, "value": "" },
+  "response": {
+    "code": 200,
+    "delay": 0,
+    "headers": [
+      { "key": "Content-Type", "value": "application/json; charset=utf-8" }
+    ],
+    "bodyType": "json",
+    "bodyData": {
+      "success": true,
+      "code": "SUCCESS",
+      "message": "Profile updated successfully.",
+      "trace_id": "mock_auth_profile",
+      "data": {
+        "user": {
+          "id": "AU_MOCK_0001",
+          "email": "mock-user@example.invalid",
+          "username": "Updated Mock User",
+          "points": 0,
+          "membership_tier": "free",
+          "is_premium": 0,
+          "subscription_expires_at": null
+        }
+      }
+    },
+    "disableMockJs": true,
+    "disableTemplating": true
+  }
+}

@@ -787,6 +787,19 @@ declare global {
        */
       'openAPI.bindLan': boolean
 
+      'podcast.enable': boolean
+      'podcast.playbackRate': number
+      'podcast.downloadPath': string
+      'podcast.cachePath': string
+      'podcast.downloadLimitGB': number
+      'podcast.cacheLimitGB': number
+      'podcast.asrModel': 'base' | 'small' | 'medium'
+      'podcast.asrLanguage': 'auto' | 'zh' | 'en'
+      'podcast.asrVulkan': boolean
+      'podcast.aiEnabled': boolean
+      'podcast.aiBaseUrl': string
+      'podcast.aiModel': string
+
       /**
        * 是否在离开搜索界面时自动清空搜索框
        */

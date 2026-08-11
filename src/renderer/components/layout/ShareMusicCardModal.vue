@@ -1,10 +1,26 @@
 <template>
   <transition enter-active-class="animated slideInRight" leave-active-class="animated slideOutDown">
-    <div v-if="isShowShareMusicCard" :class="$style.page">
+    <div
+      v-if="isShowShareMusicCard"
+      ref="dom_page"
+      :class="$style.page"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="share-card-title"
+      :aria-busy="preparingShare || batchBusy"
+      @keydown="handleDialogKeydown"
+    >
       <div :class="$style.bg" />
       <header :class="$style.header">
-        <div :class="$style.title">{{ $t('share__title') }}</div>
-        <button :class="$style.closeBtn" @click="handleClose">
+        <div id="share-card-title" :class="$style.title">{{ $t('share__title') }}</div>
+        <button
+          ref="dom_close"
+          :class="$style.closeBtn"
+          type="button"
+          :aria-label="$t('close')"
+          :title="$t('close')"
+          @click="handleClose"
+        >
           <svg
             version="1.1"
             xmlns="http://www.w3.org/2000/svg"
@@ -26,6 +42,8 @@
                 v-for="preset in presets"
                 :key="preset.id"
                 :class="[$style.presetBtn, { [$style.active]: stylePreset == preset.id }]"
+                :disabled="batchBusy"
+                :aria-pressed="stylePreset == preset.id"
                 type="button"
                 @click="handlePresetChange(preset.id)"
               >
@@ -36,75 +54,361 @@
 
           <div :class="$style.group">
             <div :class="$style.groupLine">
-              <div :class="$style.groupTitle">{{ $t('share__select_lyrics') }}</div>
-              <label :class="$style.switch">
-                <input v-model="includeTranslation" type="checkbox" />
-                <span>{{ $t('share__include_translation') }}</span>
-              </label>
+              <div :class="$style.groupTitle">{{ selectionLabel }}</div>
+              <div :class="$style.selectionControls">
+                <label :class="$style.switch">
+                  <input
+                    :checked="allLyricsSelected"
+                    :indeterminate="someLyricsSelected"
+                    :aria-checked="someLyricsSelected ? 'mixed' : allLyricsSelected"
+                    :disabled="!lyricLines.length || batchBusy"
+                    type="checkbox"
+                    @change="handleSelectAll"
+                  />
+                  <span>{{ $t('share__select_all') }}</span>
+                </label>
+                <label v-if="hasTranslations" :class="$style.switch">
+                  <input
+                    v-model="includeTranslation"
+                    :disabled="batchBusy || loadingLyrics"
+                    type="checkbox"
+                  />
+                  <span>{{ $t('share__include_translation') }}</span>
+                </label>
+              </div>
             </div>
-            <div v-if="lyricLines.length" :class="[$style.lyricList, 'scroll']">
-              <label v-for="(line, index) in lyricLines" :key="line.key + index" :class="$style.lineItem">
+            <div
+              v-if="lyricLines.length"
+              ref="dom_lyric_list"
+              :class="[$style.lyricList, 'scroll']"
+              role="listbox"
+              aria-multiselectable="true"
+              :aria-label="selectionLabel"
+              :aria-activedescendant="activeLyricOptionId"
+              :aria-busy="loadingLyrics"
+              :aria-disabled="batchBusy"
+              tabindex="0"
+              @keydown="handleLyricListKeydown"
+            >
+              <label
+                v-for="item in visibleLyricLines"
+                :id="`share-lyric-option-${item.index}`"
+                :key="item.line.key + item.index"
+                :class="[
+                  $style.lineItem,
+                  { [$style.activeLine]: activeLyricIndex == item.index },
+                ]"
+                role="option"
+                :aria-selected="selectedLineSet.has(item.index)"
+                :aria-disabled="batchBusy"
+                :aria-posinset="item.index + 1"
+                :aria-setsize="lyricLines.length"
+                @click="activeLyricIndex = item.index"
+              >
                 <input
-                  v-model="selectedLineIndexes"
-                  :value="index"
+                  :checked="selectedLineSet.has(item.index)"
+                  :disabled="batchBusy"
+                  tabindex="-1"
+                  aria-hidden="true"
                   type="checkbox"
+                  @change="handleLineSelection(item.index, $event.target.checked)"
                 />
                 <div>
-                  <div :class="$style.lineMain">{{ line.text }}</div>
-                  <div v-if="line.translation" :class="$style.lineSub">{{ line.translation }}</div>
+                  <div :class="$style.lineMain">{{ item.line.text }}</div>
+                  <div v-if="item.line.translation" :class="$style.lineSub">
+                    {{ item.line.translation }}
+                  </div>
                 </div>
               </label>
             </div>
-            <div v-else :class="$style.emptyLyric">{{ $t('share__no_lyric') }}</div>
+            <div v-else :class="$style.emptyLyric" role="status" aria-live="polite">
+              {{ loadingLyrics ? $t('share__loading_content') : emptySelectionText }}
+            </div>
+            <div
+              v-if="selectionPageCount > 1"
+              :class="$style.selectionPager"
+              role="group"
+              :aria-label="selectionNavigationLabel"
+            >
+              <button
+                :class="$style.pageButton"
+                type="button"
+                :disabled="selectionPageIndex == 0 || batchBusy"
+                :aria-label="$t('pagination__prev')"
+                :title="$t('pagination__prev')"
+                @click="handlePreviousSelectionPage"
+              >
+                <svg viewBox="0 0 451.846 451.847" aria-hidden="true">
+                  <use xlink:href="#icon-left" />
+                </svg>
+              </button>
+              <label :class="$style.pageStatus">
+                <input
+                  v-model.number="selectionPageDraft"
+                  :class="$style.pageInput"
+                  type="number"
+                  inputmode="numeric"
+                  min="1"
+                  :max="selectionPageCount"
+                  :disabled="batchBusy"
+                  :aria-label="$t(isPodcast
+                    ? 'share__transcript_selection_page_jump'
+                    : 'share__selection_page_jump')"
+                  @change="handleSelectionPageJump"
+                  @blur="handleSelectionPageJump"
+                  @keydown.enter="$event.currentTarget.blur()"
+                />
+                <span aria-hidden="true">/ {{ selectionPageCount }}</span>
+              </label>
+              <span :class="$style.srOnly" aria-live="polite" aria-atomic="true">
+                {{ selectionPageStatusText }}
+              </span>
+              <button
+                :class="$style.pageButton"
+                type="button"
+                :disabled="selectionPageIndex + 1 >= selectionPageCount || batchBusy"
+                :aria-label="$t('pagination__next')"
+                :title="$t('pagination__next')"
+                @click="handleNextSelectionPage"
+              >
+                <svg viewBox="0 0 451.846 451.847" aria-hidden="true">
+                  <use xlink:href="#icon-right" />
+                </svg>
+              </button>
+            </div>
           </div>
 
           <button
+            v-if="!isPodcast"
             :class="$style.ceruBtn"
-            :disabled="generating"
+            :disabled="generating || batchBusy || preparingShare"
             type="button"
             @click="handleGenerateCeruShare"
           >
             {{ generating ? $t('share__generating') : $t('share__generate_ceru_link') }}
           </button>
 
+          <div v-if="lyricPageCount > 1" :class="$style.exportRange">
+            <div :class="$style.groupTitle">{{ $t('share__export_range') }}</div>
+            <div :class="$style.exportRangeFields">
+              <label :class="$style.rangeField">
+                <span>{{ $t('share__export_start_page') }}</span>
+                <input
+                  v-model.number="batchRangeStart"
+                  :class="$style.rangeInput"
+                  type="number"
+                  inputmode="numeric"
+                  min="1"
+                  :max="lyricPageCount"
+                  :disabled="batchBusy"
+                  @change="handleBatchRangeChange"
+                  @blur="handleBatchRangeChange"
+                  @keydown.enter="$event.currentTarget.blur()"
+                />
+              </label>
+              <span :class="$style.rangeSeparator" aria-hidden="true">-</span>
+              <label :class="$style.rangeField">
+                <span>{{ $t('share__export_end_page') }}</span>
+                <input
+                  v-model.number="batchRangeEnd"
+                  :class="$style.rangeInput"
+                  type="number"
+                  inputmode="numeric"
+                  min="1"
+                  :max="lyricPageCount"
+                  :disabled="batchBusy"
+                  @change="handleBatchRangeChange"
+                  @blur="handleBatchRangeChange"
+                  @keydown.enter="$event.currentTarget.blur()"
+                />
+              </label>
+            </div>
+            <div :class="$style.rangeSummary" aria-live="polite">
+              {{ batchRangeSummaryText }}
+            </div>
+          </div>
+
           <div :class="$style.actions">
-            <button :class="$style.actionBtn" @click="handleCopyLink">{{ $t('share__copy_link') }}</button>
-            <button :class="$style.actionBtn" @click="handleCopyImage">{{ $t('share__copy_image') }}</button>
-            <button :class="$style.actionBtn" @click="handleSaveImage">{{ $t('share__save_image') }}</button>
+            <button
+              :class="$style.actionBtn"
+              type="button"
+              :disabled="!shareUrl || batchBusy"
+              @click="handleCopyLink"
+            >
+              {{ $t('share__copy_link') }}
+            </button>
+            <button
+              :class="$style.actionBtn"
+              type="button"
+              :disabled="batchBusy || preparingShare"
+              @click="handleCopyImage"
+            >
+              {{ $t('share__copy_image') }}
+            </button>
+            <button
+              :class="$style.actionBtn"
+              type="button"
+              :disabled="batchBusy || preparingShare"
+              @click="handleSaveImage"
+            >
+              {{ $t('share__save_image') }}
+            </button>
+            <button
+              v-if="lyricPageCount > 1"
+              :class="$style.actionBtn"
+              type="button"
+              :disabled="batchPreparing || (!batchSaving && (generating || preparingShare))"
+              @click="batchSaving ? handleCancelBatchSave() : handleSaveAllImages()"
+            >
+              {{ batchSaving ? $t('btn_cancel') : batchSaveButtonText }}
+            </button>
+          </div>
+          <div
+            v-if="batchProgressText"
+            :class="$style.exportStatus"
+            :role="batchRecovery?.failedPageIndex != null ? 'alert' : 'status'"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            {{ batchProgressText }}
+          </div>
+          <div
+            v-if="batchRecovery && !batchBusy"
+            :class="$style.recoveryPanel"
+            role="group"
+            :aria-label="$t('share__retry_actions')"
+          >
+            <div :class="$style.recoveryHint">{{ $t('share__retry_snapshot_tip') }}</div>
+            <div :class="$style.recoveryActions">
+              <button
+                :class="$style.actionBtn"
+                type="button"
+                @click="handleResumeBatchSave"
+              >
+                {{ $t('share__resume_from_failed') }}
+              </button>
+              <button
+                v-if="batchRecovery.failedPageIndex != null"
+                :class="$style.actionBtn"
+                type="button"
+                @click="handleRetryFailedPage"
+              >
+                {{ $t('share__retry_failed_page') }}
+              </button>
+            </div>
           </div>
         </aside>
 
         <section :class="$style.previewWrap">
-          <div ref="dom_card" :class="[$style.card, $style[stylePreset]]" :style="coverStyle">
-            <div :class="$style.coverWrap">
-              <img
-                v-if="musicInfo?.meta?.picUrl"
-                ref="dom_cover"
-                :src="musicInfo.meta.picUrl"
-                :class="$style.cover"
-                crossorigin="anonymous"
-              />
-              <div v-else :class="$style.coverFallback">♪</div>
-            </div>
-            <div :class="$style.meta">
-              <h2 :class="$style.song">{{ musicInfo?.name || '-' }}</h2>
-              <p :class="$style.singer">{{ musicInfo?.singer || '-' }}</p>
-            </div>
+          <div :class="$style.previewColumn">
+            <div :class="[$style.cardViewport, 'scroll']">
+              <div
+                ref="dom_card"
+                :class="[$style.card, $style[cardStylePreset]]"
+                :style="cardCoverStyle"
+              >
+                <div :class="$style.coverWrap">
+                  <img
+                    v-if="cardMusicInfo?.meta?.picUrl"
+                    ref="dom_cover"
+                    :src="cardMusicInfo.meta.picUrl"
+                    :alt="cardMusicInfo?.name || ''"
+                    :class="$style.cover"
+                    crossorigin="anonymous"
+                  />
+                  <div v-else :class="$style.coverFallback">♪</div>
+                </div>
+                <div :class="$style.meta">
+                  <h2 :class="$style.song">{{ cardMusicInfo?.name || '-' }}</h2>
+                  <p :class="$style.singer">{{ cardMusicInfo?.singer || '-' }}</p>
+                </div>
 
-            <div :class="$style.lyricPreview">
-              <template v-for="(line, index) in selectedLyricLines" :key="line.key + 'preview' + index">
-                <p :class="$style.previewMain">{{ line.text }}</p>
-                <p v-if="includeTranslation && line.translation" :class="$style.previewSub">
-                  {{ line.translation }}
-                </p>
-              </template>
-            </div>
+                <div ref="dom_lyric_preview" :class="$style.lyricPreview">
+                  <template v-for="(line, index) in currentLyricPage" :key="line.key + 'preview' + index">
+                    <p :class="$style.previewMain">{{ line.text }}</p>
+                    <p v-if="cardIncludeTranslation && line.translation" :class="$style.previewSub">
+                      {{ line.translation }}
+                    </p>
+                  </template>
+                </div>
 
-            <div :class="$style.footer">
-              <div :class="$style.qrWrap">
-                <img v-if="qrDataUrl" :src="qrDataUrl" :class="$style.qr" />
+                <div :class="$style.footer">
+                  <div v-if="cardQrDataUrl" :class="$style.qrWrap">
+                    <img
+                      :src="cardQrDataUrl"
+                      :alt="$t('share__qr_alt')"
+                      :class="$style.qr"
+                    />
+                  </div>
+                  <div :class="$style.footerInfo">
+                    <div v-if="cardQrDataUrl" :class="$style.scanText">
+                      {{ $t(cardScanTextKey) }}
+                    </div>
+                    <div v-else-if="cardHasShareUrl" :class="$style.noShareLink" role="status">
+                      {{ loadingQr && !batchSaving
+                        ? $t('share__preparing_card')
+                        : $t('share__qr_failed') }}
+                    </div>
+                    <div v-else :class="$style.noShareLink" role="status">
+                      {{ $t('share__no_share_link') }}
+                    </div>
+                    <div v-if="lyricPageCount > 1" :class="$style.cardPageStatus">
+                      {{ pageStatusText }}
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div :class="$style.scanText">{{ $t('share__scan_to_detail') }}</div>
+            </div>
+
+            <div
+              v-if="lyricPageCount > 1"
+              :class="$style.pageControls"
+              role="group"
+              :aria-label="$t('share__page_navigation')"
+            >
+              <button
+                :class="$style.pageButton"
+                type="button"
+                :disabled="!hasPreviousPage || batchBusy"
+                :aria-label="$t('pagination__prev')"
+                :title="$t('pagination__prev')"
+                @click="handlePreviousPage"
+              >
+                <svg viewBox="0 0 451.846 451.847" aria-hidden="true">
+                  <use xlink:href="#icon-left" />
+                </svg>
+              </button>
+              <label :class="$style.pageStatus">
+                <input
+                  v-model.number="pageDraft"
+                  :class="$style.pageInput"
+                  type="number"
+                  inputmode="numeric"
+                  min="1"
+                  :max="lyricPageCount"
+                  :disabled="batchBusy"
+                  :aria-label="$t('share__page_jump')"
+                  @change="handlePageJump"
+                  @blur="handlePageJump"
+                  @keydown.enter="$event.currentTarget.blur()"
+                />
+                <span aria-hidden="true">/ {{ lyricPageCount }}</span>
+              </label>
+              <span :class="$style.srOnly" aria-live="polite" aria-atomic="true">
+                {{ pageStatusText }}
+              </span>
+              <button
+                :class="$style.pageButton"
+                type="button"
+                :disabled="!hasNextPage || batchBusy"
+                :aria-label="$t('pagination__next')"
+                :title="$t('pagination__next')"
+                @click="handleNextPage"
+              >
+                <svg viewBox="0 0 451.846 451.847" aria-hidden="true">
+                  <use xlink:href="#icon-right" />
+                </svg>
+              </button>
             </div>
           </div>
         </section>
@@ -116,14 +420,24 @@
 <script setup>
 import { computed, ref, watch, nextTick } from '@common/utils/vueTools'
 import { isShowShareMusicCard, shareMusicInfo, closeShareMusicCard } from '@renderer/store/shareMusicCard'
-import { resolveMusicDetailWebUrl, buildLyricSelectableLines } from '@renderer/utils/shareMusicCard'
+import {
+  buildShareCardBatchId,
+  buildShareCardPageFileName,
+  buildShareCardPageIndexes,
+  buildShareCardRetryPageIndexes,
+  normalizeShareCardPageRange,
+  resolveMusicDetailWebUrl,
+  buildLyricSelectableLines,
+  paginateLyricLines,
+} from '@renderer/utils/shareMusicCard'
 import { createShareForMusic } from '@renderer/utils/cerumusicShare'
 import { clipboardWriteText, clipboardWriteImageDataURL } from '@common/utils/electron'
 import { dialog } from '@renderer/plugins/Dialog'
-import { getPlayerLyric, openSaveDir } from '@renderer/utils/ipc'
+import { getPlayerLyric, openSaveDir, showSelectDialog } from '@renderer/utils/ipc'
 import { musicInfo as playerMusicInfo } from '@renderer/store/player/state'
 import { toPng } from 'html-to-image'
 import QRCode from 'qrcode'
+import path from 'path'
 
 /**
  * 使用 Canvas API 提取图片主色调
@@ -186,28 +500,172 @@ const presets = [
   { id: 'presetMono', name: 'Mono' },
   { id: 'presetCover', name: 'Cover' },
 ]
+const dialogFocusableSelector = [
+  'button:not([disabled])',
+  'input:not([disabled]):not([tabindex="-1"])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  'a[href]',
+  '[tabindex]:not([tabindex="-1"])',
+].join(',')
+const SELECTION_PAGE_SIZE = 40
+const CARD_MAX_LINES_PER_PAGE = 5
+const CARD_MAX_CHARACTERS_PER_PAGE = 120
 
 const stylePreset = ref('presetNebula')
 const includeTranslation = ref(true)
 const lyricLines = ref([])
 const selectedLineIndexes = ref([])
+const currentPageIndex = ref(0)
+const pageDraft = ref(1)
+const selectionPageIndex = ref(0)
+const selectionPageDraft = ref(1)
+const activeLyricIndex = ref(0)
 const qrDataUrl = ref('')
+const dom_page = ref(null)
+const dom_close = ref(null)
 const dom_card = ref(null)
 const dom_cover = ref(null)
+const dom_lyric_list = ref(null)
+const dom_lyric_preview = ref(null)
 const coverColors = ref(null)
 const rawLyric = ref('')
 const rawTlyric = ref('')
 const cerumusicUrl = ref('')
 const generating = ref(false)
+const batchPreparing = ref(false)
+const batchSaving = ref(false)
+const batchCancelling = ref(false)
+const batchProgress = ref(0)
+const batchTargetTotal = ref(0)
+const batchStatus = ref('')
+const batchRangeStart = ref(1)
+const batchRangeEnd = ref(1)
+const loadingLyrics = ref(false)
+const loadingQr = ref(false)
+const loadingCover = ref(false)
+const qrError = ref(false)
+const batchLyricPages = ref(null)
+const batchCardSnapshot = ref(null)
+const batchRecovery = ref(null)
+let batchCancelRequested = false
+let closeAfterBatchCancel = false
+let lyricLoadGeneration = 0
+let qrLoadGeneration = 0
+let coverLoadGeneration = 0
+let shareTrigger = null
+let openingMusicInfo = null
 
 const musicInfo = computed(() => shareMusicInfo.value)
+const isPodcast = computed(() => musicInfo.value?.meta?.podcast === true)
 const detailUrl = computed(() => resolveMusicDetailWebUrl(musicInfo.value))
 // 优先使用 CeruMusic 分享落地页链接,未生成时回退到平台详情链接
-const shareUrl = computed(() => cerumusicUrl.value || detailUrl.value)
+const shareUrl = computed(() => isPodcast.value ? detailUrl.value : cerumusicUrl.value || detailUrl.value)
+const preparingShare = computed(() => (
+  loadingLyrics.value || loadingQr.value || loadingCover.value
+))
+const batchBusy = computed(() => batchPreparing.value || batchSaving.value)
+const selectionLabel = computed(() => window.i18n.t(
+  isPodcast.value ? 'share__select_transcript' : 'share__select_lyrics'
+))
+const selectionNavigationLabel = computed(() => window.i18n.t(
+  isPodcast.value
+    ? 'share__transcript_selection_navigation'
+    : 'share__selection_navigation'
+))
+const emptySelectionText = computed(() => window.i18n.t(
+  isPodcast.value ? 'share__no_transcript' : 'share__no_lyric'
+))
 
 const selectedLyricLines = computed(() => {
-  if (!selectedLineIndexes.value.length) return lyricLines.value.slice(0, 4)
-  return lyricLines.value.filter((_, index) => selectedLineIndexes.value.includes(index))
+  const selected = new Set(selectedLineIndexes.value)
+  return lyricLines.value.filter((_, index) => selected.has(index))
+})
+const selectedLineSet = computed(() => new Set(selectedLineIndexes.value))
+const hasTranslations = computed(() => lyricLines.value.some((line) => line.translation))
+const selectionPageCount = computed(() => Math.ceil(
+  lyricLines.value.length / SELECTION_PAGE_SIZE
+))
+const visibleLyricLines = computed(() => {
+  const start = selectionPageIndex.value * SELECTION_PAGE_SIZE
+  return lyricLines.value
+    .slice(start, start + SELECTION_PAGE_SIZE)
+    .map((line, offset) => ({ line, index: start + offset }))
+})
+const activeLyricOptionId = computed(() => lyricLines.value.length
+  ? `share-lyric-option-${activeLyricIndex.value}`
+  : undefined)
+const selectionPageStatusText = computed(() => window.i18n.t('share__page_status', {
+  current: selectionPageIndex.value + 1,
+  total: selectionPageCount.value,
+}))
+const lyricPages = computed(() => paginateLyricLines(selectedLyricLines.value, {
+  maxLinesPerPage: CARD_MAX_LINES_PER_PAGE,
+  maxCharactersPerPage: CARD_MAX_CHARACTERS_PER_PAGE,
+  includeTranslation: includeTranslation.value,
+}))
+const displayedLyricPages = computed(() => batchLyricPages.value ?? lyricPages.value)
+const lyricPageCount = computed(() => displayedLyricPages.value.length)
+const currentPageNumber = computed(() => lyricPageCount.value ? currentPageIndex.value + 1 : 0)
+const currentLyricPage = computed(() => displayedLyricPages.value[currentPageIndex.value] ?? [])
+const hasPreviousPage = computed(() => currentPageIndex.value > 0)
+const hasNextPage = computed(() => currentPageIndex.value + 1 < lyricPageCount.value)
+const pageStatusText = computed(() => window.i18n.t('share__page_status', {
+  current: currentPageNumber.value,
+  total: lyricPageCount.value,
+}))
+const allLyricsSelected = computed(() =>
+  lyricLines.value.length > 0 && selectedLineIndexes.value.length === lyricLines.value.length
+)
+const someLyricsSelected = computed(() =>
+  selectedLineIndexes.value.length > 0 && !allLyricsSelected.value
+)
+const normalizedBatchRange = computed(() => normalizeShareCardPageRange(
+  batchRangeStart.value,
+  batchRangeEnd.value,
+  lyricPageCount.value
+))
+const batchRangePageCount = computed(() => Math.max(
+  0,
+  normalizedBatchRange.value.endIndex - normalizedBatchRange.value.startIndex + 1
+))
+const batchRangeSummaryText = computed(() => window.i18n.t('share__export_range_summary', {
+  start: normalizedBatchRange.value.startIndex + 1,
+  end: normalizedBatchRange.value.endIndex + 1,
+  total: batchRangePageCount.value,
+}))
+const batchSaveButtonText = computed(() => (
+  normalizedBatchRange.value.startIndex === 0 &&
+  normalizedBatchRange.value.endIndex === lyricPageCount.value - 1
+    ? window.i18n.t('share__save_all_images')
+    : window.i18n.t('share__save_page_range')
+))
+const batchProgressText = computed(() => {
+  if (batchSaving.value) {
+    return window.i18n.t(
+      batchCancelling.value ? 'share__save_all_cancelling' : 'share__save_all_progress',
+      { current: batchProgress.value, total: batchTargetTotal.value }
+    )
+  }
+  return batchStatus.value
+})
+const cardMusicInfo = computed(() => batchCardSnapshot.value?.musicInfo ?? musicInfo.value)
+const cardQrDataUrl = computed(() => batchCardSnapshot.value?.qrDataUrl ?? qrDataUrl.value)
+const cardHasShareUrl = computed(() => Boolean(
+  batchCardSnapshot.value?.shareUrl ?? shareUrl.value
+))
+const cardStylePreset = computed(() => batchCardSnapshot.value?.stylePreset ?? stylePreset.value)
+const cardIncludeTranslation = computed(() => (
+  batchCardSnapshot.value?.includeTranslation ?? includeTranslation.value
+))
+const cardScanTextKey = computed(() => {
+  const info = cardMusicInfo.value
+  if (info?.meta?.podcast !== true) return 'share__scan_to_detail'
+  const publisherUrl = resolveMusicDetailWebUrl({
+    ...info,
+    meta: { ...info.meta, audioUrl: '' },
+  })
+  return publisherUrl ? 'share__scan_to_detail' : 'share__scan_to_audio'
 })
 
 const coverStyle = computed(() => {
@@ -223,82 +681,272 @@ const coverStyle = computed(() => {
 })
 
 const extractCoverColors = async () => {
-  if (stylePreset.value !== 'presetCover' || !musicInfo.value?.meta?.picUrl) {
-    coverColors.value = null
-    return
+  const generation = ++coverLoadGeneration
+  const sourceMusicInfo = musicInfo.value
+  const imageUrl = sourceMusicInfo?.meta?.picUrl
+  coverColors.value = null
+  loadingCover.value = stylePreset.value === 'presetCover' && Boolean(imageUrl)
+  if (!loadingCover.value) return
+
+  try {
+    const colors = await extractDominantColor(imageUrl)
+    if (
+      generation === coverLoadGeneration &&
+      musicInfo.value === sourceMusicInfo &&
+      stylePreset.value === 'presetCover'
+    ) {
+      coverColors.value = colors
+    }
+  } finally {
+    if (generation === coverLoadGeneration) loadingCover.value = false
   }
-  const colors = await extractDominantColor(musicInfo.value.meta.picUrl)
-  coverColors.value = colors
 }
 
 const handlePresetChange = (presetId) => {
+  if (batchBusy.value) return
   stylePreset.value = presetId
   if (presetId === 'presetCover') {
-    nextTick(() => {
-      extractCoverColors()
-    })
+    void extractCoverColors()
+  } else {
+    coverLoadGeneration++
+    loadingCover.value = false
+    coverColors.value = null
   }
+}
+
+const resetLyricState = () => {
+  lyricLines.value = []
+  selectedLineIndexes.value = []
+  currentPageIndex.value = 0
+  pageDraft.value = 1
+  selectionPageIndex.value = 0
+  selectionPageDraft.value = 1
+  activeLyricIndex.value = 0
+  rawLyric.value = ''
+  rawTlyric.value = ''
 }
 
 const refreshLyricData = async () => {
+  const generation = ++lyricLoadGeneration
   const mInfo = musicInfo.value
-  if (!mInfo) {
-    lyricLines.value = []
-    selectedLineIndexes.value = []
-    rawLyric.value = ''
-    rawTlyric.value = ''
-    return
+  resetLyricState()
+  loadingLyrics.value = Boolean(mInfo)
+  if (!mInfo) return
+
+  try {
+    let sourceLyric = ''
+    let sourceTlyric = ''
+
+    // 如果正在播放这首歌，优先使用播放器的歌词
+    if (playerMusicInfo.id && playerMusicInfo.id == mInfo.id && playerMusicInfo.lrc) {
+      sourceLyric = playerMusicInfo.lxlrc || playerMusicInfo.lrc || ''
+      sourceTlyric = playerMusicInfo.tlrc || ''
+    }
+
+    // 如果没有歌词，从播放器获取
+    if (!sourceLyric) {
+      const playerLyric = await getPlayerLyric(mInfo).catch(() => null)
+      sourceLyric = playerLyric?.lyric || ''
+      sourceTlyric = playerLyric?.tlyric || ''
+    }
+
+    if (generation !== lyricLoadGeneration || musicInfo.value !== mInfo) return
+
+    rawLyric.value = sourceLyric
+    rawTlyric.value = sourceTlyric
+
+    const lines = buildLyricSelectableLines(sourceLyric, sourceTlyric)
+    lyricLines.value = lines
+    const selectedCount = mInfo.meta?.podcast === true ? lines.length : Math.min(lines.length, 4)
+    selectedLineIndexes.value = Array.from({ length: selectedCount }, (_, index) => index)
+  } finally {
+    if (generation === lyricLoadGeneration) loadingLyrics.value = false
   }
-
-  let sourceLyric = ''
-  let sourceTlyric = ''
-
-  // 如果正在播放这首歌，优先使用播放器的歌词
-  if (playerMusicInfo.id && playerMusicInfo.id == mInfo.id && playerMusicInfo.lrc) {
-    sourceLyric = playerMusicInfo.lxlrc || playerMusicInfo.lrc || ''
-    sourceTlyric = playerMusicInfo.tlrc || ''
-  }
-
-  // 如果没有歌词，从播放器获取
-  if (!sourceLyric) {
-    const playerLyric = await getPlayerLyric(mInfo).catch(() => null)
-    sourceLyric = playerLyric?.lyric || ''
-    sourceTlyric = playerLyric?.tlyric || ''
-  }
-
-  rawLyric.value = sourceLyric
-  rawTlyric.value = sourceTlyric
-
-  const lines = buildLyricSelectableLines(sourceLyric, sourceTlyric)
-  lyricLines.value = lines
-  selectedLineIndexes.value = lines.slice(0, 4).map((_, index) => index)
 }
 
 const refreshQRCode = async () => {
+  const generation = ++qrLoadGeneration
   const url = shareUrl.value
-  qrDataUrl.value = url
-    ? await QRCode.toDataURL(url, {
-        margin: 1,
-        width: 180,
-        errorCorrectionLevel: 'M',
-      })
-    : ''
+  qrDataUrl.value = ''
+  qrError.value = false
+  loadingQr.value = Boolean(url)
+  if (!url) return
+
+  try {
+    const dataUrl = await QRCode.toDataURL(url, {
+      margin: 1,
+      width: 180,
+      errorCorrectionLevel: 'M',
+    })
+    if (generation === qrLoadGeneration && shareUrl.value === url) qrDataUrl.value = dataUrl
+  } catch {
+    if (generation === qrLoadGeneration && shareUrl.value === url) qrError.value = true
+  } finally {
+    if (generation === qrLoadGeneration) loadingQr.value = false
+  }
 }
 
 const handleClose = () => {
+  if (batchSaving.value) {
+    closeAfterBatchCancel = true
+    handleCancelBatchSave()
+    return
+  }
+  if (batchPreparing.value) return
   closeShareMusicCard()
+}
+
+const handleDialogKeydown = (event) => {
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    handleClose()
+    return
+  }
+  if (event.key !== 'Tab' || !dom_page.value) return
+
+  const focusable = [...dom_page.value.querySelectorAll(dialogFocusableSelector)]
+  if (!focusable.length) return
+
+  const first = focusable[0]
+  const last = focusable.at(-1)
+  const active = document.activeElement
+  if (event.shiftKey && active === first) {
+    event.preventDefault()
+    last.focus()
+  } else if (!event.shiftKey && active === last) {
+    event.preventDefault()
+    first.focus()
+  }
+}
+
+const handleSelectAll = (event) => {
+  if (batchBusy.value) return
+  selectedLineIndexes.value = event.target.checked
+    ? lyricLines.value.map((_, index) => index)
+    : []
+}
+
+const handleLineSelection = (index, selected) => {
+  if (batchBusy.value) return
+  const next = new Set(selectedLineIndexes.value)
+  selected ? next.add(index) : next.delete(index)
+  selectedLineIndexes.value = [...next].sort((a, b) => a - b)
+}
+
+const moveActiveLyric = (targetIndex) => {
+  if (!lyricLines.value.length) return
+  const nextIndex = Math.min(lyricLines.value.length - 1, Math.max(0, targetIndex))
+  activeLyricIndex.value = nextIndex
+  selectionPageIndex.value = Math.floor(nextIndex / SELECTION_PAGE_SIZE)
+  void nextTick(() => {
+    dom_lyric_list.value
+      ?.querySelector(`#share-lyric-option-${nextIndex}`)
+      ?.scrollIntoView({ block: 'nearest' })
+  })
+}
+
+const toggleActiveLyric = () => {
+  const index = activeLyricIndex.value
+  handleLineSelection(index, !selectedLineSet.value.has(index))
+}
+
+const handleLyricListKeydown = (event) => {
+  const actions = {
+    ArrowDown: () => moveActiveLyric(activeLyricIndex.value + 1),
+    ArrowUp: () => moveActiveLyric(activeLyricIndex.value - 1),
+    PageDown: () => moveActiveLyric(activeLyricIndex.value + SELECTION_PAGE_SIZE),
+    PageUp: () => moveActiveLyric(activeLyricIndex.value - SELECTION_PAGE_SIZE),
+    Home: () => moveActiveLyric(0),
+    End: () => moveActiveLyric(lyricLines.value.length - 1),
+    ' ': toggleActiveLyric,
+    Enter: toggleActiveLyric,
+  }
+  const action = actions[event.key]
+  if (!action || batchBusy.value) return
+  event.preventDefault()
+  action()
+}
+
+const handlePreviousSelectionPage = () => {
+  if (batchBusy.value || !selectionPageIndex.value) return
+  moveActiveLyric((selectionPageIndex.value - 1) * SELECTION_PAGE_SIZE)
+}
+
+const handleNextSelectionPage = () => {
+  if (batchBusy.value || selectionPageIndex.value + 1 >= selectionPageCount.value) return
+  moveActiveLyric((selectionPageIndex.value + 1) * SELECTION_PAGE_SIZE)
+}
+
+const handleSelectionPageJump = () => {
+  if (batchBusy.value) return
+  const requestedPage = Math.floor(Number(selectionPageDraft.value))
+  const nextPage = Number.isFinite(requestedPage)
+    ? Math.min(selectionPageCount.value, Math.max(1, requestedPage))
+    : selectionPageIndex.value + 1
+  selectionPageDraft.value = nextPage
+  moveActiveLyric((nextPage - 1) * SELECTION_PAGE_SIZE)
+}
+
+const handlePreviousPage = () => {
+  if (!batchBusy.value && hasPreviousPage.value) currentPageIndex.value--
+}
+
+const handleNextPage = () => {
+  if (!batchBusy.value && hasNextPage.value) currentPageIndex.value++
+}
+
+const handlePageJump = () => {
+  if (batchBusy.value) return
+  const requestedPage = Math.floor(Number(pageDraft.value))
+  const nextPage = Number.isFinite(requestedPage)
+    ? Math.min(lyricPageCount.value, Math.max(1, requestedPage))
+    : currentPageNumber.value
+  currentPageIndex.value = Math.max(0, nextPage - 1)
+  pageDraft.value = nextPage
+}
+
+const handleBatchRangeChange = () => {
+  if (batchBusy.value) return
+  const range = normalizeShareCardPageRange(
+    batchRangeStart.value,
+    batchRangeEnd.value,
+    lyricPageCount.value
+  )
+  batchRangeStart.value = range.startIndex + 1
+  batchRangeEnd.value = range.endIndex + 1
 }
 
 const renderCardPng = async () => {
   if (!dom_card.value) return ''
+  if (
+    dom_lyric_preview.value &&
+    dom_lyric_preview.value.scrollHeight > dom_lyric_preview.value.clientHeight + 1
+  ) {
+    throw new Error('share card content exceeds the preview area')
+  }
   return toPng(dom_card.value, {
     cacheBust: true,
     pixelRatio: 2,
   })
 }
 
+const dataUrlToBytes = (dataUrl) => {
+  return Buffer.from(dataUrl.replace(/^data:image\/png;base64,/, ''), 'base64')
+}
+
+const waitForCardPaint = () => new Promise((resolve) => {
+  window.requestAnimationFrame(() => window.requestAnimationFrame(resolve))
+})
+const cardCoverStyle = computed(() => batchCardSnapshot.value?.coverStyle ?? coverStyle.value)
+
 const handleGenerateCeruShare = async () => {
-  if (!musicInfo.value || generating.value) return
+  if (
+    !musicInfo.value ||
+    isPodcast.value ||
+    generating.value ||
+    batchBusy.value ||
+    preparingShare.value
+  ) return
   generating.value = true
   try {
     const url = await createShareForMusic(musicInfo.value, {
@@ -322,7 +970,7 @@ const handleGenerateCeruShare = async () => {
 }
 
 const handleCopyLink = async () => {
-  if (!shareUrl.value) return
+  if (!shareUrl.value || batchBusy.value) return
   try {
     clipboardWriteText(shareUrl.value)
     await dialog.confirm({
@@ -338,6 +986,7 @@ const handleCopyLink = async () => {
 }
 
 const handleCopyImage = async () => {
+  if (batchBusy.value || preparingShare.value) return
   try {
     const dataUrl = await renderCardPng()
     if (!dataUrl) {
@@ -361,6 +1010,7 @@ const handleCopyImage = async () => {
 }
 
 const handleSaveImage = async () => {
+  if (batchBusy.value || preparingShare.value) return
   try {
     const dataUrl = await renderCardPng()
     if (!dataUrl) {
@@ -373,16 +1023,16 @@ const handleSaveImage = async () => {
 
     const result = await openSaveDir({
       title: 'Save share card',
-      defaultPath: `${musicInfo.value?.name || 'music-share-card'}.png`,
+      defaultPath: buildShareCardPageFileName(
+        musicInfo.value?.name,
+        currentPageNumber.value,
+        lyricPageCount.value
+      ),
       filters: [{ name: 'PNG', extensions: ['png'] }],
     })
     if (result.canceled || !result.filePath) return
 
-    const base64 = dataUrl.replace(/^data:image\/png;base64,/, '')
-    const binary = window.atob(base64)
-    const bytes = new Uint8Array(binary.length)
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-    await window.lx.worker.main.saveStrToFile(result.filePath, bytes)
+    await window.lx.worker.main.saveStrToFile(result.filePath, dataUrlToBytes(dataUrl))
     await dialog.confirm({
       message: window.i18n.t('share__save_image_success'),
       confirmButtonText: window.i18n.t('ok'),
@@ -395,45 +1045,322 @@ const handleSaveImage = async () => {
   }
 }
 
+const handleCancelBatchSave = () => {
+  if (!batchSaving.value) return
+  batchCancelRequested = true
+  batchCancelling.value = true
+}
+
+const refreshCurrentShareContent = async () => {
+  await Promise.all([
+    refreshLyricData(),
+    refreshQRCode(),
+    extractCoverColors(),
+  ])
+}
+
+const runBatchSave = async (
+  job,
+  pageIndexes,
+  successMessageKey,
+  continuationPageIndex = null
+) => {
+  if (batchBusy.value || !pageIndexes.length) return
+
+  const returnPageIndex = currentPageIndex.value
+  batchCancelRequested = false
+  closeAfterBatchCancel = false
+  batchCancelling.value = false
+  batchProgress.value = 0
+  batchTargetTotal.value = pageIndexes.length
+  batchStatus.value = ''
+  batchLyricPages.value = job.pages
+  batchCardSnapshot.value = job.cardSnapshot
+  batchSaving.value = true
+
+  let activePageIndex = pageIndexes[0]
+  let failureStage = 'render'
+  let failed = false
+  let resultMessage = ''
+  let shouldClose = false
+
+  try {
+    for (const pageIndex of pageIndexes) {
+      if (batchCancelRequested) break
+      activePageIndex = pageIndex
+      currentPageIndex.value = pageIndex
+      await nextTick()
+      await waitForCardPaint()
+      failureStage = 'render'
+      const dataUrl = await renderCardPng()
+      if (!dataUrl) throw new Error('share card is unavailable')
+      const fileName = buildShareCardPageFileName(
+        job.batchTitle,
+        pageIndex + 1,
+        job.pages.length,
+        job.batchId
+      )
+      failureStage = 'write'
+      await window.lx.worker.main.saveStrToFile(
+        path.join(job.directory, fileName),
+        dataUrlToBytes(dataUrl)
+      )
+      batchProgress.value++
+    }
+
+    if (batchCancelRequested) {
+      batchRecovery.value = null
+      batchStatus.value = window.i18n.t('share__save_all_cancelled', {
+        current: batchProgress.value,
+        total: pageIndexes.length,
+      })
+    } else {
+      batchRecovery.value = continuationPageIndex == null
+        ? null
+        : {
+            ...job,
+            resumePageIndex: continuationPageIndex,
+            failedPageIndex: null,
+          }
+      batchStatus.value = window.i18n.t(successMessageKey, {
+        page: pageIndexes[0] + 1,
+        total: pageIndexes.length,
+      })
+      resultMessage = batchStatus.value
+    }
+  } catch {
+    failed = true
+    batchRecovery.value = {
+      ...job,
+      resumePageIndex: activePageIndex,
+      failedPageIndex: activePageIndex,
+    }
+    const messageKey = failureStage === 'write'
+      ? 'share__save_all_write_failed'
+      : 'share__save_all_render_failed'
+    batchStatus.value = window.i18n.t(messageKey, {
+      current: batchProgress.value,
+      total: pageIndexes.length,
+      failed: activePageIndex + 1,
+    })
+    resultMessage = batchStatus.value
+  } finally {
+    shouldClose = closeAfterBatchCancel
+    if (shouldClose || (!failed && continuationPageIndex == null)) batchRecovery.value = null
+    batchLyricPages.value = null
+    batchCardSnapshot.value = null
+    currentPageIndex.value = Math.min(
+      returnPageIndex,
+      Math.max(lyricPages.value.length - 1, 0)
+    )
+    pageDraft.value = currentPageIndex.value + 1
+    batchSaving.value = false
+    batchCancelling.value = false
+    batchCancelRequested = false
+    closeAfterBatchCancel = false
+    batchTargetTotal.value = 0
+
+    if (musicInfo.value !== job.sourceMusicInfo && !shouldClose) {
+      batchRecovery.value = null
+      await refreshCurrentShareContent()
+    }
+    if (shouldClose) closeShareMusicCard()
+  }
+
+  if (resultMessage && !shouldClose) {
+    await dialog.confirm({
+      message: resultMessage,
+      confirmButtonText: window.i18n.t('ok'),
+    }).catch(() => {})
+  }
+}
+
+const handleSaveAllImages = async () => {
+  if (
+    batchBusy.value ||
+    generating.value ||
+    preparingShare.value ||
+    lyricPages.value.length < 2
+  ) return
+
+  handleBatchRangeChange()
+  const range = normalizeShareCardPageRange(
+    batchRangeStart.value,
+    batchRangeEnd.value,
+    lyricPages.value.length
+  )
+  const pageIndexes = buildShareCardPageIndexes(range.startIndex, range.endIndex)
+  if (!pageIndexes.length) return
+
+  batchPreparing.value = true
+  const sourceMusicInfo = musicInfo.value
+  const pages = lyricPages.value.map((page) => page.map((line) => ({ ...line })))
+  const batchId = buildShareCardBatchId()
+  const snapshotMusicInfo = sourceMusicInfo
+    ? { ...sourceMusicInfo, meta: { ...sourceMusicInfo.meta } }
+    : null
+  const cardSnapshot = {
+    musicInfo: snapshotMusicInfo,
+    qrDataUrl: qrDataUrl.value,
+    shareUrl: shareUrl.value,
+    stylePreset: stylePreset.value,
+    coverStyle: { ...coverStyle.value },
+    includeTranslation: includeTranslation.value,
+  }
+  let directory = ''
+  let folderSelectionFailed = false
+  batchProgress.value = 0
+  batchStatus.value = ''
+
+  try {
+    const result = await showSelectDialog({
+      title: window.i18n.t('share__save_all_select_folder'),
+      properties: ['openDirectory', 'createDirectory'],
+    })
+    directory = result.canceled ? '' : result.filePaths?.[0] || ''
+  } catch {
+    folderSelectionFailed = true
+    const message = window.i18n.t('share__save_all_folder_failed')
+    batchStatus.value = message
+    await dialog.confirm({
+      message,
+      confirmButtonText: window.i18n.t('ok'),
+    })
+  } finally {
+    batchPreparing.value = false
+  }
+
+  if (folderSelectionFailed || !directory) {
+    if (musicInfo.value !== sourceMusicInfo) await refreshCurrentShareContent()
+    return
+  }
+
+  batchRecovery.value = null
+  await runBatchSave({
+    sourceMusicInfo,
+    pages,
+    batchId,
+    batchTitle: snapshotMusicInfo?.name,
+    cardSnapshot,
+    directory,
+    rangeEndIndex: range.endIndex,
+  }, pageIndexes, 'share__save_pages_success')
+}
+
+const retryBatchSave = async (strategy) => {
+  const recovery = batchRecovery.value
+  if (!recovery || batchBusy.value) return
+  const retryPageIndex = strategy === 'failed'
+    ? recovery.failedPageIndex
+    : recovery.resumePageIndex
+  if (!Number.isInteger(retryPageIndex)) return
+  const pageIndexes = buildShareCardRetryPageIndexes(
+    retryPageIndex,
+    recovery.rangeEndIndex,
+    strategy
+  )
+  const continuationPageIndex = strategy === 'failed' && retryPageIndex < recovery.rangeEndIndex
+    ? retryPageIndex + 1
+    : null
+  await runBatchSave(
+    recovery,
+    pageIndexes,
+    strategy === 'failed' ? 'share__retry_page_success' : 'share__save_pages_success',
+    continuationPageIndex
+  )
+}
+
+const handleResumeBatchSave = () => retryBatchSave('remaining')
+const handleRetryFailedPage = () => retryBatchSave('failed')
+
+watch(
+  [selectedLineIndexes, includeTranslation],
+  () => {
+    if (!batchBusy.value) currentPageIndex.value = 0
+  },
+  { deep: true }
+)
+
+watch(currentPageNumber, (page) => {
+  pageDraft.value = page || 1
+})
+
+watch(selectionPageIndex, (page) => {
+  selectionPageDraft.value = page + 1
+})
+
+watch(lyricPageCount, (total, previousTotal) => {
+  if (batchBusy.value) return
+  if (!total) {
+    batchRangeStart.value = 1
+    batchRangeEnd.value = 1
+    return
+  }
+
+  const followedPreviousEnd = !previousTotal || batchRangeEnd.value >= previousTotal
+  const range = normalizeShareCardPageRange(
+    batchRangeStart.value,
+    batchRangeEnd.value,
+    total
+  )
+  batchRangeStart.value = range.startIndex + 1
+  batchRangeEnd.value = followedPreviousEnd ? total : range.endIndex + 1
+})
+
 watch(
   () => isShowShareMusicCard.value,
   async (show) => {
-    if (!show) return
+    if (!show) {
+      lyricLoadGeneration++
+      qrLoadGeneration++
+      coverLoadGeneration++
+      loadingLyrics.value = false
+      loadingQr.value = false
+      loadingCover.value = false
+      batchRecovery.value = null
+      const target = shareTrigger
+      shareTrigger = null
+      await nextTick()
+      if (target?.isConnected) target.focus()
+      return
+    }
+    shareTrigger = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null
     cerumusicUrl.value = ''
-    await refreshLyricData()
-    await refreshQRCode()
-    if (stylePreset.value === 'presetCover') {
-      nextTick(() => {
-        extractCoverColors()
-      })
+    qrDataUrl.value = ''
+    qrError.value = false
+    batchProgress.value = 0
+    batchTargetTotal.value = 0
+    batchStatus.value = ''
+    batchLyricPages.value = null
+    batchCardSnapshot.value = null
+    batchRecovery.value = null
+    openingMusicInfo = musicInfo.value
+    const refreshPromise = refreshCurrentShareContent()
+    await nextTick()
+    dom_close.value?.focus()
+    try {
+      await refreshPromise
+    } finally {
+      if (openingMusicInfo === musicInfo.value) openingMusicInfo = null
     }
   }
 )
 
 watch(
-  () => musicInfo.value?.id,
+  musicInfo,
   async () => {
     if (!isShowShareMusicCard.value) return
+    if (openingMusicInfo === musicInfo.value) return
+    openingMusicInfo = null
+    batchRecovery.value = null
+    if (batchBusy.value) {
+      if (batchSaving.value) handleCancelBatchSave()
+      return
+    }
     cerumusicUrl.value = ''
-    await refreshLyricData()
-    await refreshQRCode()
-    if (stylePreset.value === 'presetCover') {
-      nextTick(() => {
-        extractCoverColors()
-      })
-    }
-  }
-)
-
-watch(
-  () => musicInfo.value?.meta?.picUrl,
-  async () => {
-    if (!isShowShareMusicCard.value) return
-    if (stylePreset.value === 'presetCover') {
-      nextTick(() => {
-        extractCoverColors()
-      })
-    }
+    await refreshCurrentShareContent()
   }
 )
 </script>
@@ -446,13 +1373,14 @@ watch(
   inset: 0;
   z-index: 12;
   color: var(--color-font);
+  overflow: hidden;
 }
 .bg {
   position: absolute;
   inset: 0;
   background: var(--background-image) var(--background-image-position) no-repeat;
   background-size: var(--background-image-size);
-  opacity: 0.72;
+  opacity: 1;
 
   &:before {
     .mixin-after();
@@ -484,13 +1412,34 @@ watch(
   border: none;
   background: transparent;
   color: var(--color-font);
-  width: 24px;
-  height: 24px;
+  width: 44px;
+  height: 44px;
+  padding: 12px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
+
+  svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  &:hover {
+    background: var(--color-button-background-hover);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
 }
 .container {
   position: relative;
   height: calc(100% - @height-toolbar);
+  min-height: 0;
+  box-sizing: border-box;
   padding: 12px 22px 20px;
   display: flex;
   gap: 16px;
@@ -498,21 +1447,41 @@ watch(
 .panel {
   width: 40%;
   min-width: 320px;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 14px;
+  overflow-y: auto;
 }
 .previewWrap {
   flex: auto;
+  min-width: 0;
+  min-height: 0;
   display: flex;
   align-items: flex-start;
   justify-content: center;
+}
+.previewColumn {
+  width: 100%;
+  height: 100%;
+  min-width: 360px;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.cardViewport {
+  width: 100%;
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  justify-content: center;
   overflow-y: auto;
-  padding: 20px 0;
 }
 .group {
   border: 1px solid var(--color-primary-alpha-600);
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 10px;
 }
 .groupTitle {
@@ -525,11 +1494,22 @@ watch(
   justify-content: space-between;
   align-items: center;
 }
+.groupLine .groupTitle {
+  margin-bottom: 0;
+}
+.selectionControls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 12px;
+}
 .switch {
+  min-height: 44px;
   font-size: 12px;
   display: flex;
   gap: 6px;
   align-items: center;
+  cursor: pointer;
 }
 .presetList {
   display: flex;
@@ -538,43 +1518,135 @@ watch(
 .presetBtn {
   border: none;
   border-radius: 16px;
+  min-height: 44px;
   padding: 6px 12px;
   cursor: pointer;
   color: var(--color-font);
   background: var(--color-button-background);
 
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+
   &.active {
     background: var(--color-primary);
     color: #fff;
   }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
 }
 .lyricList {
-  max-height: 230px;
+  max-height: clamp(160px, 24vh, 230px);
   overflow: auto;
+  border-radius: 6px;
+
+  &:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
 }
 .lineItem {
   display: flex;
   gap: 8px;
   align-items: flex-start;
-  margin-bottom: 8px;
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: 6px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+
+  input {
+    margin-top: 3px;
+  }
+
+  > div {
+    min-width: 0;
+  }
+}
+.activeLine {
+  background: var(--color-button-background-hover);
+  box-shadow: inset 3px 0 0 var(--color-primary);
 }
 .lineMain {
   font-size: 13px;
+  overflow-wrap: anywhere;
 }
 .lineSub {
   font-size: 12px;
   opacity: 0.68;
+  overflow-wrap: anywhere;
 }
 .emptyLyric {
   padding: 10px;
   font-size: 13px;
   opacity: 0.7;
 }
+.selectionPager {
+  min-height: 44px;
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: 44px minmax(112px, auto) 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.exportRange {
+  margin-top: 10px;
+}
+.exportRangeFields {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+.rangeField {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+}
+.rangeInput {
+  width: 72px;
+  height: 44px;
+  box-sizing: border-box;
+  border: 1px solid var(--color-primary-alpha-600);
+  border-radius: 6px;
+  padding: 0 8px;
+  color: var(--color-font);
+  background: var(--color-button-background);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+
+  &:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+}
+.rangeSeparator {
+  height: 44px;
+  display: flex;
+  align-items: center;
+}
+.rangeSummary {
+  min-height: 18px;
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  opacity: 0.72;
+}
 .ceruBtn {
   margin-top: 10px;
   width: 100%;
   border: none;
   border-radius: 6px;
+  min-height: 44px;
   padding: 9px 12px;
   color: #fff;
   background: var(--color-primary);
@@ -584,22 +1656,64 @@ watch(
     opacity: 0.6;
     cursor: default;
   }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
 }
 .actions {
   margin-top: 10px;
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
 }
 .actionBtn {
   border: none;
   border-radius: 6px;
+  min-height: 44px;
   padding: 8px 12px;
   color: #fff;
   background: var(--color-primary);
   cursor: pointer;
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+}
+.exportStatus {
+  min-height: 20px;
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.recoveryPanel {
+  margin-top: 8px;
+  padding-left: 10px;
+  border-left: 3px solid var(--color-primary);
+}
+.recoveryHint {
+  font-size: 12px;
+  line-height: 1.5;
+  opacity: 0.78;
+}
+.recoveryActions {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 .card {
   width: 360px;
+  height: 720px;
+  flex: 0 0 auto;
+  box-sizing: border-box;
   padding: 18px;
   display: flex;
   flex-direction: column;
@@ -609,6 +1723,7 @@ watch(
 .coverWrap {
   width: 96px;
   height: 96px;
+  flex: 0 0 96px;
   overflow: hidden;
 }
 .cover {
@@ -627,28 +1742,46 @@ watch(
 }
 .meta {
   margin-top: 12px;
+  flex: 0 0 auto;
+  min-width: 0;
 }
 .song {
   margin: 0;
   font-size: 22px;
+  line-height: 1.25;
+  display: -webkit-box;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 .singer {
   margin: 6px 0 0;
+  line-height: 1.4;
+  display: -webkit-box;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   opacity: 0.82;
 }
 .lyricPreview {
   margin-top: 18px;
   min-height: 60px;
+  flex: 1 1 auto;
+  overflow: hidden;
 }
 .previewMain {
   margin: 0 0 8px;
   line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 .previewSub {
   margin: -5px 0 10px;
   line-height: 1.3;
   font-size: 13px;
   opacity: 0.75;
+  overflow-wrap: anywhere;
 }
 .footer {
   display: flex;
@@ -656,6 +1789,14 @@ watch(
   justify-content: space-between;
   margin-top: auto;
   padding-top: 18px;
+  flex: 0 0 auto;
+}
+.footerInfo {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  text-align: right;
 }
 .qrWrap {
   width: 88px;
@@ -671,6 +1812,104 @@ watch(
   font-size: 13px;
   opacity: 0.88;
 }
+.noShareLink {
+  max-width: 190px;
+  font-size: 13px;
+  line-height: 1.4;
+  opacity: 0.82;
+}
+.cardPageStatus,
+.pageStatus {
+  font-variant-numeric: tabular-nums;
+}
+.cardPageStatus {
+  font-size: 12px;
+  opacity: 1;
+}
+.pageControls {
+  min-height: 44px;
+  display: grid;
+  grid-template-columns: 44px minmax(112px, auto) 44px;
+  align-items: center;
+  gap: 8px;
+}
+.pageButton {
+  width: 44px;
+  height: 44px;
+  padding: 12px;
+  border: 1px solid var(--color-primary-alpha-600);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-font);
+  background: var(--color-button-background);
+  cursor: pointer;
+  transition: background-color 180ms ease, opacity 180ms ease;
+
+  svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  &:hover:not(:disabled) {
+    background: var(--color-button-background-hover);
+  }
+
+  &:active:not(:disabled) {
+    background: var(--color-button-background-active);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+}
+
+.pageStatus {
+  min-width: 112px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-align: center;
+  font-size: 13px;
+}
+.pageInput {
+  width: 56px;
+  height: 44px;
+  box-sizing: border-box;
+  border: 1px solid var(--color-primary-alpha-600);
+  border-radius: 6px;
+  padding: 0 6px;
+  text-align: center;
+  color: var(--color-font);
+  background: var(--color-button-background);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+
+  &:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 .presetNebula {
   background: radial-gradient(circle at 14% 20%, #4956ff 0, transparent 54%),
     radial-gradient(circle at 84% 10%, #00b5d9 0, transparent 40%),
@@ -683,5 +1922,39 @@ watch(
 }
 .presetMono {
   background: linear-gradient(145deg, #151515, #2a2a2a);
+}
+.presetCover {
+  background: #1d2427;
+}
+
+@media (max-width: 760px) {
+  .container {
+    padding: 8px 6px 16px;
+    flex-direction: column;
+    overflow-y: auto;
+  }
+  .panel {
+    width: 100%;
+    min-width: 0;
+    overflow: visible;
+    flex: none;
+  }
+  .previewWrap {
+    flex: none;
+  }
+  .previewColumn {
+    min-width: 0;
+    height: auto;
+  }
+  .cardViewport {
+    flex: none;
+    overflow-x: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page {
+    animation: none !important;
+  }
 }
 </style>

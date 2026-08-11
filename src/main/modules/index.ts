@@ -9,6 +9,7 @@ import registerWebdavStream from './webdavStream'
 import registerBilibiliHeaders from './bilibiliHeaders'
 import registerHaloPixel from './haloPixel'
 import registerExternalMediaDucking from './externalMediaDucking'
+import registerPodcast from './podcast'
 
 let isRegistered = false
 export default () => {
@@ -24,5 +25,6 @@ export default () => {
   registerBilibiliHeaders()
   registerHaloPixel()
   registerExternalMediaDucking()
+  registerPodcast()
   isRegistered = true
 }

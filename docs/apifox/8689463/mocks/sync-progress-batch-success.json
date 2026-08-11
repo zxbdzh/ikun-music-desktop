@@ -1,0 +1,23 @@
+{
+  "name": "默认成功 - 批量写入播放或收藏状态",
+  "apiDetailId": 498765775,
+  "conditions": [],
+  "ipCondition": { "enable": false, "value": "" },
+  "response": {
+    "code": 200,
+    "delay": 0,
+    "headers": [
+      { "key": "Content-Type", "value": "application/json; charset=utf-8" }
+    ],
+    "bodyType": "json",
+    "bodyData": {
+      "success": true,
+      "code": "SUCCESS",
+      "message": "Progress batch saved successfully.",
+      "trace_id": "mock_sync_progress_batch",
+      "data": {}
+    },
+    "disableMockJs": true,
+    "disableTemplating": true
+  }
+}

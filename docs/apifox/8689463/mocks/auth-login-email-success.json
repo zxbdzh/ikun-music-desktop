@@ -1,0 +1,34 @@
+{
+  "name": "默认成功 - 验证码登录",
+  "apiDetailId": 498765767,
+  "conditions": [],
+  "ipCondition": { "enable": false, "value": "" },
+  "response": {
+    "code": 200,
+    "delay": 0,
+    "headers": [
+      { "key": "Content-Type", "value": "application/json; charset=utf-8" }
+    ],
+    "bodyType": "json",
+    "bodyData": {
+      "success": true,
+      "code": "SUCCESS",
+      "message": "Authentication successful.",
+      "trace_id": "mock_auth_login_email",
+      "data": {
+        "token": "mock.jwt.token",
+        "user": {
+          "id": "AU_MOCK_0001",
+          "email": "mock-user@example.invalid",
+          "username": "Mock User",
+          "points": 0,
+          "membership_tier": "free",
+          "is_premium": 0,
+          "subscription_expires_at": null
+        }
+      }
+    },
+    "disableMockJs": true,
+    "disableTemplating": true
+  }
+}

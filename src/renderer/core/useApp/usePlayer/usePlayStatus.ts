@@ -1,5 +1,5 @@
 import { onBeforeUnmount, watch } from '@common/utils/vueTools'
-import { sendPlayerStatus, onPlayerAction } from '@renderer/utils/ipc'
+import { sendPlayerStatus, onPlayerAction, sendPodcastCommand } from '@renderer/utils/ipc'
 // import store from '@renderer/store'
 
 import { loveList } from '@renderer/store/list/state'
@@ -10,11 +10,36 @@ import { pause, play, playNext, playPrev } from '@renderer/core/player'
 import { playProgress } from '@renderer/store/player/playProgress'
 import { appSetting } from '@renderer/store/setting'
 import { lyric } from '@renderer/store/player/lyric'
+import {
+  activatePodcastEpisode,
+  resolvePodcastMusicInfo,
+} from '@renderer/core/music/podcast'
 
 export default () => {
   // const setVisibleDesktopLyric = useCommit('setVisibleDesktopLyric')
   // const setLockDesktopLyric = useCommit('setLockDesktopLyric')
   let collect = false
+  let lastPodcastFlushEpisodeId = ''
+  let lastPodcastFlushPosition = 0
+
+  const getCurrentPodcast = () => {
+    return resolvePodcastMusicInfo(playMusicInfo.musicInfo)
+  }
+
+  const flushPodcastProgress = (isFinished = false, position = playProgress.nowPlayTime) => {
+    const podcast = getCurrentPodcast()
+    if (!podcast) return
+    lastPodcastFlushEpisodeId = podcast.id
+    lastPodcastFlushPosition = position
+    void sendPodcastCommand({
+      action: 'save-progress',
+      episodeId: podcast.id,
+      positionSeconds: isFinished ? playProgress.maxPlayTime || position : position,
+      isFinished,
+    }).catch((error) => {
+      console.warn('[podcast] save progress failed:', error instanceof Error ? error.message : error)
+    })
+  }
 
   const updateCollectStatus = async () => {
     let status =
@@ -30,6 +55,7 @@ export default () => {
   }
   const handlePause = () => {
     sendPlayerStatus({ status: 'paused' })
+    flushPodcastProgress()
   }
   const handleStop = () => {
     if (playMusicInfo.musicInfo != null) return
@@ -40,6 +66,12 @@ export default () => {
   }
   const handleSetPlayInfo = async () => {
     await updateCollectStatus()
+    const podcast = getCurrentPodcast()
+    if (podcast && podcast.id !== lastPodcastFlushEpisodeId) {
+      lastPodcastFlushEpisodeId = podcast.id
+      lastPodcastFlushPosition = playProgress.nowPlayTime
+    }
+    if (!podcast) void sendPodcastCommand({ action: 'deactivate-episode' })
     sendPlayerStatus({
       collect,
       name: musicInfo.name,
@@ -49,6 +81,9 @@ export default () => {
       lyric: musicInfo.lrc ?? '',
       lyricLineText: '',
       lyricLineAllText: '',
+      mediaKind: podcast ? 'podcast' : 'music',
+      contentId: podcast?.id ?? '',
+      transcript: null,
     })
   }
   const handleSetLyric = () => {
@@ -87,7 +122,16 @@ export default () => {
       duration: playProgress.maxPlayTime,
       progress: playProgress.nowPlayTime,
       playbackRate: appSetting['player.playbackRate'],
+      mediaKind: 'music',
+      contentId: '',
+      transcript: null,
     })
+  }
+  const handleSetProgress = (position: number) => {
+    flushPodcastProgress(false, position)
+  }
+  const handlePlayerEnded = () => {
+    flushPodcastProgress(true)
   }
   // const handleSetTaskbarThumbnailClip = (clip) => {
   //   setTaskbarThumbnailClip(clip)
@@ -175,6 +219,16 @@ export default () => {
       // if (newValue.toFixed(2) === oldValue.toFixed(2)) return
       // console.log(playProgress.nowPlayTime)
       sendPlayerStatus({ progress: newValue })
+      const podcast = getCurrentPodcast()
+      if (
+        podcast &&
+        (podcast.id !== lastPodcastFlushEpisodeId ||
+          newValue < lastPodcastFlushPosition ||
+          newValue - lastPodcastFlushPosition >= 20 ||
+          Math.abs(newValue - oldValue) > 2)
+      ) {
+        flushPodcastProgress(false, newValue)
+      }
     }
   )
   watch(
@@ -201,6 +255,8 @@ export default () => {
   // window.app_event.on(eventTaskbarNames.setTaskbarThumbnailClip, handleSetTaskbarThumbnailClip)
   window.app_event.on('myListUpdate', throttleListChange)
   window.app_event.on('crossfadeEnded', handleCrossfadeEnded)
+  window.app_event.on('setProgress', handleSetProgress)
+  window.app_event.on('playerEnded', handlePlayerEnded)
 
   onBeforeUnmount(() => {
     rTaskbarThumbarClick()
@@ -215,6 +271,8 @@ export default () => {
     // window.app_event.off(eventTaskbarNames.setTaskbarThumbnailClip, handleSetTaskbarThumbnailClip)
     window.app_event.off('myListUpdate', throttleListChange)
     window.app_event.off('crossfadeEnded', handleCrossfadeEnded)
+    window.app_event.off('setProgress', handleSetProgress)
+    window.app_event.off('playerEnded', handlePlayerEnded)
   })
 
   return async () => {
@@ -223,6 +281,15 @@ export default () => {
     // buttons.lockLrc = setting.desktopLyric.isLock
     await updateCollectStatus()
     if (playMusicInfo.musicInfo == null) return
+    const podcast = getCurrentPodcast()
+    if (podcast) {
+      await activatePodcastEpisode(podcast).catch((error) => {
+        console.warn(
+          '[podcast] restore activation failed:',
+          error instanceof Error ? error.message : error
+        )
+      })
+    }
     sendPlayerStatus({
       collect,
       name: musicInfo.name,
@@ -234,6 +301,8 @@ export default () => {
       tlyric: musicInfo.tlrc ?? '',
       rlyric: musicInfo.rlrc ?? '',
       lxlyric: musicInfo.lxlrc ?? '',
+      mediaKind: podcast ? 'podcast' : 'music',
+      contentId: podcast?.id ?? '',
     })
   }
 }

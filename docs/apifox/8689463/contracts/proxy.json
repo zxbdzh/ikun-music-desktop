@@ -1,0 +1,100 @@
+{
+  "name": "代理获取 RSS 或 HTTP 内容",
+  "type": "http",
+  "serverId": "core",
+  "preProcessors": [],
+  "postProcessors": [],
+  "inheritPreProcessors": {},
+  "inheritPostProcessors": {},
+  "description": "返回上游原始内容，前端主要用它规避 RSS/Atom 跨域限制。获取博客或播客音频的完整流程：\n\n1. 调用 `GET /podcasts`，从 `data[].rss_url` 取得 Feed 地址。\n2. 对 Feed 地址执行 URL 编码，调用 `GET /proxy?url={encoded rss_url}`。\n3. 将返回体按 XML 解析。RSS 2.0 单集读取 `<enclosure url=\"...\">`；Atom 单集读取 `<link rel=\"enclosure\" href=\"...\">`。\n4. 将该 URL 作为 `ArticleMetadata.audioUrl`；Feed 提供时长时写入 `audioDuration`（秒）。\n5. 音频地址可能重定向、签名或过期，播放时应使用 Feed 当前返回的地址。\n\n本接口只透传原始上游内容，不会返回已解析的 ArticleMetadata JSON，也不存在单独的 `/audio` 接口。",
+  "operationId": "proxyExternalContent",
+  "method": "get",
+  "path": "/proxy",
+  "tags": ["内容代理"],
+  "status": "released",
+  "requestBody": {
+    "type": "none",
+    "parameters": [],
+    "required": false,
+    "additionalContentTypes": [],
+    "oasExtensions": ""
+  },
+  "parameters": {
+    "path": [],
+    "query": [
+      {
+        "id": "YgkP5zfYiA",
+        "name": "url",
+        "required": true,
+        "enable": true,
+        "description": "需要代理获取的完整 URL。",
+        "example": "https://example.com/feed.xml",
+        "type": "string",
+        "schema": { "type": "string", "format": "uri" }
+      }
+    ],
+    "cookie": [],
+    "header": []
+  },
+  "commonParameters": {},
+  "auth": {},
+  "responses": [
+    {
+      "id": "188916710",
+      "name": "成功",
+      "code": 200,
+      "contentType": "xml",
+      "jsonSchema": { "type": "string" },
+      "itemSchema": {},
+      "description": "上游原始内容。Content-Type 取决于目标资源；播客主流程返回 RSS/Atom XML。",
+      "mediaType": "application/xml",
+      "headers": [],
+      "oasExtensions": "{}",
+      "additionalContent": [
+        { "type": "xml", "mediaType": "application/xml", "jsonSchema": { "type": "string" }, "examples": {} },
+        { "type": "xml", "mediaType": "application/rss+xml", "jsonSchema": { "type": "string" }, "examples": {} },
+        { "type": "xml", "mediaType": "application/atom+xml", "jsonSchema": { "type": "string" }, "examples": {} },
+        { "type": "xml", "mediaType": "text/xml", "jsonSchema": { "type": "string" }, "examples": {} },
+        { "type": "raw", "mediaType": "text/plain", "jsonSchema": { "type": "string" }, "examples": {} },
+        { "type": "raw", "mediaType": "text/html", "jsonSchema": { "type": "string" }, "examples": {} },
+        { "type": "binary", "mediaType": "application/octet-stream", "jsonSchema": { "type": "string", "format": "binary" }, "examples": {} }
+      ]
+    },
+    {
+      "id": "138519782",
+      "name": "请求有误",
+      "code": 400,
+      "contentType": "json",
+      "jsonSchema": { "$ref": "#/definitions/302532840" },
+      "itemSchema": {},
+      "description": "缺少或无法解析 url。",
+      "mediaType": "application/json",
+      "headers": [],
+      "oasExtensions": "{}"
+    },
+    {
+      "id": "103920454",
+      "name": "网关错误",
+      "code": 502,
+      "contentType": "json",
+      "jsonSchema": { "$ref": "#/definitions/302532840" },
+      "itemSchema": {},
+      "description": "上游资源获取失败。",
+      "mediaType": "application/json",
+      "headers": [],
+      "oasExtensions": "{}"
+    }
+  ],
+  "responseExamples": [],
+  "codeSamples": [],
+  "folderId": 92939769,
+  "responsibleId": 0,
+  "commonResponseStatus": {},
+  "advancedSettings": { "disabledSystemHeaders": {} },
+  "customApiFields": {},
+  "oasExtensions": "",
+  "mockScript": {},
+  "visibility": "INHERITED",
+  "securityScheme": {},
+  "callbacks": ""
+}

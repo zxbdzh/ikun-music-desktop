@@ -22,6 +22,12 @@ import {
   getPicUrl as getWebDAVPicUrl,
   getLyricInfo as getWebDAVLyricInfo,
 } from '@renderer/core/webdavPlay/music'
+import {
+  cancelPendingLyricRequest,
+  getMusicUrl as getPodcastMusicUrl,
+  getPicUrl as getPodcastPicUrl,
+  getLyricInfo as getPodcastLyricInfo,
+} from './podcast'
 
 export const getMusicUrl = async ({
   musicInfo,
@@ -38,6 +44,8 @@ export const getMusicUrl = async ({
 }): Promise<string> => {
   if ('progress' in musicInfo) {
     return getDownloadMusicUrl({ musicInfo, isRefresh, onToggleSource, allowToggleSource })
+  } else if ('podcast' in musicInfo.meta) {
+    return getPodcastMusicUrl(musicInfo as LX.Music.MusicInfoPodcast)
   } else if (musicInfo.source == 'local') {
     if ('webdav' in musicInfo.meta) {
       return getWebDAVMusicUrl({ musicInfo: musicInfo as LX.WebDAVPlay.MusicInfo, isRefresh })
@@ -61,6 +69,8 @@ export const getPicPath = async ({
 }): Promise<string> => {
   if ('progress' in musicInfo) {
     return getDownloadPicUrl({ musicInfo, isRefresh, listId, onToggleSource })
+  } else if ('podcast' in musicInfo.meta) {
+    return getPodcastPicUrl(musicInfo as LX.Music.MusicInfoPodcast)
   } else if (musicInfo.source == 'local') {
     if ('webdav' in musicInfo.meta) {
       return getWebDAVPicUrl({ musicInfo: musicInfo as LX.WebDAVPlay.MusicInfo, isRefresh, listId })
@@ -80,8 +90,12 @@ export const getLyricInfo = async ({
   isRefresh?: boolean
   onToggleSource?: (musicInfo?: LX.Music.MusicInfoOnline) => void
 }): Promise<LX.Player.LyricInfo> => {
+  const targetMusic = 'progress' in musicInfo ? musicInfo.metadata.musicInfo : musicInfo
+  if (!('podcast' in targetMusic.meta)) cancelPendingLyricRequest()
   if ('progress' in musicInfo) {
     return getDownloadLyricInfo({ musicInfo, isRefresh, onToggleSource })
+  } else if ('podcast' in musicInfo.meta) {
+    return getPodcastLyricInfo(musicInfo as LX.Music.MusicInfoPodcast)
   } else if (musicInfo.source == 'local') {
     if ('webdav' in musicInfo.meta) {
       return getWebDAVLyricInfo({ musicInfo: musicInfo as LX.WebDAVPlay.MusicInfo, isRefresh })

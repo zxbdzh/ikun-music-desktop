@@ -13,6 +13,10 @@ import { isLinux } from '@common/utils'
 import { initAppSetting } from '@main/app'
 import registerModules from '@main/modules'
 
+if (process.platform === 'win32') {
+  app.setAppUserModelId('cn.toside.music.desktop')
+}
+
 // 初始化应用
 const init = () => {
   console.log('init')

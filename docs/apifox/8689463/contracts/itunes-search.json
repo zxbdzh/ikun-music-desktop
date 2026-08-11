@@ -1,0 +1,113 @@
+{
+  "name": "搜索 iTunes 播客",
+  "type": "http",
+  "serverId": "edge",
+  "preProcessors": [],
+  "postProcessors": [],
+  "inheritPreProcessors": {},
+  "inheritPostProcessors": {},
+  "description": "同源 Edge 接口，代理 Apple iTunes Search；429 时前端最多重试一次。",
+  "operationId": "searchItunesPodcasts",
+  "method": "get",
+  "path": "/api/itunes-search",
+  "tags": ["Web 边缘服务"],
+  "status": "released",
+  "requestBody": {
+    "type": "none",
+    "parameters": [],
+    "required": false,
+    "additionalContentTypes": [],
+    "oasExtensions": ""
+  },
+  "parameters": {
+    "path": [],
+    "query": [
+      {
+        "id": "3g7wG9y4Az",
+        "name": "term",
+        "required": true,
+        "enable": true,
+        "description": "播客或关键词。",
+        "example": "technology",
+        "type": "string",
+        "schema": { "type": "string", "minLength": 1 }
+      },
+      {
+        "id": "2abKnpTp1l",
+        "name": "limit",
+        "required": false,
+        "enable": true,
+        "description": "最多返回的 iTunes 搜索结果数量。",
+        "example": "20",
+        "type": "integer",
+        "schema": { "type": "integer", "minimum": 1 }
+      }
+    ],
+    "cookie": [],
+    "header": []
+  },
+  "commonParameters": {},
+  "auth": {},
+  "responses": [
+    {
+      "id": "146817038",
+      "name": "成功",
+      "code": 200,
+      "contentType": "json",
+      "jsonSchema": { "$ref": "#/definitions/302532845" },
+      "itemSchema": {},
+      "description": "iTunes 播客搜索结果。",
+      "mediaType": "application/json",
+      "headers": [],
+      "oasExtensions": "{}"
+    },
+    {
+      "id": "118141531",
+      "name": "请求有误",
+      "code": 400,
+      "contentType": "json",
+      "jsonSchema": { "$ref": "#/definitions/302532841" },
+      "itemSchema": {},
+      "description": "缺少 term 或参数无效。",
+      "mediaType": "application/json",
+      "headers": [],
+      "oasExtensions": "{}"
+    },
+    {
+      "id": "163708984",
+      "name": "请求过于频繁",
+      "code": 429,
+      "contentType": "json",
+      "jsonSchema": { "$ref": "#/definitions/302532843" },
+      "itemSchema": {},
+      "description": "上游或 Edge 服务限流。",
+      "mediaType": "application/json",
+      "headers": [],
+      "oasExtensions": "{}"
+    },
+    {
+      "id": "189552908",
+      "name": "网关错误",
+      "code": 502,
+      "contentType": "json",
+      "jsonSchema": { "$ref": "#/definitions/302532843" },
+      "itemSchema": {},
+      "description": "上游搜索失败。",
+      "mediaType": "application/json",
+      "headers": [],
+      "oasExtensions": "{}"
+    }
+  ],
+  "responseExamples": [],
+  "codeSamples": [],
+  "folderId": 92939771,
+  "responsibleId": 0,
+  "commonResponseStatus": {},
+  "advancedSettings": { "disabledSystemHeaders": {} },
+  "customApiFields": {},
+  "oasExtensions": "",
+  "mockScript": {},
+  "visibility": "INHERITED",
+  "securityScheme": {},
+  "callbacks": ""
+}

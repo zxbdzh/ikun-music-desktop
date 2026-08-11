@@ -1,0 +1,23 @@
+{
+  "name": "正向 - 写入订阅偏好",
+  "categoryId": 12686164,
+  "responseId": "165643516",
+  "apiDetailId": 498765774,
+  "method": "post",
+  "path": "/sync/preferences",
+  "parameters": { "path": [], "query": [], "header": [], "cookie": [] },
+  "commonParameters": {},
+  "requestBody": { "type": "application/json", "data": "{\n  \"user_id\": \"AU_MOCK_0001\",\n  \"client_updated_at\": 1786032000,\n  \"subscriptions_json\": \"{\\\"groups\\\":[],\\\"sources\\\":[]}\"\n}" },
+  "preProcessors": [],
+  "postProcessors": [
+    { "id": "sync-preferences.assert.status", "type": "assertion", "data": { "name": "HTTP 状态码为 200", "subject": "httpCode", "comparison": "equal", "value": "200", "path": "" }, "defaultEnable": true, "enable": true },
+    { "id": "sync-preferences.assert.success", "type": "assertion", "data": { "name": "业务状态为成功", "subject": "responseJson", "comparison": "equal", "value": "true", "path": "$.success" }, "defaultEnable": true, "enable": true },
+    { "id": "sync-preferences.assert.data", "type": "assertion", "data": { "name": "返回业务数据", "subject": "responseJson", "comparison": "exists", "path": "$.data" }, "defaultEnable": true, "enable": true }
+  ],
+  "inheritPreProcessors": {},
+  "inheritPostProcessors": {},
+  "auth": { "type": "bearer", "bearer": { "token": "{{JWT_TOKEN}}" } },
+  "securityScheme": {},
+  "advancedSettings": { "timeout": 15000, "followRedirect": true, "SSLValidate": true },
+  "tagIds": []
+}

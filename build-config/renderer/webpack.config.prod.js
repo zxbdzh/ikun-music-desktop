@@ -15,7 +15,11 @@ module.exports = merge(baseConfig, {
   plugins: [
     new CopyWebpackPlugin({
       patterns: [
-        { from: path.join(SRC, 'static'), to: path.join(DIST, 'static') },
+        {
+          from: path.join(SRC, 'static'),
+          to: path.join(DIST, 'static'),
+          globOptions: { ignore: ['**/podcast/whisper/**'] },
+        },
       ],
     }),
     prodDefines({
@@ -26,7 +30,10 @@ module.exports = merge(baseConfig, {
   ],
   optimization: {
     minimize: true,
-    minimizer: [new TerserPlugin(), new CssMinimizerPlugin()],
+    minimizer: [
+      new TerserPlugin({ parallel: false }),
+      new CssMinimizerPlugin({ parallel: false }),
+    ],
     splitChunks: { chunks: 'initial', minChunks: 2 },
   },
   performance: perfProd,

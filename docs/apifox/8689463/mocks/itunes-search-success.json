@@ -1,0 +1,33 @@
+{
+  "name": "默认成功 - 搜索 iTunes 播客",
+  "apiDetailId": 498765782,
+  "conditions": [],
+  "ipCondition": { "enable": false, "value": "" },
+  "response": {
+    "code": 200,
+    "delay": 0,
+    "headers": [
+      { "key": "Content-Type", "value": "application/json; charset=utf-8" }
+    ],
+    "bodyType": "json",
+    "bodyData": {
+      "resultCount": 1,
+      "results": [
+        {
+          "wrapperType": "track",
+          "kind": "podcast",
+          "artistName": "Mock Host",
+          "collectionName": "Mock Podcast",
+          "trackName": "Mock Podcast",
+          "feedUrl": "https://example.invalid/feed.xml",
+          "artworkUrl600": "https://example.invalid/cover.jpg",
+          "country": "CHN",
+          "primaryGenreName": "Technology",
+          "genres": ["Technology"]
+        }
+      ]
+    },
+    "disableMockJs": true,
+    "disableTemplating": true
+  }
+}

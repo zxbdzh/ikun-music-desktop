@@ -106,6 +106,15 @@ export default {
           name: 'Download',
         },
         {
+          to: '/podcast',
+          tips: '播客',
+          icon: '#icon-album',
+          iconSize: '0 0 425.2 425.2',
+          size,
+          enable: appSetting['podcast.enable'],
+          name: 'Podcast',
+        },
+        {
           to: '/setting',
           tips: t('setting'),
           icon: '#icon-setting',

@@ -10,6 +10,10 @@ module.exports = merge(baseConfig, {
   entry: {
     main: path.join(__dirname, '../../src/main/index.ts'),
     smtcWorker: path.join(__dirname, '../../src/main/modules/haloPixel/smtcWorker.ts'),
+    podcastSpeakerWorker: path.join(
+      __dirname,
+      '../../src/main/modules/podcast/podcastSpeakerWorker.ts'
+    ),
   },
   node: { __dirname: false, __filename: false },
   plugins: [

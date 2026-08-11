@@ -1,0 +1,25 @@
+{
+  "name": "AurioClub 隔离契约回归套件",
+  "description": "在本机隔离 Mock 环境运行 AurioClub 全接口契约回归场景，作为 CI 与定时质量门禁。",
+  "folderId": 0,
+  "priority": 0,
+  "tags": [
+    "AurioClub",
+    "CI",
+    "隔离 Mock"
+  ],
+  "items": [
+    {
+      "id": "aurio-full-contract-regression",
+      "name": "AurioClub 全接口契约回归",
+      "type": "STATIC_TEST_SCENARIO",
+      "testScenarios": [
+        {
+          "id": 8618495,
+          "options": {}
+        }
+      ],
+      "options": {}
+    }
+  ]
+}

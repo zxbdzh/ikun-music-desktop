@@ -31,6 +31,7 @@ import {
   resetRandomNextMusicInfo,
 } from '@renderer/core/player'
 import { getMusicUrl, getPicPath, getLyricInfo } from '@renderer/core/music'
+import { startPodcastLyricRefresh } from '@renderer/core/music/podcast'
 import {
   playMusicInfo,
   musicInfo as _musicInfo,
@@ -163,6 +164,23 @@ const completeCrossfade = (nextInfo: LX.Player.PlayMusicInfo) => {
         rawlrc: lyricInfo.rawlrcInfo.lyric,
       })
       window.app_event.lyricUpdated()
+      const podcast =
+        'progress' in nextInfo.musicInfo
+          ? nextInfo.musicInfo.metadata.musicInfo
+          : nextInfo.musicInfo
+      if ('podcast' in podcast.meta) {
+        startPodcastLyricRefresh(podcast as LX.Music.MusicInfoPodcast, (updatedLyrics) => {
+          if (nextInfo.musicInfo.id != playMusicInfo.musicInfo?.id) return
+          setMusicInfo({
+            lrc: updatedLyrics.lyric,
+            tlrc: updatedLyrics.tlyric,
+            lxlrc: updatedLyrics.lxlyric,
+            rlrc: updatedLyrics.rlyric,
+            rawlrc: updatedLyrics.rawlrcInfo.lyric,
+          })
+          window.app_event.lyricUpdated()
+        })
+      }
     })
     .catch((_) => _)
 
@@ -328,6 +346,10 @@ const tryStartCrossfade = async (curTime: number) => {
 
   if (!appSetting['player.transitionEnabled']) return
 
+  const current = playMusicInfo.musicInfo
+  const currentMusic = current && 'progress' in current ? current.metadata.musicInfo : current
+  if (currentMusic && 'podcast' in currentMusic.meta) return
+
   const duration = getDuration()
   if (!duration || duration <= 0) return
 
@@ -339,6 +361,12 @@ const tryStartCrossfade = async (curTime: number) => {
 
   const nextInfo = await getNextPlayMusicInfo()
   if (!nextInfo) {
+    isPreparing = false
+    return
+  }
+  const nextMusic =
+    'progress' in nextInfo.musicInfo ? nextInfo.musicInfo.metadata.musicInfo : nextInfo.musicInfo
+  if ('podcast' in nextMusic.meta) {
     isPreparing = false
     return
   }
