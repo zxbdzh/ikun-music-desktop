@@ -76,6 +76,9 @@ const parseRssEpisode = (
 ): LX.Podcast.Episode => {
   const enclosure = asArray(item.enclosure)[0] ?? {}
   const guid = text(item.guid?.['#text'] ?? item.guid) || text(enclosure['@_url']) || text(item.link)
+  const guidPermalink = text(item.guid?.['@_isPermaLink']).toLowerCase() === 'true'
+    ? guid
+    : ''
   const transcriptReferences = asArray(item['podcast:transcript'])
     .map((ref): LX.Podcast.TranscriptReference | null => {
       const url = text(ref?.['@_url'] ?? ref?.['#text'] ?? ref)
@@ -93,7 +96,8 @@ const parseRssEpisode = (
     title: text(item.title),
     description: text(item['content:encoded']) || text(item.description) || text(item['itunes:summary']),
     artworkUrl: text(item['itunes:image']?.['@_href']) || fallbackArtwork,
-    originalUrl: resolveHttpUrl(item.link?.['@_href'] ?? item.link, source.feedUrl),
+    originalUrl: resolveHttpUrl(item.link?.['@_href'] ?? item.link, source.feedUrl) ||
+      resolveHttpUrl(guidPermalink, source.feedUrl),
     audioUrl: text(enclosure['@_url']),
     publishedAt: parseDate(item.pubDate),
     durationSeconds: parseDuration(item['itunes:duration']),

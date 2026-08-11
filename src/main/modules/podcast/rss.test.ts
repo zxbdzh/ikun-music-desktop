@@ -24,4 +24,24 @@ describe('podcast RSS parser', () => {
     expect(feed.episodes[0].originalUrl).toBe('https://feeds.example.com/episodes/ep-2')
     expect(feed.episodes[0].audioUrl).toBe('https://cdn.example.com/ep-2.mp3')
   })
+
+  it('uses an explicit RSS GUID permalink when the episode link is missing', () => {
+    const feed = parsePodcastFeed(
+      `<?xml version="1.0"?><rss><channel><title>GUID Show</title><item><guid isPermaLink="true">https://podcast.example.com/episodes/guid-1</guid><title>GUID episode</title><enclosure url="https://cdn.example.com/guid-1.mp3" type="audio/mpeg"/></item></channel></rss>`,
+      'https://feeds.example.com/show.xml'
+    )
+
+    expect(feed.episodes).toHaveLength(1)
+    expect(feed.episodes[0].originalUrl).toBe('https://podcast.example.com/episodes/guid-1')
+  })
+
+  it('does not treat an opaque RSS GUID as a permalink', () => {
+    const feed = parsePodcastFeed(
+      `<?xml version="1.0"?><rss><channel><title>GUID Show</title><item><guid isPermaLink="false">episode-guid-2</guid><title>GUID episode</title><enclosure url="https://cdn.example.com/guid-2.mp3" type="audio/mpeg"/></item></channel></rss>`,
+      'https://feeds.example.com/show.xml'
+    )
+
+    expect(feed.episodes).toHaveLength(1)
+    expect(feed.episodes[0].originalUrl).toBe('')
+  })
 })

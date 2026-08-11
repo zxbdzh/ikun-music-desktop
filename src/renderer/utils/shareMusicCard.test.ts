@@ -50,6 +50,20 @@ describe('podcast share URL', () => {
   it('never falls back to an unrelated music search page', () => {
     expect(resolveMusicDetailWebUrl(podcast({ originalUrl: '', audioUrl: '' }))).toBe('')
   })
+
+  it('falls back when the publisher URL only looks like HTTP', () => {
+    expect(resolveMusicDetailWebUrl(podcast({
+      originalUrl: 'https://',
+      audioUrl: 'https://cdn.example.com/episodes/1.mp3',
+    }))).toBe('https://cdn.example.com/episodes/1.mp3')
+  })
+
+  it('rejects URLs containing embedded credentials', () => {
+    expect(resolveMusicDetailWebUrl(podcast({
+      originalUrl: 'https://user:password@podcast.example.com/episodes/1',
+      audioUrl: 'https://cdn.example.com/episodes/1.mp3',
+    }))).toBe('https://cdn.example.com/episodes/1.mp3')
+  })
 })
 
 const lyricLine = (text: string, translation = '') => ({
@@ -94,7 +108,7 @@ describe('share lyric pagination', () => {
     expect(pages.flat()).toEqual(lines)
   })
 
-  it('keeps an oversized transcript line intact', () => {
+  it('splits an oversized transcript line at the hard character limit', () => {
     const oversized = lyricLine('x'.repeat(50))
 
     const pages = paginateLyricLines([oversized, lyricLine('next')], {
@@ -102,8 +116,15 @@ describe('share lyric pagination', () => {
       maxCharactersPerPage: 10,
     })
 
-    expect(pages).toHaveLength(2)
-    expect(pages[0]).toEqual([oversized])
+    expect(pages.map((page) => page.map((line) => line.text))).toEqual([
+      ['x'.repeat(10)],
+      ['x'.repeat(10)],
+      ['x'.repeat(10)],
+      ['x'.repeat(10)],
+      ['x'.repeat(10)],
+      ['next'],
+    ])
+    expect(pages.flat().every((line) => line.text.length <= 10)).toBe(true)
   })
 
   it('ignores hidden translations when calculating pages', () => {
@@ -114,5 +135,38 @@ describe('share lyric pagination', () => {
       maxCharactersPerPage: 10,
       includeTranslation: false,
     })).toEqual([lines])
+  })
+
+  it('counts emoji and combining characters as displayed graphemes', () => {
+    const family = '👨‍👩‍👧‍👦'
+    const combined = 'e\u0301'
+    const pages = paginateLyricLines([
+      lyricLine(`${family}${family}${combined}${combined}${family}`),
+    ], {
+      maxLinesPerPage: 8,
+      maxCharactersPerPage: 2,
+    })
+
+    expect(pages.map((page) => page[0].text)).toEqual([
+      `${family}${family}`,
+      `${combined}${combined}`,
+      family,
+    ])
+  })
+
+  it('keeps paired text and translations within the page budget', () => {
+    const pages = paginateLyricLines([
+      lyricLine('主'.repeat(2_000), 'translation'.repeat(300)),
+    ], {
+      maxLinesPerPage: 8,
+      maxCharactersPerPage: 240,
+    })
+
+    const fragments = pages.flat()
+    expect(fragments.every((line) =>
+      [...line.text].length + [...line.translation].length <= 240
+    )).toBe(true)
+    expect(fragments.map((line) => line.text).join('')).toBe('主'.repeat(2_000))
+    expect(fragments.map((line) => line.translation).join('')).toBe('translation'.repeat(300))
   })
 })

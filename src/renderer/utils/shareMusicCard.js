@@ -5,11 +5,17 @@ const getMeta = (musicInfo) => {
   return musicInfo?.meta ?? {}
 }
 
-const isHttpUrl = (url) => /^https?:\/\//i.test(url || '')
-
 const normalizeHttpUrl = (url) => {
   const normalizedUrl = decodeName(typeof url === 'string' ? url : '')?.trim() ?? ''
-  return isHttpUrl(normalizedUrl) ? normalizedUrl : ''
+  if (!normalizedUrl) return ''
+  try {
+    const parsedUrl = new URL(normalizedUrl)
+    if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') return ''
+    if (parsedUrl.username || parsedUrl.password) return ''
+    return parsedUrl.href
+  } catch {
+    return ''
+  }
 }
 
 export const resolveMusicDetailWebUrl = (musicInfo) => {
@@ -131,16 +137,17 @@ export const paginateLyricLines = (
     throw new RangeError('maxCharactersPerPage must be a positive integer')
   }
 
+  const displayLines = lines.flatMap((line) => splitOversizedLine(
+    line,
+    maxCharactersPerPage,
+    includeTranslation
+  ))
   const pages = []
   let currentPage = []
   let currentCharacterCount = 0
 
-  for (const line of lines) {
-    const characterCount = Math.max(
-      1,
-      String(line?.text ?? '').length +
-        (includeTranslation ? String(line?.translation ?? '').length : 0)
-    )
+  for (const line of displayLines) {
+    const characterCount = displayedCharacterCount(line, includeTranslation)
     const pageIsFull =
       currentPage.length >= maxLinesPerPage ||
       currentCharacterCount + characterCount > maxCharactersPerPage
@@ -158,3 +165,89 @@ export const paginateLyricLines = (
   if (currentPage.length) pages.push(currentPage)
   return pages
 }
+
+const graphemeSegmenter = typeof Intl?.Segmenter === 'function'
+  ? new Intl.Segmenter(undefined, { granularity: 'grapheme' })
+  : null
+
+const graphemes = (value) => {
+  const text = String(value ?? '')
+  return graphemeSegmenter
+    ? [...graphemeSegmenter.segment(text)].map((item) => item.segment)
+    : Array.from(text)
+}
+
+const displayedCharacterCount = (line, includeTranslation) => Math.max(
+  1,
+  graphemes(line?.text).length +
+    (includeTranslation ? graphemes(line?.translation).length : 0)
+)
+
+const splitOversizedLine = (line, maxCharacters, includeTranslation) => {
+  if (displayedCharacterCount(line, includeTranslation) <= maxCharacters) return [line]
+
+  const text = graphemes(line?.text)
+  const translation = includeTranslation ? graphemes(line?.translation) : []
+  let textBudget = maxCharacters
+  let translationBudget = 0
+
+  if (text.length && translation.length && maxCharacters > 1) {
+    const total = text.length + translation.length
+    textBudget = Math.max(1, Math.floor(maxCharacters * text.length / total))
+    translationBudget = Math.max(1, maxCharacters - textBudget)
+    textBudget = maxCharacters - translationBudget
+  } else if (!text.length && translation.length) {
+    textBudget = 0
+    translationBudget = maxCharacters
+  }
+
+  if (text.length && translation.length && maxCharacters === 1) {
+    return [
+      ...chunkGraphemes(text, 1).map((part, index, parts) => lineFragment(
+        line,
+        part,
+        '',
+        index,
+        parts.length + translation.length
+      )),
+      ...chunkGraphemes(translation, 1).map((part, index) => lineFragment(
+        line,
+        '',
+        part,
+        text.length + index,
+        text.length + translation.length
+      )),
+    ]
+  }
+
+  const textParts = textBudget ? chunkGraphemes(text, textBudget) : []
+  const translationParts = translationBudget
+    ? chunkGraphemes(translation, translationBudget)
+    : []
+  const partCount = Math.max(textParts.length, translationParts.length)
+
+  return Array.from({ length: partCount }, (_, index) => lineFragment(
+    line,
+    textParts[index] ?? '',
+    translationParts[index] ?? '',
+    index,
+    partCount
+  ))
+}
+
+const chunkGraphemes = (values, size) => {
+  const result = []
+  for (let index = 0; index < values.length; index += size) {
+    result.push(values.slice(index, index + size).join(''))
+  }
+  return result
+}
+
+const lineFragment = (line, text, translation, index, count) => ({
+  ...line,
+  key: `${line?.key ?? 'line'}:part-${index + 1}`,
+  text,
+  translation,
+  continuation: index > 0,
+  continues: index + 1 < count,
+})
