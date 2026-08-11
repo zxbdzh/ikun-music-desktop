@@ -1820,8 +1820,11 @@ export default {
 .search { display: flex; gap: 8px; min-width: min(420px, 50%); }
 .search input { flex: 1; min-width: 100px; }
 .page input, .page select, .page button { border: 1px solid var(--color-primary-light-900-alpha-200); background: var(--color-primary-light-100-alpha-700); color: inherit; border-radius: 4px; padding: 7px 10px; letter-spacing: 0; }
+.page button, .page summary { touch-action: manipulation; }
 .page button { cursor: pointer; }
+.page button:not(:disabled):active { opacity: .72; }
 .page button:disabled { opacity: .45; cursor: default; }
+.page :is(button, input, select, summary):focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
 .content { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(240px, 32%) 1fr; }
 .sources { overflow: auto; border-right: 1px solid var(--color-primary-light-900-alpha-100); padding: 12px; }
 .popular { margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--color-primary-light-900-alpha-100); }
@@ -1924,7 +1927,6 @@ export default {
 .authMethods { margin-bottom: 3px; }
 .authForm > button { justify-self: start; margin-top: 3px; }
 .accountMessage { min-height: 18px; margin: 0; font-size: 11px; opacity: .72; }
-.accountPanel :is(button, input):focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
 .empty { margin: 30px 8px; text-align: center; opacity: .55; }
 .error { color: #d84a4a; padding: 8px; }
 .modalBackdrop { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; background: rgba(0, 0, 0, .42); }
@@ -1933,6 +1935,20 @@ export default {
 .modal p { line-height: 1.6; opacity: .72; }
 .modal .modalError { color: #d84a4a; opacity: 1; }
 .modal div { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+@media (any-pointer: coarse), (max-width: 760px) {
+  .page :is(button, input:not([type="checkbox"]), select) { min-height: 44px; box-sizing: border-box; }
+  .page button { min-width: 44px; }
+  .viewTabs, .popularFilters, .groupTools, .groupCreate, .groupHeading, .groupSources li, .episodeActions, .authModes, .authMethods { gap: 8px; }
+  .popularList li, .checkboxLabel, .settings summary { min-height: 44px; }
+  .groupHeading { grid-template-columns: 44px minmax(0, 1fr) 44px; }
+  .groupHeading > button { width: 44px; justify-self: start; }
+  .groupHeading > button:first-of-type { grid-column: 1; grid-row: 1; }
+  .groupHeading > input { grid-column: 2; grid-row: 1; }
+  .groupHeading > small { grid-column: 3; grid-row: 1; }
+  .groupHeading > button:nth-of-type(2) { grid-column: 1; grid-row: 2; }
+  .groupHeading > button:nth-of-type(3) { grid-column: 2; grid-row: 2; }
+  .groupHeading > button:nth-of-type(4) { grid-column: 3; grid-row: 2; }
+}
 @media (max-width: 760px) {
   .toolbar { align-items: stretch; flex-direction: column; gap: 10px; padding: 14px; }
   .search { min-width: 0; }
