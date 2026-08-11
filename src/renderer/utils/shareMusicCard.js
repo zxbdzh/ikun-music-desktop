@@ -108,3 +108,46 @@ export const buildLyricSelectableLines = (lyric = '', tlyric = '', max = 9999) =
 
   return result.slice(0, max)
 }
+
+export const paginateLyricLines = (
+  lines = [],
+  {
+    maxLinesPerPage = 6,
+    maxCharactersPerPage = 240,
+    includeTranslation = true,
+  } = {}
+) => {
+  if (!Number.isInteger(maxLinesPerPage) || maxLinesPerPage < 1) {
+    throw new RangeError('maxLinesPerPage must be a positive integer')
+  }
+  if (!Number.isInteger(maxCharactersPerPage) || maxCharactersPerPage < 1) {
+    throw new RangeError('maxCharactersPerPage must be a positive integer')
+  }
+
+  const pages = []
+  let currentPage = []
+  let currentCharacterCount = 0
+
+  for (const line of lines) {
+    const characterCount = Math.max(
+      1,
+      String(line?.text ?? '').length +
+        (includeTranslation ? String(line?.translation ?? '').length : 0)
+    )
+    const pageIsFull =
+      currentPage.length >= maxLinesPerPage ||
+      currentCharacterCount + characterCount > maxCharactersPerPage
+
+    if (currentPage.length && pageIsFull) {
+      pages.push(currentPage)
+      currentPage = []
+      currentCharacterCount = 0
+    }
+
+    currentPage.push(line)
+    currentCharacterCount += characterCount
+  }
+
+  if (currentPage.length) pages.push(currentPage)
+  return pages
+}

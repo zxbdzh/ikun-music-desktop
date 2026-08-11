@@ -1,10 +1,25 @@
 <template>
   <transition enter-active-class="animated slideInRight" leave-active-class="animated slideOutDown">
-    <div v-if="isShowShareMusicCard" :class="$style.page">
+    <div
+      v-if="isShowShareMusicCard"
+      ref="dom_page"
+      :class="$style.page"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="share-card-title"
+      @keydown="handleDialogKeydown"
+    >
       <div :class="$style.bg" />
       <header :class="$style.header">
-        <div :class="$style.title">{{ $t('share__title') }}</div>
-        <button :class="$style.closeBtn" @click="handleClose">
+        <div id="share-card-title" :class="$style.title">{{ $t('share__title') }}</div>
+        <button
+          ref="dom_close"
+          :class="$style.closeBtn"
+          type="button"
+          :aria-label="$t('close')"
+          :title="$t('close')"
+          @click="handleClose"
+        >
           <svg
             version="1.1"
             xmlns="http://www.w3.org/2000/svg"
@@ -37,10 +52,23 @@
           <div :class="$style.group">
             <div :class="$style.groupLine">
               <div :class="$style.groupTitle">{{ $t('share__select_lyrics') }}</div>
-              <label :class="$style.switch">
-                <input v-model="includeTranslation" type="checkbox" />
-                <span>{{ $t('share__include_translation') }}</span>
-              </label>
+              <div :class="$style.selectionControls">
+                <label :class="$style.switch">
+                  <input
+                    :checked="allLyricsSelected"
+                    :indeterminate="someLyricsSelected"
+                    :aria-checked="someLyricsSelected ? 'mixed' : allLyricsSelected"
+                    :disabled="!lyricLines.length"
+                    type="checkbox"
+                    @change="handleSelectAll"
+                  />
+                  <span>{{ $t('share__select_all') }}</span>
+                </label>
+                <label :class="$style.switch">
+                  <input v-model="includeTranslation" type="checkbox" />
+                  <span>{{ $t('share__include_translation') }}</span>
+                </label>
+              </div>
             </div>
             <div v-if="lyricLines.length" :class="[$style.lyricList, 'scroll']">
               <label v-for="(line, index) in lyricLines" :key="line.key + index" :class="$style.lineItem">
@@ -69,43 +97,93 @@
           </button>
 
           <div :class="$style.actions">
-            <button :class="$style.actionBtn" @click="handleCopyLink">{{ $t('share__copy_link') }}</button>
-            <button :class="$style.actionBtn" @click="handleCopyImage">{{ $t('share__copy_image') }}</button>
-            <button :class="$style.actionBtn" @click="handleSaveImage">{{ $t('share__save_image') }}</button>
+            <button :class="$style.actionBtn" type="button" @click="handleCopyLink">{{ $t('share__copy_link') }}</button>
+            <button :class="$style.actionBtn" type="button" @click="handleCopyImage">{{ $t('share__copy_image') }}</button>
+            <button :class="$style.actionBtn" type="button" @click="handleSaveImage">{{ $t('share__save_image') }}</button>
           </div>
         </aside>
 
         <section :class="$style.previewWrap">
-          <div ref="dom_card" :class="[$style.card, $style[stylePreset]]" :style="coverStyle">
-            <div :class="$style.coverWrap">
-              <img
-                v-if="musicInfo?.meta?.picUrl"
-                ref="dom_cover"
-                :src="musicInfo.meta.picUrl"
-                :class="$style.cover"
-                crossorigin="anonymous"
-              />
-              <div v-else :class="$style.coverFallback">♪</div>
-            </div>
-            <div :class="$style.meta">
-              <h2 :class="$style.song">{{ musicInfo?.name || '-' }}</h2>
-              <p :class="$style.singer">{{ musicInfo?.singer || '-' }}</p>
-            </div>
+          <div :class="$style.previewColumn">
+            <div :class="[$style.cardViewport, 'scroll']">
+              <div ref="dom_card" :class="[$style.card, $style[stylePreset]]" :style="coverStyle">
+                <div :class="$style.coverWrap">
+                  <img
+                    v-if="musicInfo?.meta?.picUrl"
+                    ref="dom_cover"
+                    :src="musicInfo.meta.picUrl"
+                    :alt="musicInfo?.name || ''"
+                    :class="$style.cover"
+                    crossorigin="anonymous"
+                  />
+                  <div v-else :class="$style.coverFallback">♪</div>
+                </div>
+                <div :class="$style.meta">
+                  <h2 :class="$style.song">{{ musicInfo?.name || '-' }}</h2>
+                  <p :class="$style.singer">{{ musicInfo?.singer || '-' }}</p>
+                </div>
 
-            <div :class="$style.lyricPreview">
-              <template v-for="(line, index) in selectedLyricLines" :key="line.key + 'preview' + index">
-                <p :class="$style.previewMain">{{ line.text }}</p>
-                <p v-if="includeTranslation && line.translation" :class="$style.previewSub">
-                  {{ line.translation }}
-                </p>
-              </template>
-            </div>
+                <div :class="$style.lyricPreview">
+                  <template v-for="(line, index) in currentLyricPage" :key="line.key + 'preview' + index">
+                    <p :class="$style.previewMain">{{ line.text }}</p>
+                    <p v-if="includeTranslation && line.translation" :class="$style.previewSub">
+                      {{ line.translation }}
+                    </p>
+                  </template>
+                </div>
 
-            <div :class="$style.footer">
-              <div :class="$style.qrWrap">
-                <img v-if="qrDataUrl" :src="qrDataUrl" :class="$style.qr" />
+                <div :class="$style.footer">
+                  <div :class="$style.qrWrap">
+                    <img
+                      v-if="qrDataUrl"
+                      :src="qrDataUrl"
+                      :alt="$t('share__qr_alt')"
+                      :class="$style.qr"
+                    />
+                  </div>
+                  <div :class="$style.footerInfo">
+                    <div :class="$style.scanText">{{ $t('share__scan_to_detail') }}</div>
+                    <div v-if="lyricPageCount > 1" :class="$style.cardPageStatus">
+                      {{ pageStatusText }}
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div :class="$style.scanText">{{ $t('share__scan_to_detail') }}</div>
+            </div>
+
+            <div
+              v-if="lyricPageCount > 1"
+              :class="$style.pageControls"
+              role="group"
+              :aria-label="$t('share__page_navigation')"
+            >
+              <button
+                :class="$style.pageButton"
+                type="button"
+                :disabled="!hasPreviousPage"
+                :aria-label="$t('pagination__prev')"
+                :title="$t('pagination__prev')"
+                @click="handlePreviousPage"
+              >
+                <svg viewBox="0 0 451.846 451.847" aria-hidden="true">
+                  <use xlink:href="#icon-left" />
+                </svg>
+              </button>
+              <div :class="$style.pageStatus" aria-live="polite" aria-atomic="true">
+                {{ pageStatusText }}
+              </div>
+              <button
+                :class="$style.pageButton"
+                type="button"
+                :disabled="!hasNextPage"
+                :aria-label="$t('pagination__next')"
+                :title="$t('pagination__next')"
+                @click="handleNextPage"
+              >
+                <svg viewBox="0 0 451.846 451.847" aria-hidden="true">
+                  <use xlink:href="#icon-right" />
+                </svg>
+              </button>
             </div>
           </div>
         </section>
@@ -117,7 +195,11 @@
 <script setup>
 import { computed, ref, watch, nextTick } from '@common/utils/vueTools'
 import { isShowShareMusicCard, shareMusicInfo, closeShareMusicCard } from '@renderer/store/shareMusicCard'
-import { resolveMusicDetailWebUrl, buildLyricSelectableLines } from '@renderer/utils/shareMusicCard'
+import {
+  resolveMusicDetailWebUrl,
+  buildLyricSelectableLines,
+  paginateLyricLines,
+} from '@renderer/utils/shareMusicCard'
 import { createShareForMusic } from '@renderer/utils/cerumusicShare'
 import { clipboardWriteText, clipboardWriteImageDataURL } from '@common/utils/electron'
 import { dialog } from '@renderer/plugins/Dialog'
@@ -187,12 +269,23 @@ const presets = [
   { id: 'presetMono', name: 'Mono' },
   { id: 'presetCover', name: 'Cover' },
 ]
+const dialogFocusableSelector = [
+  'button:not([disabled])',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  'a[href]',
+  '[tabindex]:not([tabindex="-1"])',
+].join(',')
 
 const stylePreset = ref('presetNebula')
 const includeTranslation = ref(true)
 const lyricLines = ref([])
 const selectedLineIndexes = ref([])
+const currentPageIndex = ref(0)
 const qrDataUrl = ref('')
+const dom_page = ref(null)
+const dom_close = ref(null)
 const dom_card = ref(null)
 const dom_cover = ref(null)
 const coverColors = ref(null)
@@ -200,6 +293,7 @@ const rawLyric = ref('')
 const rawTlyric = ref('')
 const cerumusicUrl = ref('')
 const generating = ref(false)
+let shareTrigger = null
 
 const musicInfo = computed(() => shareMusicInfo.value)
 const isPodcast = computed(() => musicInfo.value?.meta?.podcast === true)
@@ -208,9 +302,27 @@ const detailUrl = computed(() => resolveMusicDetailWebUrl(musicInfo.value))
 const shareUrl = computed(() => isPodcast.value ? detailUrl.value : cerumusicUrl.value || detailUrl.value)
 
 const selectedLyricLines = computed(() => {
-  if (!selectedLineIndexes.value.length) return lyricLines.value.slice(0, 4)
-  return lyricLines.value.filter((_, index) => selectedLineIndexes.value.includes(index))
+  const selected = new Set(selectedLineIndexes.value)
+  return lyricLines.value.filter((_, index) => selected.has(index))
 })
+const lyricPages = computed(() => paginateLyricLines(selectedLyricLines.value, {
+  includeTranslation: includeTranslation.value,
+}))
+const lyricPageCount = computed(() => lyricPages.value.length)
+const currentPageNumber = computed(() => lyricPageCount.value ? currentPageIndex.value + 1 : 0)
+const currentLyricPage = computed(() => lyricPages.value[currentPageIndex.value] ?? [])
+const hasPreviousPage = computed(() => currentPageIndex.value > 0)
+const hasNextPage = computed(() => currentPageIndex.value + 1 < lyricPageCount.value)
+const pageStatusText = computed(() => window.i18n.t('share__page_status', {
+  current: currentPageNumber.value,
+  total: lyricPageCount.value,
+}))
+const allLyricsSelected = computed(() =>
+  lyricLines.value.length > 0 && selectedLineIndexes.value.length === lyricLines.value.length
+)
+const someLyricsSelected = computed(() =>
+  selectedLineIndexes.value.length > 0 && !allLyricsSelected.value
+)
 
 const coverStyle = computed(() => {
   if (stylePreset.value !== 'presetCover' || !coverColors.value) return {}
@@ -273,7 +385,9 @@ const refreshLyricData = async () => {
 
   const lines = buildLyricSelectableLines(sourceLyric, sourceTlyric)
   lyricLines.value = lines
-  selectedLineIndexes.value = lines.slice(0, 4).map((_, index) => index)
+  const selectedCount = isPodcast.value ? lines.length : Math.min(lines.length, 4)
+  selectedLineIndexes.value = Array.from({ length: selectedCount }, (_, index) => index)
+  currentPageIndex.value = 0
 }
 
 const refreshQRCode = async () => {
@@ -289,6 +403,43 @@ const refreshQRCode = async () => {
 
 const handleClose = () => {
   closeShareMusicCard()
+}
+
+const handleDialogKeydown = (event) => {
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    handleClose()
+    return
+  }
+  if (event.key !== 'Tab' || !dom_page.value) return
+
+  const focusable = [...dom_page.value.querySelectorAll(dialogFocusableSelector)]
+  if (!focusable.length) return
+
+  const first = focusable[0]
+  const last = focusable.at(-1)
+  const active = document.activeElement
+  if (event.shiftKey && active === first) {
+    event.preventDefault()
+    last.focus()
+  } else if (!event.shiftKey && active === last) {
+    event.preventDefault()
+    first.focus()
+  }
+}
+
+const handleSelectAll = (event) => {
+  selectedLineIndexes.value = event.target.checked
+    ? lyricLines.value.map((_, index) => index)
+    : []
+}
+
+const handlePreviousPage = () => {
+  if (hasPreviousPage.value) currentPageIndex.value--
+}
+
+const handleNextPage = () => {
+  if (hasNextPage.value) currentPageIndex.value++
 }
 
 const renderCardPng = async () => {
@@ -373,9 +524,12 @@ const handleSaveImage = async () => {
       return
     }
 
+    const pageSuffix = lyricPageCount.value > 1
+      ? `_p${currentPageNumber.value}-of-${lyricPageCount.value}`
+      : ''
     const result = await openSaveDir({
       title: 'Save share card',
-      defaultPath: `${musicInfo.value?.name || 'music-share-card'}.png`,
+      defaultPath: `${musicInfo.value?.name || 'music-share-card'}${pageSuffix}.png`,
       filters: [{ name: 'PNG', extensions: ['png'] }],
     })
     if (result.canceled || !result.filePath) return
@@ -398,9 +552,28 @@ const handleSaveImage = async () => {
 }
 
 watch(
+  [selectedLineIndexes, includeTranslation],
+  () => {
+    currentPageIndex.value = 0
+  },
+  { deep: true }
+)
+
+watch(
   () => isShowShareMusicCard.value,
   async (show) => {
-    if (!show) return
+    if (!show) {
+      const target = shareTrigger
+      shareTrigger = null
+      await nextTick()
+      if (target?.isConnected) target.focus()
+      return
+    }
+    shareTrigger = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null
+    await nextTick()
+    dom_close.value?.focus()
     cerumusicUrl.value = ''
     await refreshLyricData()
     await refreshQRCode()
@@ -448,13 +621,14 @@ watch(
   inset: 0;
   z-index: 12;
   color: var(--color-font);
+  overflow: hidden;
 }
 .bg {
   position: absolute;
   inset: 0;
   background: var(--background-image) var(--background-image-position) no-repeat;
   background-size: var(--background-image-size);
-  opacity: 0.72;
+  opacity: 1;
 
   &:before {
     .mixin-after();
@@ -486,13 +660,34 @@ watch(
   border: none;
   background: transparent;
   color: var(--color-font);
-  width: 24px;
-  height: 24px;
+  width: 44px;
+  height: 44px;
+  padding: 12px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
+
+  svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  &:hover {
+    background: var(--color-button-background-hover);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
 }
 .container {
   position: relative;
   height: calc(100% - @height-toolbar);
+  min-height: 0;
+  box-sizing: border-box;
   padding: 12px 22px 20px;
   display: flex;
   gap: 16px;
@@ -500,17 +695,37 @@ watch(
 .panel {
   width: 40%;
   min-width: 320px;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 14px;
+  overflow-y: auto;
 }
 .previewWrap {
   flex: auto;
+  min-width: 0;
+  min-height: 0;
   display: flex;
   align-items: flex-start;
   justify-content: center;
+}
+.previewColumn {
+  width: 100%;
+  height: 100%;
+  min-width: 360px;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.cardViewport {
+  width: 100%;
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  justify-content: center;
   overflow-y: auto;
-  padding: 20px 0;
 }
 .group {
   border: 1px solid var(--color-primary-alpha-600);
@@ -526,6 +741,15 @@ watch(
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+.groupLine .groupTitle {
+  margin-bottom: 0;
+}
+.selectionControls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 12px;
 }
 .switch {
   font-size: 12px;
@@ -602,6 +826,8 @@ watch(
 }
 .card {
   width: 360px;
+  min-height: 560px;
+  box-sizing: border-box;
   padding: 18px;
   display: flex;
   flex-direction: column;
@@ -659,6 +885,13 @@ watch(
   margin-top: auto;
   padding-top: 18px;
 }
+.footerInfo {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  text-align: right;
+}
 .qrWrap {
   width: 88px;
   height: 88px;
@@ -672,6 +905,63 @@ watch(
 .scanText {
   font-size: 13px;
   opacity: 0.88;
+}
+.cardPageStatus,
+.pageStatus {
+  font-variant-numeric: tabular-nums;
+}
+.cardPageStatus {
+  font-size: 12px;
+  opacity: 1;
+}
+.pageControls {
+  min-height: 44px;
+  display: grid;
+  grid-template-columns: 44px minmax(112px, auto) 44px;
+  align-items: center;
+  gap: 8px;
+}
+.pageButton {
+  width: 44px;
+  height: 44px;
+  padding: 12px;
+  border: 1px solid var(--color-primary-alpha-600);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-font);
+  background: var(--color-button-background);
+  cursor: pointer;
+  transition: background-color 180ms ease, opacity 180ms ease;
+
+  svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  &:hover:not(:disabled) {
+    background: var(--color-button-background-hover);
+  }
+
+  &:active:not(:disabled) {
+    background: var(--color-button-background-active);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+}
+.pageStatus {
+  min-width: 112px;
+  text-align: center;
+  font-size: 13px;
 }
 .presetNebula {
   background: radial-gradient(circle at 14% 20%, #4956ff 0, transparent 54%),
