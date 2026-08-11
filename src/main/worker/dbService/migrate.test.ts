@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import { migratePodcastEpisodeOriginalUrl, migratePodcastSubscriptions } from './migrate'
+import {
+  migratePodcastEpisodeOriginalUrl,
+  migratePodcastSubscriptions,
+  normalizePodcastSourceSchema,
+} from './migrate'
 
 const database = (options: {
   hasGroupTable?: boolean
@@ -69,6 +73,48 @@ describe('podcast episode URL database migration', () => {
     const db = database({ episodeColumns: ['id', 'audio_url', 'original_url'] })
 
     migratePodcastEpisodeOriginalUrl(db.value)
+
+    expect(db.exec).not.toHaveBeenCalled()
+  })
+})
+
+describe('podcast source schema normalization', () => {
+  const canonicalColumns = [
+    'id',
+    'title',
+    'author',
+    'description',
+    'artwork_url',
+    'feed_url',
+    'categories_json',
+    'subscribed',
+    'auto_download',
+    'group_id',
+    'subscription_order',
+    'updated_at',
+  ]
+
+  it('rebuilds the v4 ALTER TABLE layout without dropping source data', () => {
+    const legacyColumns = [
+      ...canonicalColumns.filter((name) => !['group_id', 'subscription_order'].includes(name)),
+      'group_id',
+      'subscription_order',
+    ]
+    const db = database({ columns: legacyColumns })
+
+    normalizePodcastSourceSchema(db.value)
+
+    const sql = db.exec.mock.calls.flat().join('\n')
+    expect(sql).toContain('RENAME TO "podcast_source_legacy"')
+    expect(sql).toContain('CREATE TABLE "podcast_source"')
+    expect(sql).toContain('INSERT INTO "podcast_source"')
+    expect(sql).toContain('DROP TABLE "podcast_source_legacy"')
+  })
+
+  it('leaves a canonical source table unchanged', () => {
+    const db = database({ columns: canonicalColumns })
+
+    normalizePodcastSourceSchema(db.value)
 
     expect(db.exec).not.toHaveBeenCalled()
   })

@@ -77,6 +77,37 @@ export const migratePodcastSubscriptions = (db: Database.Database) => {
   })()
 }
 
+const podcastSourceColumns = [
+  'id',
+  'title',
+  'author',
+  'description',
+  'artwork_url',
+  'feed_url',
+  'categories_json',
+  'subscribed',
+  'auto_download',
+  'group_id',
+  'subscription_order',
+  'updated_at',
+]
+
+export const normalizePodcastSourceSchema = (db: Database.Database) => {
+  const columns = db.prepare('PRAGMA table_info(podcast_source)').all() as Array<{ name: string }>
+  if (columns.map((column) => column.name).join('|') === podcastSourceColumns.join('|')) return
+
+  db.transaction(() => {
+    db.exec('ALTER TABLE "podcast_source" RENAME TO "podcast_source_legacy"')
+    db.exec(tables.get('podcast_source')!)
+    const columnsSql = podcastSourceColumns.map((name) => `"${name}"`).join(', ')
+    db.exec(`
+      INSERT INTO "podcast_source" (${columnsSql})
+      SELECT ${columnsSql} FROM "podcast_source_legacy"
+    `)
+    db.exec('DROP TABLE "podcast_source_legacy"')
+  })()
+}
+
 export const migratePodcastEpisodeOriginalUrl = (db: Database.Database) => {
   const columns = db.prepare('PRAGMA table_info(podcast_episode)').all() as Array<{ name: string }>
   if (columns.some((column) => column.name === 'original_url')) return
@@ -97,6 +128,7 @@ export default (db: Database.Database) => {
       migrateV1(db)
       migrateV2(db)
       migratePodcastSubscriptions(db)
+      normalizePodcastSourceSchema(db)
       migratePodcastEpisodeOriginalUrl(db)
       db.prepare('UPDATE "main"."db_info" SET "field_value"=@value WHERE "field_name"=@name').run({
         name: 'version',
@@ -106,6 +138,7 @@ export default (db: Database.Database) => {
     case '2':
       migrateV2(db)
       migratePodcastSubscriptions(db)
+      normalizePodcastSourceSchema(db)
       migratePodcastEpisodeOriginalUrl(db)
       db.prepare('UPDATE "main"."db_info" SET "field_value"=@value WHERE "field_name"=@name').run({
         name: 'version',
@@ -114,6 +147,7 @@ export default (db: Database.Database) => {
       break
     case '3':
       migratePodcastSubscriptions(db)
+      normalizePodcastSourceSchema(db)
       migratePodcastEpisodeOriginalUrl(db)
       db.prepare('UPDATE "main"."db_info" SET "field_value"=@value WHERE "field_name"=@name').run({
         name: 'version',
@@ -121,6 +155,7 @@ export default (db: Database.Database) => {
       })
       break
     case '4':
+      normalizePodcastSourceSchema(db)
       migratePodcastEpisodeOriginalUrl(db)
       db.prepare('UPDATE "main"."db_info" SET "field_value"=@value WHERE "field_name"=@name').run({
         name: 'version',
