@@ -3,21 +3,24 @@ import querystring from 'node:querystring'
 import type { Socket } from 'node:net'
 import { getAddress } from '@common/utils/nodejs'
 import { sendTaskbarButtonClick } from '@main/modules/winMain'
+import { podcastModule } from '@main/modules/podcast'
 
 const sendResponse = (
   res: http.ServerResponse,
   code = 200,
-  msg: string | Record<any, unknown> = 'OK',
-  contentType = 'text/plain; charset=utf-8'
+  msg: unknown = 'OK',
+  contentType = 'text/plain; charset=utf-8',
+  allowCors = true
 ) => {
-  res.writeHead(code, {
+  const headers: Record<string, string> = {
     'Content-Type': contentType,
-    'Access-Control-Allow-Origin': '*',
-  })
-  if (typeof msg === 'object') {
+  }
+  if (allowCors) headers['Access-Control-Allow-Origin'] = '*'
+  res.writeHead(code, headers)
+  if (typeof msg === 'object' && msg != null) {
     res.end(JSON.stringify(msg))
   } else {
-    res.end(msg)
+    res.end(String(msg))
   }
 }
 
@@ -91,13 +94,37 @@ const handleSubscribePlayerStatus = (
   }
 }
 
+const isLoopbackRequest = (req: http.IncomingMessage) => {
+  const address = req.socket.remoteAddress ?? ''
+  return address === '127.0.0.1' || address === '::1' || address === '::ffff:127.0.0.1'
+}
+
+const readJsonBody = async (req: http.IncomingMessage) => {
+  const chunks: Buffer[] = []
+  let size = 0
+  for await (const value of req) {
+    const chunk = Buffer.isBuffer(value) ? value : Buffer.from(value)
+    size += chunk.length
+    if (size > 64 * 1024) throw new Error('Request body is too large')
+    chunks.push(chunk)
+  }
+  const text = Buffer.concat(chunks).toString('utf8')
+  return text ? JSON.parse(text) as unknown : null
+}
+
 const handleStartServer = async (port: number, ip: string) =>
   new Promise<void>((resolve, reject) => {
     playerStatusKeys = Object.keys(global.lx.player_status) as SubscribeKeys[]
     httpServer = http.createServer((req, res): void => {
-      const [endUrl, query] = `/${req.url?.split('/').at(-1) ?? ''}`.split('?')
+      const requestUrl = new URL(req.url ?? '/', 'http://127.0.0.1')
+      const endUrl = requestUrl.pathname
+      const query = requestUrl.searchParams.toString()
       let code = 200
       let msg = 'OK'
+      if (req.method !== 'GET' && !(req.method === 'POST' && endUrl === '/transcription-control')) {
+        sendResponse(res, 405, 'Method Not Allowed')
+        return
+      }
       switch (endUrl) {
         case '/status':
           handleSendStatus(res, query)
@@ -152,6 +179,83 @@ const handleStartServer = async (port: number, ip: string) =>
         case '/lyric-all':
           handleSendAllLyric(res)
           return
+        case '/transcript': {
+          if (!isLoopbackRequest(req)) {
+            sendResponse(res, 403, 'Forbidden')
+            return
+          }
+          req.socket.setTimeout(0)
+          const contentId = requestUrl.searchParams.get('contentId')?.trim()
+          const sinceRevision = Number.parseInt(
+            requestUrl.searchParams.get('sinceRevision') ?? '0',
+            10
+          )
+          if (!contentId || !Number.isSafeInteger(sinceRevision) || sinceRevision < 0) {
+            sendResponse(res, 400, 'Invalid transcript query', undefined, false)
+            return
+          }
+          if (contentId !== global.lx.player_status.contentId) {
+            sendResponse(res, 404, 'Transcript not found', undefined, false)
+            return
+          }
+          void podcastModule
+            .transcript(contentId, sinceRevision)
+            .then((delta) =>
+              sendResponse(res, 200, delta, 'application/json; charset=utf-8', false)
+            )
+            .catch((error) => {
+              console.warn(
+                '[open-api] transcript request failed:',
+                error instanceof Error ? error.message : error
+              )
+              sendResponse(res, 404, 'Transcript not found', undefined, false)
+            })
+          return
+        }
+        case '/transcription-status': {
+          if (!isLoopbackRequest(req)) {
+            sendResponse(res, 403, 'Forbidden')
+            return
+          }
+          const contentId = requestUrl.searchParams.get('contentId')?.trim()
+          if (!contentId || contentId !== global.lx.player_status.contentId) {
+            sendResponse(res, 404, 'Transcription status not found', undefined, false)
+            return
+          }
+          const transcription = podcastModule.getTranscriptionStatus(contentId)
+          if (!transcription) {
+            sendResponse(res, 404, 'Transcription status not found', undefined, false)
+            return
+          }
+          sendResponse(res, 200, transcription, 'application/json; charset=utf-8', false)
+          return
+        }
+        case '/transcription-control': {
+          if (!isLoopbackRequest(req)) {
+            sendResponse(res, 403, 'Forbidden')
+            return
+          }
+          void readJsonBody(req)
+            .then(async (body) => {
+              const value = body && typeof body === 'object' ? body as Record<string, unknown> : {}
+              const contentId = typeof value.contentId === 'string' ? value.contentId.trim() : ''
+              const action = value.action
+              if (!contentId || !['start', 'retry', 'restart', 'cancel'].includes(String(action))) {
+                sendResponse(res, 400, 'Invalid transcription control request', undefined, false)
+                return
+              }
+              const result = await podcastModule.controlTranscription(
+                contentId,
+                action as 'start' | 'retry' | 'restart' | 'cancel'
+              )
+              sendResponse(res, 200, result, 'application/json; charset=utf-8', false)
+            })
+            .catch((error) => {
+              const message = error instanceof Error ? error.message : String(error)
+              sendResponse(res, 409, message, undefined, false)
+            })
+          return
+        }
         case '/play':
           sendTaskbarButtonClick('play')
           break

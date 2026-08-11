@@ -9,6 +9,10 @@ module.exports = merge(baseConfig, {
   entry: {
     main: path.join(__dirname, '../../src/main/index-dev.ts'),
     smtcWorker: path.join(__dirname, '../../src/main/modules/haloPixel/smtcWorker.ts'),
+    podcastSpeakerWorker: path.join(
+      __dirname,
+      '../../src/main/modules/podcast/podcastSpeakerWorker.ts'
+    ),
   },
   // smtcWorker 由 utilityProcess.fork(path.join(__dirname,'smtcWorker.js')) 加载,
   // __dirname 须保留为运行时真实目录(dist),否则 webpack 会把它替换成 '/' 导致找不到文件。

@@ -23,6 +23,7 @@ import {
 } from '@renderer/store/player/action'
 import { appSetting } from '@renderer/store/setting'
 import { getMusicUrl, getPicPath, getLyricInfo } from '../music/index'
+import { startPodcastLyricRefresh } from '../music/podcast'
 import { filterList } from './utils'
 import { requestMsg } from '@renderer/utils/message'
 import { getRandom } from '@renderer/utils/index'
@@ -38,6 +39,26 @@ const createGettingUrlId = (musicInfo: LX.Music.MusicInfo | LX.Download.ListItem
       ? musicInfo.metadata.musicInfo.meta.toggleMusicInfo
       : musicInfo.meta.toggleMusicInfo
   return `${musicInfo.id}_${tInfo?.id ?? ''}`
+}
+
+const startCurrentPodcastLyricRefresh = (
+  musicInfo: LX.Music.MusicInfo | LX.Download.ListItem
+) => {
+  const podcast =
+    'progress' in musicInfo ? musicInfo.metadata.musicInfo : musicInfo
+  if (!('podcast' in podcast.meta)) return
+  const playingId = musicInfo.id
+  startPodcastLyricRefresh(podcast as LX.Music.MusicInfoPodcast, (lyricInfo) => {
+    if (playingId != playMusicInfo.musicInfo?.id) return
+    setMusicInfo({
+      lrc: lyricInfo.lyric,
+      tlrc: lyricInfo.tlyric,
+      lxlrc: lyricInfo.lxlyric,
+      rlrc: lyricInfo.rlyric,
+      rawlrc: lyricInfo.rawlrcInfo.lyric,
+    })
+    window.app_event.lyricUpdated()
+  })
 }
 const createDelayNextTimeout = (delay: number) => {
   let timeout: NodeJS.Timeout | null
@@ -221,6 +242,7 @@ const handleRestorePlay = async (restorePlayInfo: LX.Player.SavedPlayInfo) => {
         rawlrc: lyricInfo.rawlrcInfo.lyric,
       })
       window.app_event.lyricUpdated()
+      startCurrentPodcastLyricRefresh(musicInfo)
     })
     .catch((err) => {
       console.log(err)
@@ -277,6 +299,7 @@ const handlePlay = () => {
         rawlrc: lyricInfo.rawlrcInfo.lyric,
       })
       window.app_event.lyricUpdated()
+      startCurrentPodcastLyricRefresh(musicInfo)
     })
     .catch((err) => {
       console.log(err)
@@ -661,6 +684,7 @@ export const playPrev = async (isAutoToggle = false): Promise<void> => {
  */
 export const play = async () => {
   if (playMusicInfo.musicInfo == null) return
+  window.app_event.mediaSessionActivate()
   if (isEmpty()) {
     if (createGettingUrlId(playMusicInfo.musicInfo) != gettingUrlId)
       setMusicUrl(playMusicInfo.musicInfo)

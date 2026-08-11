@@ -3,6 +3,7 @@ import {
   HOTKEY_RENDERER_EVENT_NAME,
   WIN_MAIN_RENDERER_EVENT_NAME,
   CMMON_EVENT_NAME,
+  PODCAST_EVENT_NAME,
 } from '@common/ipcNames'
 import { type ProgressInfo, type UpdateDownloadedEvent, type UpdateInfo } from 'electron-updater'
 import { markRaw } from '@common/utils/vueTools'
@@ -10,6 +11,10 @@ import * as hotKeys from '@common/hotKey'
 import { APP_EVENT_NAMES, DATA_KEYS, DEFAULT_SETTING } from '@common/constants'
 
 type RemoveListener = () => void
+
+export const sendPodcastCommand = async <T = unknown>(command: LX.Podcast.Command): Promise<T> => {
+  return rendererInvoke<LX.Podcast.Command, T>(PODCAST_EVENT_NAME.action, command)
+}
 
 export const getSetting = async () => {
   return rendererInvoke<LX.AppSetting>(CMMON_EVENT_NAME.get_app_setting)

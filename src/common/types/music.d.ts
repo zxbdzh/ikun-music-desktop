@@ -62,6 +62,16 @@ declare namespace LX {
       meta: MusicInfoMeta_local
     }
 
+    interface MusicInfoPodcast extends MusicInfoBase<'local'> {
+      meta: MusicInfoMeta_local & {
+        podcast: true
+        audioUrl: string
+        artworkUrl: string
+        sourceId: string
+        publishedAt: number
+      }
+    }
+
     interface MusicInfo_online_common extends MusicInfoBase<'kw' | 'wy' | 'git'> {
       meta: MusicInfoMeta_online
     }

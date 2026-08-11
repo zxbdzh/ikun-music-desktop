@@ -1,0 +1,30 @@
+Podcast ASR sidecars for Windows x64
+
+whisper.cpp
+Version: v1.9.2
+Source: https://github.com/ggml-org/whisper.cpp/tree/v1.9.2
+Source archive SHA-256: 2aca1e1a8a8569968b4067a56a153abeabff41bca97d4f2e601fdc15325c3f25
+Build: Visual Studio 2022, CUDA Toolkit 12.9,
+       CMAKE_CUDA_ARCHITECTURES=75-real;75-virtual;120-real (120 resolves to 120a)
+whisper-cli.exe SHA-256: 9f1a030c9f44fc20d6b4f7c3fa822183d21013e04736f2f28554ade5db61ec38
+ggml-cuda.dll SHA-256: 5a571f071949e6b592b57220c4f572c187b4f20224629c9e971c490ef48cdef8
+License: MIT, see LICENSE.whisper.txt
+
+The CUDA backend includes native sm_75 and sm_120a code plus compute_75 PTX for driver JIT on
+intermediate NVIDIA architectures. IKUN reports devices below compute capability 7.5 as unsupported.
+
+The standard installer discovers an installed NVIDIA CUDA 12.x toolkit and falls back to the
+bundled CPU backend when it is unavailable. The separately named CUDA installer redistributes
+cudart64_12.dll, cublas64_12.dll and cublasLt64_12.dll beside whisper.cpp under the NVIDIA CUDA
+Toolkit EULA (see LICENSE.cuda.txt in that installer). nvcuda.dll remains part of the NVIDIA driver
+and is never redistributed by IKUN.
+
+FFmpeg
+Version: n8.1.2-34-g9b6c8969e0-20260808
+Source: https://github.com/FFmpeg/FFmpeg/tree/n8.1.2
+Build project: https://github.com/BtbN/FFmpeg-Builds
+Binary archive: ffmpeg-n8.1-latest-win64-lgpl-shared-8.1.zip
+Archive SHA-256: 96326847b2cdce6a97c2703b1f487c3a5ed5e56c9d19180a080276b095be95d3
+License: LGPL, see LICENSE.ffmpeg.txt
+
+These programs are separate executables invoked by IKUN Music Desktop. Audio remains local.

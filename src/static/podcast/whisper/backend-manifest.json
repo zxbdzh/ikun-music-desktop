@@ -1,0 +1,13 @@
+{
+  "whisperCppVersion": "1.9.2",
+  "cuda": {
+    "runtimeMajor": 12,
+    "computeCapabilities": ["7.5", "12.0"],
+    "ptxMinimumComputeCapability": "7.5",
+    "runtimeFiles": [
+      "cudart64_12.dll",
+      "cublas64_12.dll",
+      "cublasLt64_12.dll"
+    ]
+  }
+}
