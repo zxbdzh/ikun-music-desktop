@@ -2,6 +2,12 @@
 
 本目录保存 AurioClub API 的可复现治理 payload。所有文件只包含测试占位数据，不得写入真实账号、Bearer、验证码或其他密钥。
 
+## 契约修复
+
+`contracts/` 保存需要完整结构更新的接口 payload。执行更新前必须重新 `endpoint get` 对照远端资源，并通过 `endpoint-create` Schema 校验；`endpoint update` 是 PUT 风格操作，不会按响应 ID 合并数组。
+
+- `contracts/proxy.json`：将 `/proxy` 的 200 主响应修正为 XML 字符串，并按生产实测将缺少 URL 的 400 响应修正为空体；HTML、纯文本、二进制等附加媒体类型以及 502 错误 Schema 均保留。
+
 ## Mock
 
 `mocks/*-success.json` 是 `mock create` payload，覆盖项目 `main` 分支的 18 个 HTTP 接口，每个接口恰好一个默认成功期望。
