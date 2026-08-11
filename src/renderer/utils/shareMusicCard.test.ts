@@ -8,7 +8,12 @@ vi.mock('@renderer/utils', () => ({
   toOldMusicInfo: (musicInfo: unknown) => musicInfo,
 }))
 
-import { paginateLyricLines, resolveMusicDetailWebUrl } from './shareMusicCard'
+import {
+  buildShareCardBatchId,
+  buildShareCardPageFileName,
+  paginateLyricLines,
+  resolveMusicDetailWebUrl,
+} from './shareMusicCard'
 
 const podcast = (meta: Record<string, string>) => ({
   id: 'episode-1',
@@ -168,5 +173,41 @@ describe('share lyric pagination', () => {
     )).toBe(true)
     expect(fragments.map((line) => line.text).join('')).toBe('主'.repeat(2_000))
     expect(fragments.map((line) => line.translation).join('')).toBe('translation'.repeat(300))
+  })
+})
+
+describe('share card page file names', () => {
+  it('adds stable page ordering for multi-page exports', () => {
+    expect(buildShareCardPageFileName('Episode 1', 2, 254))
+      .toBe('Episode 1_p002-of-254.png')
+    const names = [1, 2, 9, 10, 99, 100, 254]
+      .map((page) => buildShareCardPageFileName('Episode 1', page, 254))
+    expect([...names].sort()).toEqual(names)
+  })
+
+  it('removes characters that are invalid in file names', () => {
+    expect(buildShareCardPageFileName('A/B: C?*.', 1, 1)).toBe('A_B_ C__.png')
+    expect(buildShareCardPageFileName('CON', 1, 1)).toBe('_CON.png')
+  })
+
+  it('adds a readable unique batch id without changing page order', () => {
+    const batchId = buildShareCardBatchId(new Date(2026, 7, 11, 21, 5, 9, 42))
+    expect(batchId).toBe('20260811-210509-042')
+    expect(buildShareCardPageFileName('Episode 1', 2, 12, batchId))
+      .toBe('Episode 1_20260811-210509-042_p02-of-12.png')
+  })
+
+  it('keeps Unicode-heavy names within the Windows component limit', () => {
+    const family = '\u{1F468}\u200D\u{1F469}\u200D\u{1F467}\u200D\u{1F466}'
+    const fileName = buildShareCardPageFileName(
+      family.repeat(120),
+      2,
+      254,
+      'batch'.repeat(30)
+    )
+
+    expect(fileName.length).toBeLessThanOrEqual(255)
+    expect(fileName).toMatch(/_p002-of-254\.png$/)
+    expect(Buffer.from(fileName, 'utf8').toString('utf8')).toBe(fileName)
   })
 })

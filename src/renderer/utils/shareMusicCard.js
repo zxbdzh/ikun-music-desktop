@@ -166,6 +166,68 @@ export const paginateLyricLines = (
   return pages
 }
 
+const windowsReservedFileStem = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i
+const windowsFileNameCodeUnitLimit = 255
+
+const clipByCodeUnits = (value, maxCodeUnits) => {
+  let result = ''
+  for (const grapheme of graphemes(value)) {
+    if (result.length + grapheme.length > maxCodeUnits) break
+    result += grapheme
+  }
+  return result
+}
+
+const sanitizeFileNamePart = (value, fallback, maxCodeUnits = 120) => {
+  const sanitized = String(value || fallback)
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_')
+    .replace(/[. ]+$/g, '')
+    .trim()
+  let clipped = clipByCodeUnits(sanitized, maxCodeUnits) || fallback
+  if (windowsReservedFileStem.test(clipped)) clipped = `_${clipped}`
+  return clipByCodeUnits(clipped, maxCodeUnits) || '_'
+}
+
+export const buildShareCardBatchId = (date = new Date()) => {
+  const value = date instanceof Date ? date : new Date(date)
+  if (Number.isNaN(value.getTime())) throw new RangeError('date must be valid')
+  const pad = (number, width = 2) => String(number).padStart(width, '0')
+  return [
+    value.getFullYear(),
+    pad(value.getMonth() + 1),
+    pad(value.getDate()),
+    '-',
+    pad(value.getHours()),
+    pad(value.getMinutes()),
+    pad(value.getSeconds()),
+    '-',
+    pad(value.getMilliseconds(), 3),
+  ].join('')
+}
+
+export const buildShareCardPageFileName = (title, page, total, batchId = '') => {
+  const fallback = 'music-share-card'
+  const parsedTotal = Math.trunc(Number(total))
+  const normalizedTotal = Number.isFinite(parsedTotal) ? Math.max(1, parsedTotal) : 1
+  const parsedPage = Math.trunc(Number(page))
+  const normalizedPage = Math.min(
+    normalizedTotal,
+    Number.isFinite(parsedPage) ? Math.max(1, parsedPage) : 1
+  )
+  const pageWidth = String(normalizedTotal).length
+  const runSuffix = batchId ? `_${sanitizeFileNamePart(batchId, 'batch', 64)}` : ''
+  const pageSuffix = normalizedTotal > 1
+    ? `_p${String(normalizedPage).padStart(pageWidth, '0')}-of-${normalizedTotal}`
+    : ''
+  const extension = '.png'
+  const maxStemCodeUnits = Math.max(
+    1,
+    windowsFileNameCodeUnitLimit - runSuffix.length - pageSuffix.length - extension.length
+  )
+  const stem = sanitizeFileNamePart(title, fallback, maxStemCodeUnits)
+  return `${stem}${runSuffix}${pageSuffix}${extension}`
+}
+
 const graphemeSegmenter = typeof Intl?.Segmenter === 'function'
   ? new Intl.Segmenter(undefined, { granularity: 'grapheme' })
   : null
