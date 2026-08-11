@@ -35,13 +35,34 @@ describe('podcast RSS parser', () => {
     expect(feed.episodes[0].originalUrl).toBe('https://podcast.example.com/episodes/guid-1')
   })
 
+  it('uses an RSS GUID as a permalink when isPermaLink is omitted', () => {
+    const feed = parsePodcastFeed(
+      `<?xml version="1.0"?><rss><channel><title>GUID Show</title><item><guid>https://podcast.example.com/episodes/guid-default</guid><title>GUID episode</title><enclosure url="https://cdn.example.com/guid-default.mp3" type="audio/mpeg"/></item></channel></rss>`,
+      'https://feeds.example.com/show.xml'
+    )
+
+    expect(feed.episodes[0].originalUrl).toBe(
+      'https://podcast.example.com/episodes/guid-default'
+    )
+  })
+
   it('does not treat an opaque RSS GUID as a permalink', () => {
     const feed = parsePodcastFeed(
-      `<?xml version="1.0"?><rss><channel><title>GUID Show</title><item><guid isPermaLink="false">episode-guid-2</guid><title>GUID episode</title><enclosure url="https://cdn.example.com/guid-2.mp3" type="audio/mpeg"/></item></channel></rss>`,
+      `<?xml version="1.0"?><rss><channel><title>GUID Show</title><item><guid isPermaLink="false">https://podcast.example.com/episodes/guid-2</guid><title>GUID episode</title><enclosure url="https://cdn.example.com/guid-2.mp3" type="audio/mpeg"/></item></channel></rss>`,
       'https://feeds.example.com/show.xml'
     )
 
     expect(feed.episodes).toHaveLength(1)
+    expect(feed.episodes[0].originalUrl).toBe('')
+  })
+
+  it('does not promote the enclosure fallback ID to an article URL', () => {
+    const feed = parsePodcastFeed(
+      `<?xml version="1.0"?><rss><channel><title>No GUID Show</title><item><title>No GUID episode</title><enclosure url="https://cdn.example.com/no-guid.mp3" type="audio/mpeg"/></item></channel></rss>`,
+      'https://feeds.example.com/show.xml'
+    )
+
+    expect(feed.episodes[0].guid).toBe('https://cdn.example.com/no-guid.mp3')
     expect(feed.episodes[0].originalUrl).toBe('')
   })
 })

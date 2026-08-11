@@ -75,9 +75,10 @@ const parseRssEpisode = (
   fallbackArtwork: string
 ): LX.Podcast.Episode => {
   const enclosure = asArray(item.enclosure)[0] ?? {}
-  const guid = text(item.guid?.['#text'] ?? item.guid) || text(enclosure['@_url']) || text(item.link)
-  const guidPermalink = text(item.guid?.['@_isPermaLink']).toLowerCase() === 'true'
-    ? guid
+  const rssGuid = text(item.guid?.['#text'] ?? item.guid)
+  const guid = rssGuid || text(enclosure['@_url']) || text(item.link)
+  const guidPermalink = text(item.guid?.['@_isPermaLink']).toLowerCase() !== 'false'
+    ? rssGuid
     : ''
   const transcriptReferences = asArray(item['podcast:transcript'])
     .map((ref): LX.Podcast.TranscriptReference | null => {
