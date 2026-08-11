@@ -1,5 +1,5 @@
 import musicSdk from '@renderer/utils/musicSdk'
-import { toOldMusicInfo } from '@renderer/utils'
+import { decodeName, toOldMusicInfo } from '@renderer/utils'
 
 const getMeta = (musicInfo) => {
   return musicInfo?.meta ?? {}
@@ -7,22 +7,29 @@ const getMeta = (musicInfo) => {
 
 const isHttpUrl = (url) => /^https?:\/\//i.test(url || '')
 
+const normalizeHttpUrl = (url) => {
+  const normalizedUrl = decodeName(typeof url === 'string' ? url : '')?.trim() ?? ''
+  return isHttpUrl(normalizedUrl) ? normalizedUrl : ''
+}
+
 export const resolveMusicDetailWebUrl = (musicInfo) => {
   if (!musicInfo) return ''
 
   const meta = getMeta(musicInfo)
   if (meta.podcast) {
-    if (isHttpUrl(meta.originalUrl)) return meta.originalUrl
-    return isHttpUrl(meta.audioUrl) ? meta.audioUrl : ''
+    const originalUrl = normalizeHttpUrl(meta.originalUrl)
+    if (originalUrl) return originalUrl
+    return normalizeHttpUrl(meta.audioUrl)
   }
 
   const oldMusicInfo = toOldMusicInfo(musicInfo)
   const sdkUrl = musicSdk[oldMusicInfo.source]?.getMusicDetailPageUrl?.(oldMusicInfo)
-  if (isHttpUrl(sdkUrl)) {
+  const normalizedSdkUrl = normalizeHttpUrl(sdkUrl)
+  if (normalizedSdkUrl) {
     if (musicInfo.source === 'wy') {
       if (meta.songId) return `https://project.zxbdwy.online/music?id=${meta.songId}`
     }
-    return sdkUrl
+    return normalizedSdkUrl
   }
 
   switch (musicInfo.source) {

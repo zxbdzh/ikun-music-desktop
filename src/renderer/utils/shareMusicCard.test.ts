@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@renderer/utils/musicSdk', () => ({ default: {} }))
-vi.mock('@renderer/utils', () => ({ toOldMusicInfo: (musicInfo: unknown) => musicInfo }))
+vi.mock('@renderer/utils', () => ({
+  decodeName: (value: unknown) => new DOMParser()
+    .parseFromString(String(value ?? ''), 'text/html')
+    .body.textContent,
+  toOldMusicInfo: (musicInfo: unknown) => musicInfo,
+}))
 
 import { paginateLyricLines, resolveMusicDetailWebUrl } from './shareMusicCard'
 
@@ -26,6 +31,20 @@ describe('podcast share URL', () => {
       originalUrl: '',
       audioUrl: 'https://cdn.example.com/episodes/1.mp3',
     }))).toBe('https://cdn.example.com/episodes/1.mp3')
+  })
+
+  it('decodes HTML entities in the publisher episode URL', () => {
+    expect(resolveMusicDetailWebUrl(podcast({
+      originalUrl: 'https://podcast.example.com/episodes/1?channel=rss&amp;album_id=42',
+      audioUrl: 'https://cdn.example.com/episodes/1.mp3',
+    }))).toBe('https://podcast.example.com/episodes/1?channel=rss&album_id=42')
+  })
+
+  it('decodes HTML entities in the fallback audio URL', () => {
+    expect(resolveMusicDetailWebUrl(podcast({
+      originalUrl: '',
+      audioUrl: 'https://cdn.example.com/episodes/1.mp3?channel=rss&amp;album_id=42',
+    }))).toBe('https://cdn.example.com/episodes/1.mp3?channel=rss&album_id=42')
   })
 
   it('never falls back to an unrelated music search page', () => {
