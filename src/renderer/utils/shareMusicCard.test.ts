@@ -11,6 +11,9 @@ vi.mock('@renderer/utils', () => ({
 import {
   buildShareCardBatchId,
   buildShareCardPageFileName,
+  buildShareCardPageIndexes,
+  buildShareCardRetryPageIndexes,
+  normalizeShareCardPageRange,
   paginateLyricLines,
   resolveMusicDetailWebUrl,
 } from './shareMusicCard'
@@ -209,5 +212,57 @@ describe('share card page file names', () => {
     expect(fileName.length).toBeLessThanOrEqual(255)
     expect(fileName).toMatch(/_p002-of-254\.png$/)
     expect(Buffer.from(fileName, 'utf8').toString('utf8')).toBe(fileName)
+  })
+})
+
+describe('share card export page ranges', () => {
+  it('clamps page input and returns zero-based indexes', () => {
+    expect(normalizeShareCardPageRange(0, 999, 12)).toEqual({
+      startIndex: 0,
+      endIndex: 11,
+    })
+  })
+
+  it('orders reversed page input and falls back for invalid values', () => {
+    expect(normalizeShareCardPageRange(9, 3, 12)).toEqual({
+      startIndex: 2,
+      endIndex: 8,
+    })
+    expect(normalizeShareCardPageRange('invalid', undefined, 12)).toEqual({
+      startIndex: 0,
+      endIndex: 11,
+    })
+  })
+
+  it('treats cleared page fields as missing values', () => {
+    expect(normalizeShareCardPageRange('', '   ', 12)).toEqual({
+      startIndex: 0,
+      endIndex: 11,
+    })
+    expect(normalizeShareCardPageRange(null, null, 12)).toEqual({
+      startIndex: 0,
+      endIndex: 11,
+    })
+  })
+
+  it('returns an empty range when there are no pages', () => {
+    expect(normalizeShareCardPageRange(1, 1, 0)).toEqual({
+      startIndex: 0,
+      endIndex: -1,
+    })
+    expect(buildShareCardPageIndexes(0, -1)).toEqual([])
+  })
+
+  it('builds an inclusive list of export page indexes', () => {
+    expect(buildShareCardPageIndexes(2, 5)).toEqual([2, 3, 4, 5])
+  })
+
+  it('supports continuing from or retrying only the failed page', () => {
+    expect(buildShareCardRetryPageIndexes(4, 7, 'remaining')).toEqual([4, 5, 6, 7])
+    expect(buildShareCardRetryPageIndexes(4, 7, 'failed')).toEqual([4])
+  })
+
+  it('rejects unknown retry strategies', () => {
+    expect(() => buildShareCardRetryPageIndexes(4, 7, 'all')).toThrow(RangeError)
   })
 })

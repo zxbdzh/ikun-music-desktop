@@ -7,7 +7,7 @@
       role="dialog"
       aria-modal="true"
       aria-labelledby="share-card-title"
-      :aria-busy="preparingShare"
+      :aria-busy="preparingShare || batchBusy"
       @keydown="handleDialogKeydown"
     >
       <div :class="$style.bg" />
@@ -142,14 +142,27 @@
                   <use xlink:href="#icon-left" />
                 </svg>
               </button>
-              <div
-                :class="$style.pageStatus"
-                role="status"
-                aria-live="polite"
-                aria-atomic="true"
-              >
+              <label :class="$style.pageStatus">
+                <input
+                  v-model.number="selectionPageDraft"
+                  :class="$style.pageInput"
+                  type="number"
+                  inputmode="numeric"
+                  min="1"
+                  :max="selectionPageCount"
+                  :disabled="batchBusy"
+                  :aria-label="$t(isPodcast
+                    ? 'share__transcript_selection_page_jump'
+                    : 'share__selection_page_jump')"
+                  @change="handleSelectionPageJump"
+                  @blur="handleSelectionPageJump"
+                  @keydown.enter="$event.currentTarget.blur()"
+                />
+                <span aria-hidden="true">/ {{ selectionPageCount }}</span>
+              </label>
+              <span :class="$style.srOnly" aria-live="polite" aria-atomic="true">
                 {{ selectionPageStatusText }}
-              </div>
+              </span>
               <button
                 :class="$style.pageButton"
                 type="button"
@@ -174,6 +187,46 @@
           >
             {{ generating ? $t('share__generating') : $t('share__generate_ceru_link') }}
           </button>
+
+          <div v-if="lyricPageCount > 1" :class="$style.exportRange">
+            <div :class="$style.groupTitle">{{ $t('share__export_range') }}</div>
+            <div :class="$style.exportRangeFields">
+              <label :class="$style.rangeField">
+                <span>{{ $t('share__export_start_page') }}</span>
+                <input
+                  v-model.number="batchRangeStart"
+                  :class="$style.rangeInput"
+                  type="number"
+                  inputmode="numeric"
+                  min="1"
+                  :max="lyricPageCount"
+                  :disabled="batchBusy"
+                  @change="handleBatchRangeChange"
+                  @blur="handleBatchRangeChange"
+                  @keydown.enter="$event.currentTarget.blur()"
+                />
+              </label>
+              <span :class="$style.rangeSeparator" aria-hidden="true">-</span>
+              <label :class="$style.rangeField">
+                <span>{{ $t('share__export_end_page') }}</span>
+                <input
+                  v-model.number="batchRangeEnd"
+                  :class="$style.rangeInput"
+                  type="number"
+                  inputmode="numeric"
+                  min="1"
+                  :max="lyricPageCount"
+                  :disabled="batchBusy"
+                  @change="handleBatchRangeChange"
+                  @blur="handleBatchRangeChange"
+                  @keydown.enter="$event.currentTarget.blur()"
+                />
+              </label>
+            </div>
+            <div :class="$style.rangeSummary" aria-live="polite">
+              {{ batchRangeSummaryText }}
+            </div>
+          </div>
 
           <div :class="$style.actions">
             <button
@@ -207,17 +260,42 @@
               :disabled="batchPreparing || (!batchSaving && (generating || preparingShare))"
               @click="batchSaving ? handleCancelBatchSave() : handleSaveAllImages()"
             >
-              {{ batchSaving ? $t('btn_cancel') : $t('share__save_all_images') }}
+              {{ batchSaving ? $t('btn_cancel') : batchSaveButtonText }}
             </button>
           </div>
           <div
             v-if="batchProgressText"
             :class="$style.exportStatus"
-            role="status"
+            :role="batchRecovery?.failedPageIndex != null ? 'alert' : 'status'"
             aria-live="polite"
             aria-atomic="true"
           >
             {{ batchProgressText }}
+          </div>
+          <div
+            v-if="batchRecovery && !batchBusy"
+            :class="$style.recoveryPanel"
+            role="group"
+            :aria-label="$t('share__retry_actions')"
+          >
+            <div :class="$style.recoveryHint">{{ $t('share__retry_snapshot_tip') }}</div>
+            <div :class="$style.recoveryActions">
+              <button
+                :class="$style.actionBtn"
+                type="button"
+                @click="handleResumeBatchSave"
+              >
+                {{ $t('share__resume_from_failed') }}
+              </button>
+              <button
+                v-if="batchRecovery.failedPageIndex != null"
+                :class="$style.actionBtn"
+                type="button"
+                @click="handleRetryFailedPage"
+              >
+                {{ $t('share__retry_failed_page') }}
+              </button>
+            </div>
           </div>
         </aside>
 
@@ -345,6 +423,9 @@ import { isShowShareMusicCard, shareMusicInfo, closeShareMusicCard } from '@rend
 import {
   buildShareCardBatchId,
   buildShareCardPageFileName,
+  buildShareCardPageIndexes,
+  buildShareCardRetryPageIndexes,
+  normalizeShareCardPageRange,
   resolveMusicDetailWebUrl,
   buildLyricSelectableLines,
   paginateLyricLines,
@@ -438,6 +519,7 @@ const selectedLineIndexes = ref([])
 const currentPageIndex = ref(0)
 const pageDraft = ref(1)
 const selectionPageIndex = ref(0)
+const selectionPageDraft = ref(1)
 const activeLyricIndex = ref(0)
 const qrDataUrl = ref('')
 const dom_page = ref(null)
@@ -455,13 +537,17 @@ const batchPreparing = ref(false)
 const batchSaving = ref(false)
 const batchCancelling = ref(false)
 const batchProgress = ref(0)
+const batchTargetTotal = ref(0)
 const batchStatus = ref('')
+const batchRangeStart = ref(1)
+const batchRangeEnd = ref(1)
 const loadingLyrics = ref(false)
 const loadingQr = ref(false)
 const loadingCover = ref(false)
 const qrError = ref(false)
 const batchLyricPages = ref(null)
 const batchCardSnapshot = ref(null)
+const batchRecovery = ref(null)
 let batchCancelRequested = false
 let closeAfterBatchCancel = false
 let lyricLoadGeneration = 0
@@ -534,11 +620,31 @@ const allLyricsSelected = computed(() =>
 const someLyricsSelected = computed(() =>
   selectedLineIndexes.value.length > 0 && !allLyricsSelected.value
 )
+const normalizedBatchRange = computed(() => normalizeShareCardPageRange(
+  batchRangeStart.value,
+  batchRangeEnd.value,
+  lyricPageCount.value
+))
+const batchRangePageCount = computed(() => Math.max(
+  0,
+  normalizedBatchRange.value.endIndex - normalizedBatchRange.value.startIndex + 1
+))
+const batchRangeSummaryText = computed(() => window.i18n.t('share__export_range_summary', {
+  start: normalizedBatchRange.value.startIndex + 1,
+  end: normalizedBatchRange.value.endIndex + 1,
+  total: batchRangePageCount.value,
+}))
+const batchSaveButtonText = computed(() => (
+  normalizedBatchRange.value.startIndex === 0 &&
+  normalizedBatchRange.value.endIndex === lyricPageCount.value - 1
+    ? window.i18n.t('share__save_all_images')
+    : window.i18n.t('share__save_page_range')
+))
 const batchProgressText = computed(() => {
   if (batchSaving.value) {
     return window.i18n.t(
       batchCancelling.value ? 'share__save_all_cancelling' : 'share__save_all_progress',
-      { current: batchProgress.value, total: lyricPageCount.value }
+      { current: batchProgress.value, total: batchTargetTotal.value }
     )
   }
   return batchStatus.value
@@ -614,6 +720,7 @@ const resetLyricState = () => {
   currentPageIndex.value = 0
   pageDraft.value = 1
   selectionPageIndex.value = 0
+  selectionPageDraft.value = 1
   activeLyricIndex.value = 0
   rawLyric.value = ''
   rawTlyric.value = ''
@@ -770,6 +877,16 @@ const handleNextSelectionPage = () => {
   moveActiveLyric((selectionPageIndex.value + 1) * SELECTION_PAGE_SIZE)
 }
 
+const handleSelectionPageJump = () => {
+  if (batchBusy.value) return
+  const requestedPage = Math.floor(Number(selectionPageDraft.value))
+  const nextPage = Number.isFinite(requestedPage)
+    ? Math.min(selectionPageCount.value, Math.max(1, requestedPage))
+    : selectionPageIndex.value + 1
+  selectionPageDraft.value = nextPage
+  moveActiveLyric((nextPage - 1) * SELECTION_PAGE_SIZE)
+}
+
 const handlePreviousPage = () => {
   if (!batchBusy.value && hasPreviousPage.value) currentPageIndex.value--
 }
@@ -786,6 +903,17 @@ const handlePageJump = () => {
     : currentPageNumber.value
   currentPageIndex.value = Math.max(0, nextPage - 1)
   pageDraft.value = nextPage
+}
+
+const handleBatchRangeChange = () => {
+  if (batchBusy.value) return
+  const range = normalizeShareCardPageRange(
+    batchRangeStart.value,
+    batchRangeEnd.value,
+    lyricPageCount.value
+  )
+  batchRangeStart.value = range.startIndex + 1
+  batchRangeEnd.value = range.endIndex + 1
 }
 
 const renderCardPng = async () => {
@@ -931,6 +1059,122 @@ const refreshCurrentShareContent = async () => {
   ])
 }
 
+const runBatchSave = async (
+  job,
+  pageIndexes,
+  successMessageKey,
+  continuationPageIndex = null
+) => {
+  if (batchBusy.value || !pageIndexes.length) return
+
+  const returnPageIndex = currentPageIndex.value
+  batchCancelRequested = false
+  closeAfterBatchCancel = false
+  batchCancelling.value = false
+  batchProgress.value = 0
+  batchTargetTotal.value = pageIndexes.length
+  batchStatus.value = ''
+  batchLyricPages.value = job.pages
+  batchCardSnapshot.value = job.cardSnapshot
+  batchSaving.value = true
+
+  let activePageIndex = pageIndexes[0]
+  let failureStage = 'render'
+  let failed = false
+  let resultMessage = ''
+  let shouldClose = false
+
+  try {
+    for (const pageIndex of pageIndexes) {
+      if (batchCancelRequested) break
+      activePageIndex = pageIndex
+      currentPageIndex.value = pageIndex
+      await nextTick()
+      await waitForCardPaint()
+      failureStage = 'render'
+      const dataUrl = await renderCardPng()
+      if (!dataUrl) throw new Error('share card is unavailable')
+      const fileName = buildShareCardPageFileName(
+        job.batchTitle,
+        pageIndex + 1,
+        job.pages.length,
+        job.batchId
+      )
+      failureStage = 'write'
+      await window.lx.worker.main.saveStrToFile(
+        path.join(job.directory, fileName),
+        dataUrlToBytes(dataUrl)
+      )
+      batchProgress.value++
+    }
+
+    if (batchCancelRequested) {
+      batchRecovery.value = null
+      batchStatus.value = window.i18n.t('share__save_all_cancelled', {
+        current: batchProgress.value,
+        total: pageIndexes.length,
+      })
+    } else {
+      batchRecovery.value = continuationPageIndex == null
+        ? null
+        : {
+            ...job,
+            resumePageIndex: continuationPageIndex,
+            failedPageIndex: null,
+          }
+      batchStatus.value = window.i18n.t(successMessageKey, {
+        page: pageIndexes[0] + 1,
+        total: pageIndexes.length,
+      })
+      resultMessage = batchStatus.value
+    }
+  } catch {
+    failed = true
+    batchRecovery.value = {
+      ...job,
+      resumePageIndex: activePageIndex,
+      failedPageIndex: activePageIndex,
+    }
+    const messageKey = failureStage === 'write'
+      ? 'share__save_all_write_failed'
+      : 'share__save_all_render_failed'
+    batchStatus.value = window.i18n.t(messageKey, {
+      current: batchProgress.value,
+      total: pageIndexes.length,
+      failed: activePageIndex + 1,
+    })
+    resultMessage = batchStatus.value
+  } finally {
+    shouldClose = closeAfterBatchCancel
+    if (shouldClose || (!failed && continuationPageIndex == null)) batchRecovery.value = null
+    batchLyricPages.value = null
+    batchCardSnapshot.value = null
+    currentPageIndex.value = Math.min(
+      returnPageIndex,
+      Math.max(lyricPages.value.length - 1, 0)
+    )
+    pageDraft.value = currentPageIndex.value + 1
+    batchSaving.value = false
+    batchCancelling.value = false
+    batchCancelRequested = false
+    closeAfterBatchCancel = false
+    batchTargetTotal.value = 0
+
+    if (musicInfo.value !== job.sourceMusicInfo && !shouldClose) {
+      batchRecovery.value = null
+      await refreshCurrentShareContent()
+    }
+    if (shouldClose) closeShareMusicCard()
+  }
+
+  if (resultMessage && !shouldClose) {
+    await dialog.confirm({
+      message: resultMessage,
+      confirmButtonText: window.i18n.t('ok'),
+    }).catch(() => {})
+  }
+}
+
 const handleSaveAllImages = async () => {
   if (
     batchBusy.value ||
@@ -939,11 +1183,18 @@ const handleSaveAllImages = async () => {
     lyricPages.value.length < 2
   ) return
 
+  handleBatchRangeChange()
+  const range = normalizeShareCardPageRange(
+    batchRangeStart.value,
+    batchRangeEnd.value,
+    lyricPages.value.length
+  )
+  const pageIndexes = buildShareCardPageIndexes(range.startIndex, range.endIndex)
+  if (!pageIndexes.length) return
+
   batchPreparing.value = true
   const sourceMusicInfo = musicInfo.value
   const pages = lyricPages.value.map((page) => page.map((line) => ({ ...line })))
-  const total = pages.length
-  const originalPageIndex = currentPageIndex.value
   const batchId = buildShareCardBatchId()
   const snapshotMusicInfo = sourceMusicInfo
     ? { ...sourceMusicInfo, meta: { ...sourceMusicInfo.meta } }
@@ -956,7 +1207,6 @@ const handleSaveAllImages = async () => {
     coverStyle: { ...coverStyle.value },
     includeTranslation: includeTranslation.value,
   }
-  const batchTitle = snapshotMusicInfo?.name
   let directory = ''
   let folderSelectionFailed = false
   batchProgress.value = 0
@@ -968,15 +1218,6 @@ const handleSaveAllImages = async () => {
       properties: ['openDirectory', 'createDirectory'],
     })
     directory = result.canceled ? '' : result.filePaths?.[0] || ''
-
-    if (directory) {
-      batchCancelRequested = false
-      closeAfterBatchCancel = false
-      batchCancelling.value = false
-      batchLyricPages.value = pages
-      batchCardSnapshot.value = cardSnapshot
-      batchSaving.value = true
-    }
   } catch {
     folderSelectionFailed = true
     const message = window.i18n.t('share__save_all_folder_failed')
@@ -994,76 +1235,43 @@ const handleSaveAllImages = async () => {
     return
   }
 
-  let failureStage = 'render'
-  try {
-    for (let index = 0; index < total; index++) {
-      if (batchCancelRequested) break
-      currentPageIndex.value = index
-      await nextTick()
-      await waitForCardPaint()
-      failureStage = 'render'
-      const dataUrl = await renderCardPng()
-      if (!dataUrl) throw new Error('share card is unavailable')
-      const fileName = buildShareCardPageFileName(
-        batchTitle,
-        index + 1,
-        total,
-        batchId
-      )
-      failureStage = 'write'
-      await window.lx.worker.main.saveStrToFile(
-        path.join(directory, fileName),
-        dataUrlToBytes(dataUrl)
-      )
-      batchProgress.value = index + 1
-    }
-
-    if (batchCancelRequested) {
-      batchStatus.value = window.i18n.t('share__save_all_cancelled', {
-        current: batchProgress.value,
-        total,
-      })
-    } else {
-      batchStatus.value = window.i18n.t('share__save_all_success', { total })
-      await dialog.confirm({
-        message: batchStatus.value,
-        confirmButtonText: window.i18n.t('ok'),
-      })
-    }
-  } catch {
-    const failedPage = Math.min(batchProgress.value + 1, total)
-    const messageKey = failureStage === 'write'
-      ? 'share__save_all_write_failed'
-      : 'share__save_all_render_failed'
-    batchStatus.value = window.i18n.t(messageKey, {
-      current: batchProgress.value,
-      total,
-      failed: failedPage,
-    })
-    await dialog.confirm({
-      message: batchStatus.value,
-      confirmButtonText: window.i18n.t('ok'),
-    })
-  } finally {
-    const shouldClose = closeAfterBatchCancel
-    batchLyricPages.value = null
-    batchCardSnapshot.value = null
-    currentPageIndex.value = Math.min(
-      originalPageIndex,
-      Math.max(lyricPages.value.length - 1, 0)
-    )
-    pageDraft.value = currentPageIndex.value + 1
-    batchSaving.value = false
-    batchCancelling.value = false
-    batchCancelRequested = false
-    closeAfterBatchCancel = false
-
-    if (musicInfo.value !== sourceMusicInfo && !shouldClose) {
-      await refreshCurrentShareContent()
-    }
-    if (shouldClose) closeShareMusicCard()
-  }
+  batchRecovery.value = null
+  await runBatchSave({
+    sourceMusicInfo,
+    pages,
+    batchId,
+    batchTitle: snapshotMusicInfo?.name,
+    cardSnapshot,
+    directory,
+    rangeEndIndex: range.endIndex,
+  }, pageIndexes, 'share__save_pages_success')
 }
+
+const retryBatchSave = async (strategy) => {
+  const recovery = batchRecovery.value
+  if (!recovery || batchBusy.value) return
+  const retryPageIndex = strategy === 'failed'
+    ? recovery.failedPageIndex
+    : recovery.resumePageIndex
+  if (!Number.isInteger(retryPageIndex)) return
+  const pageIndexes = buildShareCardRetryPageIndexes(
+    retryPageIndex,
+    recovery.rangeEndIndex,
+    strategy
+  )
+  const continuationPageIndex = strategy === 'failed' && retryPageIndex < recovery.rangeEndIndex
+    ? retryPageIndex + 1
+    : null
+  await runBatchSave(
+    recovery,
+    pageIndexes,
+    strategy === 'failed' ? 'share__retry_page_success' : 'share__save_pages_success',
+    continuationPageIndex
+  )
+}
+
+const handleResumeBatchSave = () => retryBatchSave('remaining')
+const handleRetryFailedPage = () => retryBatchSave('failed')
 
 watch(
   [selectedLineIndexes, includeTranslation],
@@ -1077,6 +1285,28 @@ watch(currentPageNumber, (page) => {
   pageDraft.value = page || 1
 })
 
+watch(selectionPageIndex, (page) => {
+  selectionPageDraft.value = page + 1
+})
+
+watch(lyricPageCount, (total, previousTotal) => {
+  if (batchBusy.value) return
+  if (!total) {
+    batchRangeStart.value = 1
+    batchRangeEnd.value = 1
+    return
+  }
+
+  const followedPreviousEnd = !previousTotal || batchRangeEnd.value >= previousTotal
+  const range = normalizeShareCardPageRange(
+    batchRangeStart.value,
+    batchRangeEnd.value,
+    total
+  )
+  batchRangeStart.value = range.startIndex + 1
+  batchRangeEnd.value = followedPreviousEnd ? total : range.endIndex + 1
+})
+
 watch(
   () => isShowShareMusicCard.value,
   async (show) => {
@@ -1087,6 +1317,7 @@ watch(
       loadingLyrics.value = false
       loadingQr.value = false
       loadingCover.value = false
+      batchRecovery.value = null
       const target = shareTrigger
       shareTrigger = null
       await nextTick()
@@ -1100,9 +1331,11 @@ watch(
     qrDataUrl.value = ''
     qrError.value = false
     batchProgress.value = 0
+    batchTargetTotal.value = 0
     batchStatus.value = ''
     batchLyricPages.value = null
     batchCardSnapshot.value = null
+    batchRecovery.value = null
     openingMusicInfo = musicInfo.value
     const refreshPromise = refreshCurrentShareContent()
     await nextTick()
@@ -1121,6 +1354,7 @@ watch(
     if (!isShowShareMusicCard.value) return
     if (openingMusicInfo === musicInfo.value) return
     openingMusicInfo = null
+    batchRecovery.value = null
     if (batchBusy.value) {
       if (batchSaving.value) handleCancelBatchSave()
       return
@@ -1306,7 +1540,7 @@ watch(
   }
 }
 .lyricList {
-  max-height: 230px;
+  max-height: clamp(160px, 24vh, 230px);
   overflow: auto;
   border-radius: 6px;
 
@@ -1360,6 +1594,53 @@ watch(
   justify-content: center;
   gap: 8px;
 }
+.exportRange {
+  margin-top: 10px;
+}
+.exportRangeFields {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+.rangeField {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+}
+.rangeInput {
+  width: 72px;
+  height: 44px;
+  box-sizing: border-box;
+  border: 1px solid var(--color-primary-alpha-600);
+  border-radius: 6px;
+  padding: 0 8px;
+  color: var(--color-font);
+  background: var(--color-button-background);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+
+  &:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+}
+.rangeSeparator {
+  height: 44px;
+  display: flex;
+  align-items: center;
+}
+.rangeSummary {
+  min-height: 18px;
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  opacity: 0.72;
+}
 .ceruBtn {
   margin-top: 10px;
   width: 100%;
@@ -1411,6 +1692,22 @@ watch(
   margin-top: 8px;
   font-size: 12px;
   line-height: 1.5;
+}
+.recoveryPanel {
+  margin-top: 8px;
+  padding-left: 10px;
+  border-left: 3px solid var(--color-primary);
+}
+.recoveryHint {
+  font-size: 12px;
+  line-height: 1.5;
+  opacity: 0.78;
+}
+.recoveryActions {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 .card {
   width: 360px;

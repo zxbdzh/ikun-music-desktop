@@ -166,6 +166,63 @@ export const paginateLyricLines = (
   return pages
 }
 
+const normalizePageValue = (value, fallback, totalPages) => {
+  const missing = value == null || (typeof value === 'string' && !value.trim())
+  const parsed = missing ? Number.NaN : Math.trunc(Number(value))
+  const page = Number.isFinite(parsed) ? parsed : fallback
+  return Math.min(totalPages, Math.max(1, page))
+}
+
+export const normalizeShareCardPageRange = (startPage, endPage, totalPages) => {
+  const parsedTotal = Math.trunc(Number(totalPages))
+  const normalizedTotal = Number.isFinite(parsedTotal) ? Math.max(0, parsedTotal) : 0
+  if (!normalizedTotal) return { startIndex: 0, endIndex: -1 }
+
+  const normalizedStart = normalizePageValue(startPage, 1, normalizedTotal)
+  const normalizedEnd = normalizePageValue(endPage, normalizedTotal, normalizedTotal)
+  return {
+    startIndex: Math.min(normalizedStart, normalizedEnd) - 1,
+    endIndex: Math.max(normalizedStart, normalizedEnd) - 1,
+  }
+}
+
+export const buildShareCardPageIndexes = (startIndex, endIndex) => {
+  const parsedStart = Math.trunc(Number(startIndex))
+  const parsedEnd = Math.trunc(Number(endIndex))
+  if (
+    !Number.isFinite(parsedStart) ||
+    !Number.isFinite(parsedEnd) ||
+    parsedStart < 0 ||
+    parsedEnd < parsedStart
+  ) return []
+
+  return Array.from(
+    { length: parsedEnd - parsedStart + 1 },
+    (_, offset) => parsedStart + offset
+  )
+}
+
+export const buildShareCardRetryPageIndexes = (
+  failedPageIndex,
+  endPageIndex,
+  strategy = 'remaining'
+) => {
+  const parsedFailedPage = Math.trunc(Number(failedPageIndex))
+  const parsedEndPage = Math.trunc(Number(endPageIndex))
+  if (
+    !Number.isFinite(parsedFailedPage) ||
+    !Number.isFinite(parsedEndPage) ||
+    parsedFailedPage < 0 ||
+    parsedEndPage < parsedFailedPage
+  ) return []
+
+  if (strategy === 'failed') return [parsedFailedPage]
+  if (strategy === 'remaining') {
+    return buildShareCardPageIndexes(parsedFailedPage, parsedEndPage)
+  }
+  throw new RangeError('strategy must be "remaining" or "failed"')
+}
+
 const windowsReservedFileStem = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i
 const windowsFileNameCodeUnitLimit = 255
 

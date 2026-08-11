@@ -20,7 +20,7 @@ div(:class="$style.footerLeftControlBtns")
   common-toggle-play-mode-btn
   button(:class="[$style.footerLeftControlBtn, $style.shareBtn]" type="button" :aria-label="$t('share__title')" :title="$t('share__title')" @click="handleShareCurrentMusic")
     svg(version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" width="95%" viewBox="0 0 24 24" space="preserve")
-      use(xlink:href="#icon-refresh")
+      use(xlink:href="#icon-share")
   button(:class="$style.footerLeftControlBtn" :aria-label="$t('song_memory')" @click="handleOpenSongMemory")
     svg(version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" viewBox="0 0 24 24" space="preserve")
       use(xlink:href="#icon-musicFile")
