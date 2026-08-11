@@ -59,6 +59,7 @@
           </div>
 
           <button
+            v-if="!isPodcast"
             :class="$style.ceruBtn"
             :disabled="generating"
             type="button"
@@ -201,9 +202,10 @@ const cerumusicUrl = ref('')
 const generating = ref(false)
 
 const musicInfo = computed(() => shareMusicInfo.value)
+const isPodcast = computed(() => musicInfo.value?.meta?.podcast === true)
 const detailUrl = computed(() => resolveMusicDetailWebUrl(musicInfo.value))
 // 优先使用 CeruMusic 分享落地页链接,未生成时回退到平台详情链接
-const shareUrl = computed(() => cerumusicUrl.value || detailUrl.value)
+const shareUrl = computed(() => isPodcast.value ? detailUrl.value : cerumusicUrl.value || detailUrl.value)
 
 const selectedLyricLines = computed(() => {
   if (!selectedLineIndexes.value.length) return lyricLines.value.slice(0, 4)
@@ -298,7 +300,7 @@ const renderCardPng = async () => {
 }
 
 const handleGenerateCeruShare = async () => {
-  if (!musicInfo.value || generating.value) return
+  if (!musicInfo.value || isPodcast.value || generating.value) return
   generating.value = true
   try {
     const url = await createShareForMusic(musicInfo.value, {

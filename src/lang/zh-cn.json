@@ -27,7 +27,7 @@
   "share__save_image": "保存图片",
   "share__save_image_success": "图片已保存",
   "share__save_image_failed": "图片保存失败",
-  "share__scan_to_detail": "扫码打开歌曲详情页",
+  "share__scan_to_detail": "扫码打开详情页",
   "share__generate_ceru_link": "生成澜音分享链接",
   "share__generating": "正在生成分享链接...",
   "share__generate_ceru_success": "已生成澜音分享链接，二维码已更新",

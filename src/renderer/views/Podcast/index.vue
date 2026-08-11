@@ -736,6 +736,7 @@ const toMusicInfo = (episode: LX.Podcast.Episode, source: LX.Podcast.Source): LX
     ext: new URL(episode.audioUrl).pathname.split('.').pop() || 'audio',
     podcast: true,
     audioUrl: episode.audioUrl,
+    originalUrl: episode.originalUrl,
     artworkUrl: episode.artworkUrl || source.artworkUrl,
     sourceId: source.id,
     publishedAt: episode.publishedAt,

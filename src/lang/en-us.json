@@ -27,7 +27,7 @@
   "share__save_image": "Save Image",
   "share__save_image_success": "Image saved successfully",
   "share__save_image_failed": "Failed to save image",
-  "share__scan_to_detail": "Scan to open song detail page",
+  "share__scan_to_detail": "Scan to open detail page",
   "share__generate_ceru_link": "Generate CeruMusic share link",
   "share__generating": "Generating share link...",
   "share__generate_ceru_success": "CeruMusic share link generated, QR code updated",

@@ -77,6 +77,12 @@ export const migratePodcastSubscriptions = (db: Database.Database) => {
   })()
 }
 
+export const migratePodcastEpisodeOriginalUrl = (db: Database.Database) => {
+  const columns = db.prepare('PRAGMA table_info(podcast_episode)').all() as Array<{ name: string }>
+  if (columns.some((column) => column.name === 'original_url')) return
+  db.exec('ALTER TABLE podcast_episode ADD COLUMN "original_url" TEXT NOT NULL DEFAULT \'\'')
+}
+
 export default (db: Database.Database) => {
   // PRAGMA user_version = x
   // console.log(db.prepare('PRAGMA user_version').get().user_version)
@@ -91,6 +97,7 @@ export default (db: Database.Database) => {
       migrateV1(db)
       migrateV2(db)
       migratePodcastSubscriptions(db)
+      migratePodcastEpisodeOriginalUrl(db)
       db.prepare('UPDATE "main"."db_info" SET "field_value"=@value WHERE "field_name"=@name').run({
         name: 'version',
         value: DB_VERSION,
@@ -99,6 +106,7 @@ export default (db: Database.Database) => {
     case '2':
       migrateV2(db)
       migratePodcastSubscriptions(db)
+      migratePodcastEpisodeOriginalUrl(db)
       db.prepare('UPDATE "main"."db_info" SET "field_value"=@value WHERE "field_name"=@name').run({
         name: 'version',
         value: DB_VERSION,
@@ -106,6 +114,14 @@ export default (db: Database.Database) => {
       break
     case '3':
       migratePodcastSubscriptions(db)
+      migratePodcastEpisodeOriginalUrl(db)
+      db.prepare('UPDATE "main"."db_info" SET "field_value"=@value WHERE "field_name"=@name').run({
+        name: 'version',
+        value: DB_VERSION,
+      })
+      break
+    case '4':
+      migratePodcastEpisodeOriginalUrl(db)
       db.prepare('UPDATE "main"."db_info" SET "field_value"=@value WHERE "field_name"=@name').run({
         name: 'version',
         value: DB_VERSION,

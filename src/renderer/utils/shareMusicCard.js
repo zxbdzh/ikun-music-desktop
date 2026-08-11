@@ -10,17 +10,20 @@ const isHttpUrl = (url) => /^https?:\/\//i.test(url || '')
 export const resolveMusicDetailWebUrl = (musicInfo) => {
   if (!musicInfo) return ''
 
+  const meta = getMeta(musicInfo)
+  if (meta.podcast) {
+    if (isHttpUrl(meta.originalUrl)) return meta.originalUrl
+    return isHttpUrl(meta.audioUrl) ? meta.audioUrl : ''
+  }
+
   const oldMusicInfo = toOldMusicInfo(musicInfo)
   const sdkUrl = musicSdk[oldMusicInfo.source]?.getMusicDetailPageUrl?.(oldMusicInfo)
   if (isHttpUrl(sdkUrl)) {
     if (musicInfo.source === 'wy') {
-      const meta = getMeta(musicInfo)
       if (meta.songId) return `https://project.zxbdwy.online/music?id=${meta.songId}`
     }
     return sdkUrl
   }
-
-  const meta = getMeta(musicInfo)
 
   switch (musicInfo.source) {
     case 'wy':

@@ -49,11 +49,16 @@ const parseAtom = (feed: any, feedUrl: string): ParsedFeed => {
   const episodes = asArray(feed.entry).map((entry) => {
     const links = asArray(entry.link)
     const enclosure = links.find((link) => link?.['@_rel'] === 'enclosure')
+    const alternate = links.find((link) => {
+      const rel = text(link?.['@_rel']).toLowerCase()
+      return (!rel || rel === 'alternate') && text(link?.['@_href'])
+    })
     const guid = text(entry.id) || text(enclosure?.['@_href']) || text(entry.title)
     return createEpisode(source, guid, {
       title: text(entry.title),
       description: text(entry.summary) || text(entry.content),
       artworkUrl: source.artworkUrl,
+      originalUrl: resolveHttpUrl(alternate?.['@_href'], feedUrl),
       audioUrl: text(enclosure?.['@_href']),
       publishedAt: parseDate(entry.published ?? entry.updated),
       durationSeconds: parseDuration(entry['itunes:duration']),
@@ -88,6 +93,7 @@ const parseRssEpisode = (
     title: text(item.title),
     description: text(item['content:encoded']) || text(item.description) || text(item['itunes:summary']),
     artworkUrl: text(item['itunes:image']?.['@_href']) || fallbackArtwork,
+    originalUrl: resolveHttpUrl(item.link?.['@_href'] ?? item.link, source.feedUrl),
     audioUrl: text(enclosure['@_url']),
     publishedAt: parseDate(item.pubDate),
     durationSeconds: parseDuration(item['itunes:duration']),
@@ -128,6 +134,16 @@ const createEpisode = (
 })
 
 const stableId = (value: string) => createHash('sha256').update(value).digest('hex')
+const resolveHttpUrl = (value: unknown, baseUrl: string) => {
+  const raw = text(value)
+  if (!raw) return ''
+  try {
+    const url = new URL(raw, baseUrl)
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : ''
+  } catch {
+    return ''
+  }
+}
 const asArray = <T>(value: T | T[] | undefined | null): T[] =>
   value == null ? [] : Array.isArray(value) ? value : [value]
 const text = (value: unknown): string => {

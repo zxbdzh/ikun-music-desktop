@@ -324,6 +324,7 @@ tables.set(
     "chapters_url" TEXT,
     "chapters_json" TEXT NOT NULL,
     "updated_at" INTEGER NOT NULL,
+    "original_url" TEXT NOT NULL DEFAULT '',
     PRIMARY KEY("id")
   );
 `
@@ -376,4 +377,4 @@ tables.set(
 
 export default tables
 
-export const DB_VERSION = '4'
+export const DB_VERSION = '5'

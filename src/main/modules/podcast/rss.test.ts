@@ -4,12 +4,24 @@ import { parsePodcastFeed } from './rss'
 describe('podcast RSS parser', () => {
   it('parses enclosure, transcript and mixed-language metadata', () => {
     const feed = parsePodcastFeed(
-      `<?xml version="1.0"?><rss xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" xmlns:podcast="https://podcastindex.org/namespace/1.0"><channel><title>测试 Show</title><itunes:author>Alice</itunes:author><item><guid>ep-1</guid><title>Hello 世界</title><pubDate>Sat, 08 Aug 2026 00:00:00 GMT</pubDate><itunes:duration>01:02</itunes:duration><enclosure url="https://cdn.example.com/ep.mp3" type="audio/mpeg"/><podcast:transcript url="https://cdn.example.com/ep.vtt" type="text/vtt" language="zh-CN"/></item></channel></rss>`,
+      `<?xml version="1.0"?><rss xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" xmlns:podcast="https://podcastindex.org/namespace/1.0"><channel><title>测试 Show</title><itunes:author>Alice</itunes:author><item><guid>ep-1</guid><title>Hello 世界</title><link>/episodes/ep-1</link><pubDate>Sat, 08 Aug 2026 00:00:00 GMT</pubDate><itunes:duration>01:02</itunes:duration><enclosure url="https://cdn.example.com/ep.mp3" type="audio/mpeg"/><podcast:transcript url="https://cdn.example.com/ep.vtt" type="text/vtt" language="zh-CN"/></item></channel></rss>`,
       'https://feeds.example.com/show.xml'
     )
     expect(feed.source.title).toBe('测试 Show')
     expect(feed.episodes).toHaveLength(1)
     expect(feed.episodes[0].durationSeconds).toBe(62)
     expect(feed.episodes[0].transcriptReferences[0].type).toBe('text/vtt')
+    expect(feed.episodes[0].originalUrl).toBe('https://feeds.example.com/episodes/ep-1')
+  })
+
+  it('uses the Atom alternate link instead of the enclosure URL', () => {
+    const feed = parsePodcastFeed(
+      `<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom"><title>Atom Show</title><entry><id>episode-2</id><title>Second episode</title><link rel="enclosure" href="https://cdn.example.com/ep-2.mp3"/><link rel="alternate" href="../episodes/ep-2"/></entry></feed>`,
+      'https://feeds.example.com/podcast/feed.xml'
+    )
+
+    expect(feed.episodes).toHaveLength(1)
+    expect(feed.episodes[0].originalUrl).toBe('https://feeds.example.com/episodes/ep-2')
+    expect(feed.episodes[0].audioUrl).toBe('https://cdn.example.com/ep-2.mp3')
   })
 })

@@ -150,10 +150,12 @@ export const podcastEpisodesSave = (episodes: LX.Podcast.Episode[]) => {
   const statement = db.prepare<[EpisodeRow]>(`
     INSERT INTO podcast_episode (
       id, source_id, guid, title, description, artwork_url, audio_url, published_at,
-      duration_seconds, transcript_references_json, chapters_url, chapters_json, updated_at
+      duration_seconds, transcript_references_json, chapters_url, chapters_json, updated_at,
+      original_url
     ) VALUES (
       @id, @source_id, @guid, @title, @description, @artwork_url, @audio_url, @published_at,
-      @duration_seconds, @transcript_references_json, @chapters_url, @chapters_json, @updated_at
+      @duration_seconds, @transcript_references_json, @chapters_url, @chapters_json, @updated_at,
+      @original_url
     ) ON CONFLICT(id) DO UPDATE SET
       source_id=excluded.source_id,
       guid=excluded.guid,
@@ -166,7 +168,8 @@ export const podcastEpisodesSave = (episodes: LX.Podcast.Episode[]) => {
       transcript_references_json=excluded.transcript_references_json,
       chapters_url=excluded.chapters_url,
       chapters_json=excluded.chapters_json,
-      updated_at=excluded.updated_at
+      updated_at=excluded.updated_at,
+      original_url=excluded.original_url
   `)
   db.transaction((items: LX.Podcast.Episode[]) => {
     for (const episode of items) statement.run(toEpisodeRow(episode))
@@ -372,6 +375,7 @@ interface EpisodeRow {
   chapters_url: string | null
   chapters_json: string
   updated_at: number
+  original_url: string
 }
 
 interface EpisodeStateRow {
@@ -448,6 +452,7 @@ const toEpisodeRow = (episode: LX.Podcast.Episode): EpisodeRow => ({
   chapters_url: episode.chaptersUrl ?? null,
   chapters_json: JSON.stringify(episode.chapters),
   updated_at: episode.updatedAt,
+  original_url: episode.originalUrl ?? '',
 })
 const fromEpisodeRow = (row: EpisodeRow): LX.Podcast.Episode => ({
   id: row.id,
@@ -463,6 +468,7 @@ const fromEpisodeRow = (row: EpisodeRow): LX.Podcast.Episode => ({
   chaptersUrl: row.chapters_url ?? undefined,
   chapters: safeJson(row.chapters_json, []),
   updatedAt: row.updated_at,
+  originalUrl: row.original_url || undefined,
 })
 const toEpisodeStateRow = (state: LX.Podcast.EpisodeState): EpisodeStateRow => ({
   account_id: state.accountId,

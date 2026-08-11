@@ -162,6 +162,7 @@ declare namespace LX {
       title: string
       description: string
       artworkUrl: string
+      originalUrl?: string
       audioUrl: string
       publishedAt: number
       durationSeconds: number

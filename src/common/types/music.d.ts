@@ -66,6 +66,7 @@ declare namespace LX {
       meta: MusicInfoMeta_local & {
         podcast: true
         audioUrl: string
+        originalUrl?: string
         artworkUrl: string
         sourceId: string
         publishedAt: number
