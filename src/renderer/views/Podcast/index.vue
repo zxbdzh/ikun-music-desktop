@@ -141,7 +141,11 @@
           :class="[$style.source, { [$style.selected]: selectedSource?.id === source.id }]"
           @click="selectSource(source)"
         >
-          <img :src="source.artworkUrl" alt="" />
+          <PodcastArtwork
+            :src="source.artworkUrl"
+            :alt="`${source.title} 封面`"
+            :class="$style.sourceArtwork"
+          />
           <span>
             <strong>{{ source.title }}</strong>
             <small>{{ source.author || '未知作者' }}</small>
@@ -154,7 +158,11 @@
       <section :class="$style.episodes">
         <template v-if="selectedSource">
           <div :class="$style.showHeader">
-            <img :src="selectedSource.artworkUrl" alt="" />
+            <PodcastArtwork
+              :src="selectedSource.artworkUrl"
+              :alt="`${selectedSource.title} 封面`"
+              :class="$style.showArtwork"
+            />
             <div>
               <h2>{{ selectedSource.title }}</h2>
               <p>{{ selectedSource.author }}</p>
@@ -311,7 +319,11 @@
       <p v-if="error" :class="$style.error" role="alert">{{ error }}</p>
       <div :class="$style.libraryList">
         <article v-for="(item, index) in libraryItems" :key="item.episode.id" :class="$style.libraryItem">
-          <img :src="item.episode.artworkUrl || item.source.artworkUrl" alt="" />
+          <PodcastArtwork
+            :src="item.episode.artworkUrl || item.source.artworkUrl"
+            :alt="`${item.episode.title} 封面`"
+            :class="$style.libraryArtwork"
+          />
           <div>
             <h3>{{ item.episode.title }}</h3>
             <p>{{ item.source.title }} · {{ formatDate(item.episode.publishedAt) }}</p>
@@ -721,6 +733,7 @@ import {
   transcriptionWarning,
 } from './transcriptionStatus'
 import { syncStatusPresentation } from './syncStatus'
+import PodcastArtwork from './PodcastArtwork.vue'
 
 const toMusicInfo = (episode: LX.Podcast.Episode, source: LX.Podcast.Source): LX.Music.MusicInfoPodcast => ({
   id: episode.id,
@@ -764,6 +777,7 @@ const DIALOG_FOCUSABLE_SELECTOR = [
 
 export default {
   name: 'Podcast',
+  components: { PodcastArtwork },
   setup() {
     type PodcastView = 'discover' | 'favorites' | 'history'
     type AuthMode = 'login' | 'register' | 'reset'
@@ -1833,7 +1847,7 @@ export default {
 .sectionTitle { display: flex; align-items: center; justify-content: space-between; margin: 0 4px 8px; }
 .source { width: 100%; display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: 10px; text-align: left; margin-bottom: 5px; border-color: transparent !important; background: transparent !important; }
 .source:hover, .source.selected { background: var(--color-primary-light-300-alpha-700) !important; }
-.source img, .showHeader img { width: 44px; height: 44px; object-fit: cover; border-radius: 4px; background: var(--color-primary-light-400-alpha-400); }
+.sourceArtwork { width: 44px; height: 44px; border-radius: 4px; }
 .source span, .episode div { min-width: 0; }
 .source strong, .source small { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .source small, .source i { opacity: .65; font-size: 11px; font-style: normal; }
@@ -1845,11 +1859,11 @@ export default {
 .libraryHeader p, .libraryItem p { margin: 4px 0 0; opacity: .65; font-size: 11px; }
 .libraryList { max-width: 980px; }
 .libraryItem { display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 12px 2px; border-bottom: 1px solid var(--color-primary-light-900-alpha-100); }
-.libraryItem img { width: 48px; height: 48px; border-radius: 4px; object-fit: cover; background: var(--color-primary-light-400-alpha-400); }
+.libraryArtwork { width: 48px; height: 48px; border-radius: 4px; }
 .libraryItem h3 { font-size: 14px; }
 .libraryItem small { display: block; margin-top: 4px; opacity: .7; }
 .showHeader { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding-bottom: 14px; }
-.showHeader img { width: 56px; height: 56px; }
+.showArtwork { width: 56px; height: 56px; border-radius: 4px; }
 .showActionMessage { margin: -7px 0 12px; font-size: 12px; opacity: .72; }
 .showActionMessage.error { padding: 0; }
 .episodeList { border-top: 1px solid var(--color-primary-light-900-alpha-100); }
