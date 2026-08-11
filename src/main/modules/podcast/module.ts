@@ -21,6 +21,7 @@ import { PodcastSpeakerIdentification } from './speakerIdentification'
 import { MAX_PODCAST_SPEAKER_COUNT } from './speakerClustering'
 import { simplifyAsrSnapshot } from './simplifiedChinese'
 import { serializeSubscriptionSnapshot, subscriptionIdentifiers } from './syncPreferences'
+import { normalizePopularSources } from './discovery'
 import {
   createPodcastComputeBackendStatus,
   inspectPodcastComputeBackendCapabilities,
@@ -114,8 +115,16 @@ export class PodcastModule {
     switch (command.action) {
       case 'catalog':
         return command.query ? this.search(command.query) : this.catalog()
+      case 'popular-sources':
+        return normalizePopularSources(await this.client.popularSources(command.days, command.sort))
       case 'episodes':
         return this.episodes(command.sourceId, command.refresh ?? false)
+      case 'episode-states':
+        return this.episodeStates(command.episodeIds)
+      case 'library':
+        return this.library(command.kind)
+      case 'set-favorite':
+        return this.setFavorite(command.episodeId, command.isFavorite)
       case 'subscribe':
         return this.subscribe(command.source, command.autoDownload)
       case 'unsubscribe':
@@ -1278,6 +1287,55 @@ export class PodcastModule {
       positionSeconds: Math.max(0, Number.isFinite(positionSeconds) ? positionSeconds : 0),
       isFinished,
       isFavorite: current?.isFavorite ?? false,
+      dirtyMask: accountId === LOCAL_ACCOUNT_ID ? 0 : PROGRESS_DIRTY_MASK,
+      clientUpdatedAt: unixNow(),
+      serverUpdatedAt: current?.serverUpdatedAt ?? 0,
+    }
+    await global.lx.worker.dbService.podcastEpisodeStateSave(next)
+    this.scheduleSync()
+    return next
+  }
+
+  private async episodeStates(episodeIds: string[]): Promise<LX.Podcast.EpisodeState[]> {
+    const accountId = this.session.account?.id ?? LOCAL_ACCOUNT_ID
+    const states = await Promise.all(
+      [...new Set(episodeIds)].map((episodeId) =>
+        global.lx.worker.dbService.podcastEpisodeStateGet(accountId, episodeId)
+      )
+    )
+    return states.filter((state): state is LX.Podcast.EpisodeState => state != null)
+  }
+
+  private async library(kind: 'favorites' | 'history'): Promise<LX.Podcast.LibraryItem[]> {
+    const accountId = this.session.account?.id ?? LOCAL_ACCOUNT_ID
+    const states = await global.lx.worker.dbService.podcastEpisodeStatesGet(accountId)
+    const selected = states
+      .filter((state) => kind === 'favorites'
+        ? state.isFavorite
+        : state.positionSeconds > 0 || state.isFinished)
+      .sort((left, right) => right.clientUpdatedAt - left.clientUpdatedAt)
+    const sources = await global.lx.worker.dbService.podcastSourcesGet()
+    const sourceById = new Map(sources.map((source) => [source.id, source]))
+    const items = await Promise.all(selected.map(async (state) => {
+      const episode = await global.lx.worker.dbService.podcastEpisodeGet(state.episodeId)
+      const source = episode ? sourceById.get(episode.sourceId) : undefined
+      return episode && source ? { episode, source, state } : null
+    }))
+    return items.filter((item): item is LX.Podcast.LibraryItem => item != null)
+  }
+
+  private async setFavorite(
+    episodeId: string,
+    isFavorite: boolean
+  ): Promise<LX.Podcast.EpisodeState> {
+    const accountId = this.session.account?.id ?? LOCAL_ACCOUNT_ID
+    const current = await global.lx.worker.dbService.podcastEpisodeStateGet(accountId, episodeId)
+    const next: LX.Podcast.EpisodeState = {
+      accountId,
+      episodeId,
+      positionSeconds: current?.positionSeconds ?? 0,
+      isFinished: current?.isFinished ?? false,
+      isFavorite,
       dirtyMask: accountId === LOCAL_ACCOUNT_ID ? 0 : PROGRESS_DIRTY_MASK,
       clientUpdatedAt: unixNow(),
       serverUpdatedAt: current?.serverUpdatedAt ?? 0,

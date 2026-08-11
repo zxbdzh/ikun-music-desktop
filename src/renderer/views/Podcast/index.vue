@@ -4,16 +4,53 @@
       <div>
         <h1>播客</h1>
         <p>订阅、播放与逐字稿</p>
+        <nav :class="$style.viewTabs" aria-label="播客视图">
+          <button
+            v-for="item in views"
+            :key="item.id"
+            type="button"
+            :class="{ [$style.activeTab]: activeView === item.id }"
+            :aria-current="activeView === item.id ? 'page' : undefined"
+            @click="changeView(item.id)"
+          >
+            {{ item.label }}
+          </button>
+        </nav>
       </div>
-      <form :class="$style.search" @submit.prevent="loadSources">
+      <form v-if="activeView === 'discover'" :class="$style.search" @submit.prevent="loadSources">
         <input v-model="query" aria-label="搜索播客" placeholder="搜索节目" />
         <button type="submit" :disabled="loading">搜索</button>
         <button v-if="query" type="button" @click="clearSearch">清除</button>
       </form>
     </header>
 
-    <section :class="$style.content">
+    <section v-if="activeView === 'discover'" :class="$style.content">
       <aside :class="$style.sources" aria-label="播客节目">
+        <section :class="$style.popular" aria-labelledby="popular-title">
+          <div :class="$style.sectionTitle">
+            <strong id="popular-title">热门发现</strong>
+            <button type="button" :disabled="loadingPopular" @click="loadPopular">刷新</button>
+          </div>
+          <div :class="$style.popularFilters">
+            <select v-model.number="popularPeriod" aria-label="热门统计周期" @change="loadPopular">
+              <option :value="1">24 小时</option>
+              <option :value="7">7 天</option>
+              <option :value="30">30 天</option>
+            </select>
+            <select v-model="popularSort" aria-label="热门排序指标" @change="loadPopular">
+              <option value="duration">收听时长</option>
+              <option value="count">播放次数</option>
+            </select>
+          </div>
+          <ol v-if="popularSources.length" :class="$style.popularList">
+            <li v-for="(item, index) in popularSources" :key="`${item.source}:${index}`">
+              <span>{{ index + 1 }}</span>
+              <button type="button" @click="openPopular(item)">{{ item.source }}</button>
+              <small>{{ popularMetric(item) }}</small>
+            </li>
+          </ol>
+          <small v-else-if="!loadingPopular">暂无热门数据</small>
+        </section>
         <div :class="$style.sectionTitle">
           <strong>{{ query ? '搜索结果' : '节目目录' }}</strong>
           <button type="button" :disabled="loading" title="刷新" @click="loadSources">刷新</button>
@@ -98,6 +135,13 @@
                 </div>
               </div>
               <div :class="$style.episodeActions">
+                <button
+                  type="button"
+                  :title="episodeStates[episode.id]?.isFavorite ? '取消收藏' : '收藏'"
+                  @click="toggleFavorite(episode)"
+                >
+                  {{ episodeStates[episode.id]?.isFavorite ? '已收藏' : '收藏' }}
+                </button>
                 <button type="button" title="下载" @click="downloadEpisode(episode)">
                   {{ downloaded.has(episode.id) ? '已下载' : '下载' }}
                 </button>
@@ -128,6 +172,39 @@
         </template>
         <p v-else :class="$style.empty">从左侧选择一个节目</p>
       </section>
+    </section>
+
+    <section v-else :class="$style.library" :aria-labelledby="`${activeView}-title`">
+      <header :class="$style.libraryHeader">
+        <div>
+          <h2 :id="`${activeView}-title`">{{ activeView === 'favorites' ? '我的收藏' : '播放历史' }}</h2>
+          <p>{{ activeView === 'favorites' ? '已收藏的播客单集' : '最近播放和已播完的单集' }}</p>
+        </div>
+        <button type="button" :disabled="loadingLibrary" @click="loadLibrary">刷新</button>
+      </header>
+      <p v-if="error" :class="$style.error" role="alert">{{ error }}</p>
+      <div :class="$style.libraryList">
+        <article v-for="(item, index) in libraryItems" :key="item.episode.id" :class="$style.libraryItem">
+          <img :src="item.episode.artworkUrl || item.source.artworkUrl" alt="" />
+          <div>
+            <h3>{{ item.episode.title }}</h3>
+            <p>{{ item.source.title }} · {{ formatDate(item.episode.publishedAt) }}</p>
+            <small v-if="item.state.isFinished">已播完</small>
+            <small v-else-if="item.state.positionSeconds">
+              已播放至 {{ formatDuration(item.state.positionSeconds) }}
+            </small>
+          </div>
+          <div :class="$style.episodeActions">
+            <button type="button" @click="toggleFavorite(item.episode, item.state)">
+              {{ item.state.isFavorite ? '取消收藏' : '收藏' }}
+            </button>
+            <button type="button" @click="playLibraryEpisode(index)">播放</button>
+          </div>
+        </article>
+      </div>
+      <p v-if="!loadingLibrary && !libraryItems.length" :class="$style.empty">
+        {{ activeView === 'favorites' ? '还没有收藏单集' : '还没有播放记录' }}
+      </p>
     </section>
 
     <details :class="$style.settings" @toggle="handleSettingsToggle">
@@ -379,12 +456,26 @@ const formatDuration = (seconds: number) => {
 export default {
   name: 'Podcast',
   setup() {
+    type PodcastView = 'discover' | 'favorites' | 'history'
+    const views: Array<{ id: PodcastView; label: string }> = [
+      { id: 'discover', label: '发现' },
+      { id: 'favorites', label: '收藏' },
+      { id: 'history', label: '历史' },
+    ]
+    const activeView = ref<PodcastView>('discover')
     const query = ref('')
     const loading = ref(false)
     const loadingEpisodes = ref(false)
     const error = ref('')
     const sources = ref<LX.Podcast.Source[]>([])
     const episodes = ref<LX.Podcast.Episode[]>([])
+    const episodeStates = ref<Record<string, LX.Podcast.EpisodeState | undefined>>({})
+    const popularPeriod = ref<LX.Podcast.PopularPeriod>(7)
+    const popularSort = ref<LX.Podcast.PopularSort>('duration')
+    const popularSources = ref<LX.Podcast.PopularSource[]>([])
+    const loadingPopular = ref(false)
+    const libraryItems = ref<LX.Podcast.LibraryItem[]>([])
+    const loadingLibrary = ref(false)
     const selectedSource = ref<LX.Podcast.Source | null>(null)
     const subscribeTarget = ref<LX.Podcast.Source | null>(null)
     const downloaded = ref(new Set<string>())
@@ -427,6 +518,27 @@ export default {
         loading.value = false
       }
     }
+    const loadPopular = async () => {
+      loadingPopular.value = true
+      try {
+        popularSources.value = await sendPodcastCommand<LX.Podcast.PopularSource[]>({
+          action: 'popular-sources',
+          days: popularPeriod.value,
+          sort: popularSort.value,
+        })
+      } catch (value) {
+        error.value = value instanceof Error ? value.message : String(value)
+      } finally {
+        loadingPopular.value = false
+      }
+    }
+    const loadEpisodeStates = async (episodeIds: string[]) => {
+      const states = await sendPodcastCommand<LX.Podcast.EpisodeState[]>({
+        action: 'episode-states',
+        episodeIds,
+      })
+      episodeStates.value = Object.fromEntries(states.map((state) => [state.episodeId, state]))
+    }
     const loadEpisodes = async (refresh = false) => {
       if (!selectedSource.value) return
       loadingEpisodes.value = true
@@ -437,6 +549,7 @@ export default {
           sourceId: selectedSource.value.id,
           refresh,
         })
+        await loadEpisodeStates(episodes.value.map((episode) => episode.id))
         void Promise.all(episodes.value.map((episode) => refreshTranscriptionStatus(episode.id)))
           .then((statuses) => statuses.forEach((status, index) => {
             scheduleTranscriptionPoll(episodes.value[index]?.id, status)
@@ -478,6 +591,62 @@ export default {
       updateSetting({ 'player.playbackRate': appSetting['podcast.playbackRate'] })
       playList(LIST_IDS.TEMP, index)
     }
+    const playLibraryEpisode = async (index: number) => {
+      await setTempList(
+        `podcast:library:${activeView.value}`,
+        libraryItems.value.map((item) => toMusicInfo(item.episode, item.source))
+      )
+      updateSetting({ 'player.playbackRate': appSetting['podcast.playbackRate'] })
+      playList(LIST_IDS.TEMP, index)
+    }
+    const loadLibrary = async () => {
+      if (activeView.value === 'discover') return
+      loadingLibrary.value = true
+      error.value = ''
+      try {
+        libraryItems.value = await sendPodcastCommand<LX.Podcast.LibraryItem[]>({
+          action: 'library',
+          kind: activeView.value,
+        })
+      } catch (value) {
+        error.value = value instanceof Error ? value.message : String(value)
+      } finally {
+        loadingLibrary.value = false
+      }
+    }
+    const changeView = (view: PodcastView) => {
+      activeView.value = view
+      if (view !== 'discover') void loadLibrary()
+    }
+    const toggleFavorite = async (
+      episode: LX.Podcast.Episode,
+      knownState?: LX.Podcast.EpisodeState
+    ) => {
+      const current = knownState ?? episodeStates.value[episode.id]
+      const state = await sendPodcastCommand<LX.Podcast.EpisodeState>({
+        action: 'set-favorite',
+        episodeId: episode.id,
+        isFavorite: !current?.isFavorite,
+      })
+      episodeStates.value = { ...episodeStates.value, [episode.id]: state }
+      libraryItems.value = libraryItems.value
+        .map((item) => item.episode.id === episode.id ? { ...item, state } : item)
+        .filter((item) => activeView.value !== 'favorites' || item.state.isFavorite)
+    }
+    const openPopular = async (item: LX.Podcast.PopularSource) => {
+      const existing = sources.value.find((source) => source.title === item.source)
+      if (existing) {
+        selectSource(existing)
+        return
+      }
+      query.value = item.source
+      await loadSources()
+      const match = sources.value.find((source) => source.title === item.source) ?? sources.value[0]
+      if (match) selectSource(match)
+    }
+    const popularMetric = (item: LX.Podcast.PopularSource) => popularSort.value === 'duration'
+      ? `${formatDuration(item.totalDuration)} 收听`
+      : `${item.viewCount} 次播放`
     const downloadEpisode = async (episode: LX.Podcast.Episode) => {
       await sendPodcastCommand({ action: 'download-episode', episodeId: episode.id })
       downloaded.value = new Set([...downloaded.value, episode.id])
@@ -694,17 +863,27 @@ export default {
     })
 
     void loadSources()
+    void loadPopular()
     void loadSession()
     void loadAiConfig()
     void loadBackendStatus()
     return {
       appSetting,
+      views,
+      activeView,
       query,
       loading,
       loadingEpisodes,
       error,
       sources,
       episodes,
+      episodeStates,
+      popularPeriod,
+      popularSort,
+      popularSources,
+      loadingPopular,
+      libraryItems,
+      loadingLibrary,
       selectedSource,
       subscribeTarget,
       downloaded,
@@ -727,11 +906,18 @@ export default {
       now,
       rates,
       loadSources,
+      loadPopular,
+      loadLibrary,
+      changeView,
+      openPopular,
+      popularMetric,
       loadEpisodes,
       selectSource,
       subscribe,
       unsubscribe,
       playEpisode,
+      playLibraryEpisode,
+      toggleFavorite,
       downloadEpisode,
       handleTranscriptionAction,
       identifySpeakers,
@@ -772,6 +958,9 @@ export default {
 .toolbar { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 18px 24px; border-bottom: 1px solid var(--color-primary-light-900-alpha-100); }
 .toolbar h1, .showHeader h2, .modal h2 { margin: 0; font-size: 20px; letter-spacing: 0; }
 .toolbar p, .showHeader p { margin: 3px 0 0; opacity: .65; font-size: 12px; }
+.viewTabs { display: flex; gap: 4px; margin-top: 10px; }
+.viewTabs button { padding: 4px 10px; border-color: transparent; background: transparent; }
+.viewTabs button.activeTab { border-color: var(--color-primary-light-900-alpha-200); background: var(--color-primary-light-300-alpha-500); }
 .search { display: flex; gap: 8px; min-width: min(420px, 50%); }
 .search input { flex: 1; min-width: 100px; }
 .page input, .page select, .page button { border: 1px solid var(--color-primary-light-900-alpha-200); background: var(--color-primary-light-100-alpha-700); color: inherit; border-radius: 4px; padding: 7px 10px; letter-spacing: 0; }
@@ -779,6 +968,13 @@ export default {
 .page button:disabled { opacity: .45; cursor: default; }
 .content { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(240px, 32%) 1fr; }
 .sources { overflow: auto; border-right: 1px solid var(--color-primary-light-900-alpha-100); padding: 12px; }
+.popular { margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--color-primary-light-900-alpha-100); }
+.popularFilters { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px; }
+.popularList { margin: 0; padding: 0; list-style: none; }
+.popularList li { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: center; gap: 6px; min-height: 30px; }
+.popularList li > span { text-align: center; opacity: .55; font-size: 11px; }
+.popularList button { overflow: hidden; padding: 4px 2px; border: 0; background: transparent; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+.popularList small { opacity: .58; font-size: 10px; }
 .sectionTitle { display: flex; align-items: center; justify-content: space-between; margin: 0 4px 8px; }
 .source { width: 100%; display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: 10px; text-align: left; margin-bottom: 5px; border-color: transparent !important; background: transparent !important; }
 .source:hover, .source.selected { background: var(--color-primary-light-300-alpha-700) !important; }
@@ -787,6 +983,16 @@ export default {
 .source strong, .source small { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .source small, .source i { opacity: .65; font-size: 11px; font-style: normal; }
 .episodes { min-width: 0; overflow: auto; padding: 16px 20px; }
+.library { flex: 1; min-height: 0; overflow: auto; padding: 18px 24px; }
+.libraryHeader { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 14px; border-bottom: 1px solid var(--color-primary-light-900-alpha-100); }
+.libraryHeader h2, .libraryItem h3 { margin: 0; letter-spacing: 0; }
+.libraryHeader h2 { font-size: 18px; }
+.libraryHeader p, .libraryItem p { margin: 4px 0 0; opacity: .65; font-size: 11px; }
+.libraryList { max-width: 980px; }
+.libraryItem { display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 12px 2px; border-bottom: 1px solid var(--color-primary-light-900-alpha-100); }
+.libraryItem img { width: 48px; height: 48px; border-radius: 4px; object-fit: cover; background: var(--color-primary-light-400-alpha-400); }
+.libraryItem h3 { font-size: 14px; }
+.libraryItem small { display: block; margin-top: 4px; opacity: .7; }
 .showHeader { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding-bottom: 14px; }
 .showHeader img { width: 56px; height: 56px; }
 .episodeList { border-top: 1px solid var(--color-primary-light-900-alpha-100); }
