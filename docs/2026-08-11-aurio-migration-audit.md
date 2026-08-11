@@ -9,14 +9,14 @@
 
 本轮应采用以下结论：
 
-> IKUN 客户端迁移与运行链路完整，BetterLyrics 长歌词分享已完成增强；Apifox 项目仍缺契约修复和质量门禁，因此整体状态是“客户端交付完整，Apifox 治理未闭环”。
+> IKUN 客户端迁移与运行链路完整，BetterLyrics 长歌词分享已完成增强；Apifox 已修复 `/sync/pull` 鉴权声明，但重复响应和质量门禁仍未闭环，因此整体状态仍是“客户端交付完整，Apifox 治理进行中”。
 
 | 对象 | 判定 | 依据 |
 |---|---|---|
 | IKUN 客户端 | 完整 | 18 个接口均有实现映射，17 个进入实际用户流程，单条进度接口作为批量同步的兼容入口保留；播客、账户、同步、逐字稿、下载与分享链路均已接通 |
 | IKUN 长内容分享 | 完整 | 逐字稿选择列表 `40 条/页`，分享卡片 `5 行/120 个展示字符/页`；支持直接跳页、当前页复制/保存、全部页批量保存、取消与失败恢复 |
 | BetterLyrics 长内容分享 | 已增强 | 固定高度样式使用专属容量，其他样式自适应；支持当前页、全部页、页码范围导出，以及快照、进度、取消和失败页重试 |
-| Apifox 项目 | 不完整 | 接口和 Schema 已录入，但 Mock、测试用例、场景、套件、报告、Runner、定时任务均为 0，并存在三处明确契约/元数据问题 |
+| Apifox 项目 | 整改中 | 接口和 Schema 已录入，`/sync/pull` Bearer 已补齐；Mock、测试用例、场景、套件、报告、Runner、定时任务仍为 0，且两处重复响应和摘要计数问题尚未闭环 |
 
 ## 18 接口迁移矩阵
 
@@ -31,7 +31,7 @@
 | 7 | `POST /auth/reset-password` | `resetPassword()`；忘记密码流程 | 完整 |
 | 8 | `POST /auth/change-password` | `changePassword()`；账户安全表单 | 完整 |
 | 9 | `POST /auth/link-device` | `linkDevice()`；设备关联后同步 | 完整 |
-| 10 | `GET /sync/pull` | `pull()`；实际请求携带 Bearer，并使用水位回退窗口 | 客户端完整；Apifox 漏标鉴权 |
+| 10 | `GET /sync/pull` | `pull()`；实际请求携带 Bearer，并使用水位回退窗口 | 完整；Apifox Bearer 已补齐 |
 | 11 | `POST /sync/progress` | `pushProgress()` | 契约完整；运行时由批量接口替代 |
 | 12 | `POST /sync/progress/batch` | `pushProgressBatch()`；批量同步脏状态 | 完整 |
 | 13 | `POST /sync/preferences` | `pushPreferences()`；同步分组与订阅快照 | 完整 |
@@ -104,7 +104,7 @@ IKUN 的 RSS 解析、数据库迁移和读写链路保留节目原始文章地�
 
 ## Apifox 完整度与缺口
 
-Apifox CLI 2.2.9 的只读审计结果：
+Apifox CLI 2.2.9 的整改阶段 1 回读结果：
 
 | 资源 | 数量 |
 |---|---:|
@@ -119,15 +119,15 @@ Apifox CLI 2.2.9 的只读审计结果：
 | Runner | 0 |
 | 定时任务 | 0 |
 
-明确问题：
+整改状态：
 
 1. 项目摘要为 `endpointCount=0`，但接口列表实际有 18 个接口。
-2. `/sync/pull` 的真实行为要求 Bearer，Apifox 接口定义未声明。
+2. `/sync/pull` 的 Bearer 声明已补齐，使用与其他受保护接口一致的 `{{JWT_TOKEN}}` 变量；回读确认 2 个查询参数和 3 个响应均完整保留。
 3. `/podcasts` 存在错误重复的 200 响应 `165266986`。
 4. `/stats/popular-sources` 存在错误重复的 200 响应 `166940786`。
-5. `main.isAiWritableBranch=false`，当前不能由 CLI 直接修复主分支。
+5. 项目设置为 `allowAutomationWriteMainBranch=true`，`main` 未保护，且本阶段直接更新已成功；分支详情仍返回 `isAiWritableBranch=false`，该字段不能作为当前写权限的唯一判据。
 
-因此，Apifox 只能判定为“接口主体已录入”，不能判定为“迁移完成”或“质量门禁就绪”。本轮未写入或删除 Apifox 资源。后续必须先明确选择开启 `main` 的 AI 直接写权限，或创建 AI 分支；删除两个重复响应也需要单独确认。
+本阶段已按 `cli-schema get -> validate -> update -> get` 闭环修复 `/sync/pull`，未写入真实 Bearer，也未删除任何响应。Apifox 仍不能判定为“迁移完成”或“质量门禁就绪”；删除两个重复响应属于破坏性操作，执行前仍需单独确认。
 
 ## 验证证据
 
@@ -158,4 +158,4 @@ BetterLyrics：
 
 IKUN 已完成 AurioClub 18 个 HTTP 接口的客户端功能映射和运行链路接入，播客长逐字稿分页、批量分享以及原始文章/音频回退在本轮验证范围内工作正常；分享 UI 在键盘可达性、44px 命中区、异步反馈、错误恢复和长内容布局方面设计合理。BetterLyrics 已完成按样式容量分页及当前页/全部页/范围导出。
 
-Apifox 项目仍缺全部质量资源，并存在鉴权声明、重复响应和项目计数问题。最终总评为：**客户端交付完整，Apifox 治理未闭环**。
+Apifox 项目已完成 `/sync/pull` 鉴权声明修复，但仍缺全部质量资源，并存在重复响应和项目摘要计数问题。当前总评为：**客户端交付完整，Apifox 治理进行中**。
