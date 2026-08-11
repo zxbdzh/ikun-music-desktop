@@ -114,6 +114,16 @@ export const migratePodcastEpisodeOriginalUrl = (db: Database.Database) => {
   db.exec('ALTER TABLE podcast_episode ADD COLUMN "original_url" TEXT NOT NULL DEFAULT \'\'')
 }
 
+export const migratePodcastEpisodeHistoryHidden = (db: Database.Database) => {
+  const columns = db.prepare('PRAGMA table_info(podcast_episode_state)').all() as Array<{
+    name: string
+  }>
+  if (columns.some((column) => column.name === 'history_hidden')) return
+  db.exec(
+    'ALTER TABLE podcast_episode_state ADD COLUMN "history_hidden" INTEGER NOT NULL DEFAULT 0'
+  )
+}
+
 export default (db: Database.Database) => {
   // PRAGMA user_version = x
   // console.log(db.prepare('PRAGMA user_version').get().user_version)
@@ -130,6 +140,7 @@ export default (db: Database.Database) => {
       migratePodcastSubscriptions(db)
       normalizePodcastSourceSchema(db)
       migratePodcastEpisodeOriginalUrl(db)
+      migratePodcastEpisodeHistoryHidden(db)
       db.prepare('UPDATE "main"."db_info" SET "field_value"=@value WHERE "field_name"=@name').run({
         name: 'version',
         value: DB_VERSION,
@@ -140,6 +151,7 @@ export default (db: Database.Database) => {
       migratePodcastSubscriptions(db)
       normalizePodcastSourceSchema(db)
       migratePodcastEpisodeOriginalUrl(db)
+      migratePodcastEpisodeHistoryHidden(db)
       db.prepare('UPDATE "main"."db_info" SET "field_value"=@value WHERE "field_name"=@name').run({
         name: 'version',
         value: DB_VERSION,
@@ -149,6 +161,7 @@ export default (db: Database.Database) => {
       migratePodcastSubscriptions(db)
       normalizePodcastSourceSchema(db)
       migratePodcastEpisodeOriginalUrl(db)
+      migratePodcastEpisodeHistoryHidden(db)
       db.prepare('UPDATE "main"."db_info" SET "field_value"=@value WHERE "field_name"=@name').run({
         name: 'version',
         value: DB_VERSION,
@@ -157,6 +170,14 @@ export default (db: Database.Database) => {
     case '4':
       normalizePodcastSourceSchema(db)
       migratePodcastEpisodeOriginalUrl(db)
+      migratePodcastEpisodeHistoryHidden(db)
+      db.prepare('UPDATE "main"."db_info" SET "field_value"=@value WHERE "field_name"=@name').run({
+        name: 'version',
+        value: DB_VERSION,
+      })
+      break
+    case '5':
+      migratePodcastEpisodeHistoryHidden(db)
       db.prepare('UPDATE "main"."db_info" SET "field_value"=@value WHERE "field_name"=@name').run({
         name: 'version',
         value: DB_VERSION,

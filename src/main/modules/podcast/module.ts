@@ -25,6 +25,13 @@ import {
   parseSubscriptionPreferences,
   serializeSubscriptionSnapshot,
 } from './syncPreferences'
+import {
+  articleMetadataFromPodcast,
+  encodeArticleMetadata,
+  parseArticleMetadataJson,
+  restorePodcastEntities,
+  type ArticleMetadata,
+} from './syncMetadata'
 import { normalizePopularSources } from './discovery'
 import { buildOpml, parseOpml } from './opml'
 import {
@@ -1294,16 +1301,64 @@ export class PodcastModule {
       let syncState = await global.lx.worker.dbService.podcastSyncStateGet(account.id)
       const dirtyStates = await global.lx.worker.dbService.podcastEpisodeStatesGet(account.id, true)
       if (dirtyStates.length) {
+        const sources = await global.lx.worker.dbService.podcastSourcesGet()
+        const sourceById = new Map(sources.map((source) => [source.id, source]))
+        const items = await Promise.all(dirtyStates.map(async (state) => {
+          const episode = await global.lx.worker.dbService.podcastEpisodeGet(state.episodeId)
+          const metadata = episode
+            ? encodeArticleMetadata(articleMetadataFromPodcast(
+                episode,
+                sourceById.get(episode.sourceId)
+              ))
+            : null
+          return toRemoteProgress(state, metadata)
+        }))
         await this.client.pushProgressBatch({
           user_id: account.id,
           device_id: this.deviceId,
-          items: dirtyStates.map(toRemoteProgress),
+          items,
         })
         await global.lx.worker.dbService.podcastEpisodeStatesMarkClean(dirtyStates)
       }
 
       const pull = normalizePull(await this.client.pull(Math.max(0, syncState.watermark - 5)))
+      let sourceById: Map<string, LX.Podcast.Source> | null = null
       for (const remote of pull.states) {
+        if (remote.articleMetadata) {
+          const existingEpisode = await global.lx.worker.dbService
+            .podcastEpisodeGet(remote.episodeId)
+          const restored = restorePodcastEntities(remote.articleMetadata, remote.serverUpdatedAt)
+          sourceById ??= new Map(
+            (await global.lx.worker.dbService.podcastSourcesGet())
+              .map((source) => [source.id, source])
+          )
+          const requiredSourceId = existingEpisode?.sourceId ?? restored.source.id
+          if (!sourceById.has(requiredSourceId)) {
+            const source = { ...restored.source, id: requiredSourceId }
+            await global.lx.worker.dbService.podcastSourcesSave([source])
+            sourceById.set(source.id, source)
+          }
+          if (!existingEpisode) {
+            await global.lx.worker.dbService.podcastEpisodesSave([restored.episode])
+          } else {
+            const originalUrl = existingEpisode.originalUrl?.trim()
+              ? existingEpisode.originalUrl
+              : restored.episode.originalUrl || existingEpisode.originalUrl
+            const audioUrl = existingEpisode.audioUrl.trim()
+              ? existingEpisode.audioUrl
+              : restored.episode.audioUrl || existingEpisode.audioUrl
+            if (
+              originalUrl !== existingEpisode.originalUrl ||
+              audioUrl !== existingEpisode.audioUrl
+            ) {
+              await global.lx.worker.dbService.podcastEpisodesSave([{
+                ...existingEpisode,
+                originalUrl,
+                audioUrl,
+              }])
+            }
+          }
+        }
         const local = await global.lx.worker.dbService.podcastEpisodeStateGet(account.id, remote.episodeId)
         if (local?.dirtyMask || remote.episodeId === this.currentEpisodeId) continue
         if (local && remote.serverUpdatedAt < local.serverUpdatedAt) continue
@@ -1313,6 +1368,7 @@ export class PodcastModule {
           positionSeconds: remote.positionSeconds,
           isFinished: remote.isFinished,
           isFavorite: remote.isFavorite,
+          historyHidden: remote.historyHidden,
           dirtyMask: 0,
           clientUpdatedAt: local?.clientUpdatedAt ?? remote.serverUpdatedAt,
           serverUpdatedAt: remote.serverUpdatedAt,
@@ -1373,6 +1429,7 @@ export class PodcastModule {
       positionSeconds: Math.max(0, Number.isFinite(positionSeconds) ? positionSeconds : 0),
       isFinished,
       isFavorite: current?.isFavorite ?? false,
+      historyHidden: current?.historyHidden ?? false,
       dirtyMask: accountId === LOCAL_ACCOUNT_ID ? 0 : PROGRESS_DIRTY_MASK,
       clientUpdatedAt: unixNow(),
       serverUpdatedAt: current?.serverUpdatedAt ?? 0,
@@ -1414,7 +1471,7 @@ export class PodcastModule {
     const selected = states
       .filter((state) => kind === 'favorites'
         ? state.isFavorite
-        : state.positionSeconds > 0 || state.isFinished)
+        : !state.historyHidden && (state.positionSeconds > 0 || state.isFinished))
       .sort((left, right) => right.clientUpdatedAt - left.clientUpdatedAt)
     const sources = await global.lx.worker.dbService.podcastSourcesGet()
     const sourceById = new Map(sources.map((source) => [source.id, source]))
@@ -1438,6 +1495,7 @@ export class PodcastModule {
       positionSeconds: current?.positionSeconds ?? 0,
       isFinished: current?.isFinished ?? false,
       isFavorite,
+      historyHidden: current?.historyHidden ?? false,
       dirtyMask: accountId === LOCAL_ACCOUNT_ID ? 0 : PROGRESS_DIRTY_MASK,
       clientUpdatedAt: unixNow(),
       serverUpdatedAt: current?.serverUpdatedAt ?? 0,
@@ -1702,6 +1760,8 @@ interface RemoteEpisodeState {
   positionSeconds: number
   isFinished: boolean
   isFavorite: boolean
+  historyHidden: boolean
+  articleMetadata: ArticleMetadata | null
   serverUpdatedAt: number
 }
 
@@ -1715,11 +1775,17 @@ const normalizePull = (value: unknown): {
     ? item.states
         .map((raw: unknown) => {
           const state = asRecord(raw)
+          const episodeId = stringValue(state.podcast_id ?? state.episode_id)
           return {
-            episodeId: stringValue(state.podcast_id ?? state.episode_id),
+            episodeId,
             positionSeconds: Math.max(0, Number(state.position_seconds) || 0),
             isFinished: Boolean(Number(state.is_finished)),
             isFavorite: Boolean(Number(state.is_favorite)),
+            historyHidden: Boolean(Number(state.history_hidden)),
+            articleMetadata: parseArticleMetadataJson(
+              state.article_metadata_json,
+              episodeId
+            ),
             serverUpdatedAt: Math.max(0, Number(state.server_updated_at) || 0),
           }
         })
@@ -1733,13 +1799,17 @@ const normalizePull = (value: unknown): {
   }
 }
 
-const toRemoteProgress = (state: LX.Podcast.EpisodeState) => ({
+const toRemoteProgress = (
+  state: LX.Podcast.EpisodeState,
+  articleMetadataJson: string | null
+) => ({
   podcast_id: state.episodeId,
   client_updated_at: state.clientUpdatedAt,
   position_seconds: state.positionSeconds,
   is_finished: state.isFinished ? 1 : 0,
   is_favorite: state.isFavorite ? 1 : 0,
-  article_metadata_json: '{}',
+  history_hidden: state.historyHidden ? 1 : 0,
+  ...(articleMetadataJson ? { article_metadata_json: articleMetadataJson } : {}),
 })
 
 const unixNow = () => Math.floor(Date.now() / 1000)

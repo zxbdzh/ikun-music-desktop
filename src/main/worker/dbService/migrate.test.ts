@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import {
+import migrateDatabase, {
+  migratePodcastEpisodeHistoryHidden,
   migratePodcastEpisodeOriginalUrl,
   migratePodcastSubscriptions,
   normalizePodcastSourceSchema,
@@ -9,15 +10,25 @@ const database = (options: {
   hasGroupTable?: boolean
   columns?: string[]
   episodeColumns?: string[]
+  episodeStateColumns?: string[]
+  version?: string
 } = {}) => {
   const exec = vi.fn()
   const run = vi.fn()
   const prepare = vi.fn((sql: string) => {
+    if (sql.includes('SELECT "field_value"')) {
+      return { get: vi.fn(() => ({ field_value: options.version ?? '5' })) }
+    }
     if (sql.includes('sqlite_master')) {
       return { get: vi.fn(() => options.hasGroupTable ? { name: 'podcast_subscription_group' } : undefined) }
     }
     if (sql.includes('PRAGMA table_info(podcast_episode)')) {
       return { all: vi.fn(() => (options.episodeColumns ?? []).map((name) => ({ name }))) }
+    }
+    if (sql.includes('PRAGMA table_info(podcast_episode_state)')) {
+      return {
+        all: vi.fn(() => (options.episodeStateColumns ?? []).map((name) => ({ name }))),
+      }
     }
     if (sql.includes('PRAGMA table_info(podcast_source)')) {
       return { all: vi.fn(() => (options.columns ?? []).map((name) => ({ name }))) }
@@ -75,6 +86,44 @@ describe('podcast episode URL database migration', () => {
     migratePodcastEpisodeOriginalUrl(db.value)
 
     expect(db.exec).not.toHaveBeenCalled()
+  })
+})
+
+describe('podcast episode history visibility database migration', () => {
+  it('adds hidden history storage to a v5 database', () => {
+    const db = database({ episodeStateColumns: ['account_id', 'episode_id'] })
+
+    migratePodcastEpisodeHistoryHidden(db.value)
+
+    expect(db.exec).toHaveBeenCalledWith(
+      'ALTER TABLE podcast_episode_state ADD COLUMN "history_hidden" INTEGER NOT NULL DEFAULT 0'
+    )
+  })
+
+  it('is idempotent when hidden history storage already exists', () => {
+    const db = database({
+      episodeStateColumns: ['account_id', 'episode_id', 'history_hidden'],
+    })
+
+    migratePodcastEpisodeHistoryHidden(db.value)
+
+    expect(db.exec).not.toHaveBeenCalled()
+  })
+})
+
+describe('database migration dispatch', () => {
+  it('upgrades a v5 database to v6 with hidden history storage', () => {
+    const db = database({
+      version: '5',
+      episodeStateColumns: ['account_id', 'episode_id'],
+    })
+
+    migrateDatabase(db.value)
+
+    expect(db.exec).toHaveBeenCalledWith(
+      'ALTER TABLE podcast_episode_state ADD COLUMN "history_hidden" INTEGER NOT NULL DEFAULT 0'
+    )
+    expect(db.run).toHaveBeenCalledWith({ name: 'version', value: '6' })
   })
 })
 

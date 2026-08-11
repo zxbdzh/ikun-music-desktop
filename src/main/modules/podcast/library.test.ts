@@ -15,6 +15,7 @@ const state = (value: Partial<LX.Podcast.EpisodeState> = {}): LX.Podcast.Episode
   positionSeconds: 120,
   isFinished: false,
   isFavorite: false,
+  historyHidden: false,
   dirtyMask: 0,
   clientUpdatedAt: 10,
   serverUpdatedAt: 5,
@@ -59,7 +60,7 @@ describe('podcast library', () => {
       syncEnabled: false,
       syncState: 'idle',
     }
-    const current = state()
+    const current = state({ historyHidden: true })
     const podcastEpisodeStateSave = vi.fn()
     global.lx = {
       worker: { dbService: {
@@ -72,6 +73,7 @@ describe('podcast library', () => {
       positionSeconds: current.positionSeconds,
       isFinished: current.isFinished,
       isFavorite: true,
+      historyHidden: true,
       dirtyMask: 3,
     })
     expect(podcastEpisodeStateSave).toHaveBeenCalledWith(expect.objectContaining({
@@ -80,12 +82,43 @@ describe('podcast library', () => {
     }))
   })
 
+  it('preserves favorite and hidden-history state when saving playback progress', async () => {
+    const module = new PodcastModule()
+    ;(module as any).session = {
+      account: { id: 'account-1', email: 'user@example.com', username: '用户' },
+      syncEnabled: false,
+      syncState: 'idle',
+    }
+    const current = state({ isFavorite: true, historyHidden: true })
+    const podcastEpisodeStateSave = vi.fn()
+    global.lx = {
+      worker: { dbService: {
+        podcastEpisodeStateGet: vi.fn(async () => current),
+        podcastEpisodeStateSave,
+      } },
+    } as unknown as typeof global.lx
+
+    await expect((module as any).saveProgress(current.episodeId, 240, false)).resolves.toMatchObject({
+      positionSeconds: 240,
+      isFavorite: true,
+      historyHidden: true,
+      dirtyMask: 3,
+    })
+  })
+
   it('returns only favorite items and orders the newest state first', async () => {
     const module = new PodcastModule()
     ;(module as any).session = { account: null, syncEnabled: false, syncState: 'local' }
     const states = [
       state({ accountId: 'local', episodeId: 'old', isFavorite: true, clientUpdatedAt: 10 }),
       state({ accountId: 'local', episodeId: 'new', isFavorite: true, clientUpdatedAt: 20 }),
+      state({
+        accountId: 'local',
+        episodeId: 'hidden',
+        isFavorite: true,
+        historyHidden: true,
+        clientUpdatedAt: 25,
+      }),
       state({ accountId: 'local', episodeId: 'plain', isFavorite: false, clientUpdatedAt: 30 }),
     ]
     global.lx = {
@@ -98,7 +131,7 @@ describe('podcast library', () => {
 
     const result = await (module as any).library('favorites') as LX.Podcast.LibraryItem[]
 
-    expect(result.map((item) => item.episode.id)).toEqual(['new', 'old'])
+    expect(result.map((item) => item.episode.id)).toEqual(['hidden', 'new', 'old'])
   })
 
   it('includes started and finished episodes in history', async () => {
@@ -107,6 +140,12 @@ describe('podcast library', () => {
     const states = [
       state({ accountId: 'local', episodeId: 'started', positionSeconds: 30 }),
       state({ accountId: 'local', episodeId: 'finished', positionSeconds: 0, isFinished: true }),
+      state({
+        accountId: 'local',
+        episodeId: 'hidden',
+        positionSeconds: 60,
+        historyHidden: true,
+      }),
       state({ accountId: 'local', episodeId: 'untouched', positionSeconds: 0, isFinished: false }),
     ]
     global.lx = {

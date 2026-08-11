@@ -56,11 +56,29 @@ describe('AurioClubClient released endpoint contract', () => {
       user_id: 'user-1',
       device_id: 'device-1',
       client_updated_at: 1_786_032_000,
+      position_seconds: 120,
+      is_finished: 0,
+      is_favorite: 1,
+      history_hidden: 1,
+      article_metadata_json: JSON.stringify({
+        articleId: 'episode-1',
+        title: 'Example episode',
+        url: 'https://example.com/episodes/episode-1',
+        audioUrl: 'https://cdn.example.com/episode-1.mp3',
+      }),
     }
     const batch = {
       user_id: 'user-1',
       device_id: 'device-1',
-      items: [{ podcast_id: 'episode-1' }],
+      items: [{
+        podcast_id: progress.podcast_id,
+        client_updated_at: progress.client_updated_at,
+        position_seconds: progress.position_seconds,
+        is_finished: progress.is_finished,
+        is_favorite: progress.is_favorite,
+        history_hidden: progress.history_hidden,
+        article_metadata_json: progress.article_metadata_json,
+      }],
     }
     const preferences = {
       user_id: 'user-1',
@@ -193,7 +211,20 @@ const contractDataFor = (url: string): unknown => {
   }
   if (url.endsWith('/auth/me') || url.endsWith('/auth/profile')) return { user: aurioUser }
   if (url.includes('/sync/pull')) {
-    return { states: [], server_time: 1_786_032_000 }
+    return {
+      states: [{
+        podcast_id: 'episode-1',
+        server_updated_at: 1_786_032_000,
+        history_hidden: 1,
+        article_metadata_json: JSON.stringify({
+          articleId: 'episode-1',
+          title: 'Example episode',
+          url: 'https://example.com/episodes/episode-1',
+          audioUrl: 'https://cdn.example.com/episode-1.mp3',
+        }),
+      }],
+      server_time: 1_786_032_000,
+    }
   }
   return {}
 }

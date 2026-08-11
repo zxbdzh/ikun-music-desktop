@@ -225,6 +225,36 @@ describe('AurioClubClient request routing', () => {
     })
   })
 
+  it('preserves non-empty article metadata and hidden-history sync fields', async () => {
+    const articleMetadataJson = JSON.stringify({
+      articleId: 'episode-1',
+      title: 'Example episode',
+      url: 'https://example.com/episodes/episode-1',
+      audioUrl: 'https://cdn.example.com/episode-1.mp3',
+    })
+    const fetcher = vi.fn(async () => envelopeResponse({
+      states: [{
+        podcast_id: 'episode-1',
+        server_updated_at: 1_786_032_000,
+        history_hidden: 1,
+        article_metadata_json: articleMetadataJson,
+      }],
+      server_time: 1_786_032_000,
+    })) as unknown as typeof fetch
+    const client = new AurioClubClient({
+      coreBaseUrl: 'https://core.example/api/v1',
+      getToken: async () => 'token-1',
+      fetcher,
+    })
+
+    await expect(client.pull(0)).resolves.toMatchObject({
+      states: [{
+        history_hidden: 1,
+        article_metadata_json: articleMetadataJson,
+      }],
+    })
+  })
+
   it('rejects invalid envelope data with its trace ID', async () => {
     const fetcher = vi.fn(async () => envelopeResponse([{
       id: 1,

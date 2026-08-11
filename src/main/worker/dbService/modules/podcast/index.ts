@@ -193,17 +193,18 @@ export const podcastEpisodeStateSave = (state: LX.Podcast.EpisodeState) => {
     .prepare<[EpisodeStateRow]>(`
       INSERT INTO podcast_episode_state (
         account_id, episode_id, position_seconds, is_finished, is_favorite,
-        dirty_mask, client_updated_at, server_updated_at
+        dirty_mask, client_updated_at, server_updated_at, history_hidden
       ) VALUES (
         @account_id, @episode_id, @position_seconds, @is_finished, @is_favorite,
-        @dirty_mask, @client_updated_at, @server_updated_at
+        @dirty_mask, @client_updated_at, @server_updated_at, @history_hidden
       ) ON CONFLICT(account_id, episode_id) DO UPDATE SET
         position_seconds=excluded.position_seconds,
         is_finished=excluded.is_finished,
         is_favorite=excluded.is_favorite,
         dirty_mask=excluded.dirty_mask,
         client_updated_at=excluded.client_updated_at,
-        server_updated_at=excluded.server_updated_at
+        server_updated_at=excluded.server_updated_at,
+        history_hidden=excluded.history_hidden
     `)
     .run(toEpisodeStateRow(state))
 }
@@ -387,6 +388,7 @@ interface EpisodeStateRow {
   dirty_mask: number
   client_updated_at: number
   server_updated_at: number
+  history_hidden: number
 }
 
 interface SyncStateRow {
@@ -479,6 +481,7 @@ const toEpisodeStateRow = (state: LX.Podcast.EpisodeState): EpisodeStateRow => (
   dirty_mask: state.dirtyMask,
   client_updated_at: state.clientUpdatedAt,
   server_updated_at: state.serverUpdatedAt,
+  history_hidden: state.historyHidden ? 1 : 0,
 })
 const fromEpisodeStateRow = (row: EpisodeStateRow): LX.Podcast.EpisodeState => ({
   accountId: row.account_id,
@@ -486,6 +489,7 @@ const fromEpisodeStateRow = (row: EpisodeStateRow): LX.Podcast.EpisodeState => (
   positionSeconds: row.position_seconds,
   isFinished: row.is_finished === 1,
   isFavorite: row.is_favorite === 1,
+  historyHidden: row.history_hidden === 1,
   dirtyMask: row.dirty_mask,
   clientUpdatedAt: row.client_updated_at,
   serverUpdatedAt: row.server_updated_at,

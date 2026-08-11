@@ -11,6 +11,8 @@ describe('database initialization', () => {
 
     const initializationSql = exec.mock.calls[0]?.[0] as string
     expect(initializationSql).toContain('INSERT OR IGNORE INTO "podcast_subscription_group"')
+    expect(initializationSql).toContain('"history_hidden" INTEGER NOT NULL DEFAULT 0')
+    expect(initializationSql).toContain("VALUES ('version', '6')")
     expect(initializationSql).toContain("VALUES ('default_group', '默认', 1, 0)")
 
     const sqliteMasterRows = Array.from(tables.entries()).map(([name, sql]) => ({

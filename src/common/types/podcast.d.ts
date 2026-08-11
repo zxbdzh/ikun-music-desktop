@@ -238,6 +238,7 @@ declare namespace LX {
       positionSeconds: number
       isFinished: boolean
       isFavorite: boolean
+      historyHidden: boolean
       dirtyMask: number
       clientUpdatedAt: number
       serverUpdatedAt: number

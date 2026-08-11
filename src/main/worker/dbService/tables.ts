@@ -341,6 +341,7 @@ tables.set(
     "dirty_mask" INTEGER NOT NULL,
     "client_updated_at" INTEGER NOT NULL,
     "server_updated_at" INTEGER NOT NULL,
+    "history_hidden" INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY("account_id", "episode_id")
   );
 `
@@ -377,4 +378,4 @@ tables.set(
 
 export default tables
 
-export const DB_VERSION = '5'
+export const DB_VERSION = '6'
