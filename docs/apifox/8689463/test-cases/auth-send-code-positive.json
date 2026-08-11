@@ -1,0 +1,23 @@
+{
+  "name": "正向 - 发送邮箱验证码",
+  "categoryId": 12686164,
+  "responseId": "182157179",
+  "apiDetailId": 498765765,
+  "method": "post",
+  "path": "/auth/send-code",
+  "parameters": { "path": [], "query": [], "header": [], "cookie": [] },
+  "commonParameters": {},
+  "requestBody": { "type": "application/json", "data": "{\n  \"email\": \"mock-user@example.invalid\"\n}" },
+  "preProcessors": [],
+  "postProcessors": [
+    { "id": "auth-send-code.assert.status", "type": "assertion", "data": { "name": "HTTP 状态码为 200", "subject": "httpCode", "comparison": "equal", "value": "200", "path": "" }, "defaultEnable": true, "enable": true },
+    { "id": "auth-send-code.assert.success", "type": "assertion", "data": { "name": "业务状态为成功", "subject": "responseJson", "comparison": "equal", "value": "true", "path": "$.success" }, "defaultEnable": true, "enable": true },
+    { "id": "auth-send-code.assert.data", "type": "assertion", "data": { "name": "返回业务数据", "subject": "responseJson", "comparison": "exists", "path": "$.data" }, "defaultEnable": true, "enable": true }
+  ],
+  "inheritPreProcessors": {},
+  "inheritPostProcessors": {},
+  "auth": { "type": "noauth" },
+  "securityScheme": {},
+  "advancedSettings": { "timeout": 15000, "followRedirect": true, "SSLValidate": true },
+  "tagIds": []
+}

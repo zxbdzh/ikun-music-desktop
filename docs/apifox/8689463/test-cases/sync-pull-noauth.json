@@ -1,0 +1,30 @@
+{
+  "name": "安全性 - 拉取同步状态缺少 Bearer",
+  "categoryId": 12686167,
+  "responseId": "129551841",
+  "apiDetailId": 498765772,
+  "method": "get",
+  "path": "/sync/pull",
+  "parameters": {
+    "path": [],
+    "query": [
+      { "id": "cwRBvB06fn", "name": "since", "value": "0", "type": "integer", "enable": true },
+      { "id": "b8EaTTTlxY", "name": "user_id", "value": "", "type": "string", "enable": false }
+    ],
+    "header": [],
+    "cookie": []
+  },
+  "commonParameters": {},
+  "requestBody": { "type": "none" },
+  "preProcessors": [],
+  "postProcessors": [
+    { "id": "sync-pull-noauth.assert.status", "type": "assertion", "data": { "name": "HTTP 状态码为 401", "subject": "httpCode", "comparison": "equal", "value": "401", "path": "" }, "defaultEnable": true, "enable": true },
+    { "id": "sync-pull-noauth.assert.code", "type": "assertion", "data": { "name": "返回错误代码", "subject": "responseJson", "comparison": "exists", "path": "$.code" }, "defaultEnable": true, "enable": true }
+  ],
+  "inheritPreProcessors": {},
+  "inheritPostProcessors": {},
+  "auth": { "type": "noauth" },
+  "securityScheme": {},
+  "advancedSettings": { "timeout": 15000, "followRedirect": true, "SSLValidate": true },
+  "tagIds": []
+}

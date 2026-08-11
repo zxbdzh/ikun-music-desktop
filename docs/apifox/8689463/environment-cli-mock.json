@@ -1,0 +1,16 @@
+{
+  "name": "AurioClub CLI 隔离 Mock",
+  "baseUrls": {
+    "default": "http://127.0.0.1:48765",
+    "core": "http://127.0.0.1:48765/api/v1",
+    "edge": "http://127.0.0.1:48765"
+  },
+  "parameters": {
+    "cookie": [],
+    "query": [],
+    "header": [],
+    "body": []
+  },
+  "type": "normal",
+  "visibility": "protected"
+}

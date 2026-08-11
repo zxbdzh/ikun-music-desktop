@@ -1,0 +1,31 @@
+{
+  "name": "正向 - 拉取云端同步状态",
+  "categoryId": 12686164,
+  "responseId": "199208116",
+  "apiDetailId": 498765772,
+  "method": "get",
+  "path": "/sync/pull",
+  "parameters": {
+    "path": [],
+    "query": [
+      { "id": "cwRBvB06fn", "name": "since", "value": "0", "type": "integer", "enable": true },
+      { "id": "b8EaTTTlxY", "name": "user_id", "value": "", "type": "string", "enable": false }
+    ],
+    "header": [],
+    "cookie": []
+  },
+  "commonParameters": {},
+  "requestBody": { "type": "none" },
+  "preProcessors": [],
+  "postProcessors": [
+    { "id": "sync-pull.assert.status", "type": "assertion", "data": { "name": "HTTP 状态码为 200", "subject": "httpCode", "comparison": "equal", "value": "200", "path": "" }, "defaultEnable": true, "enable": true },
+    { "id": "sync-pull.assert.success", "type": "assertion", "data": { "name": "业务状态为成功", "subject": "responseJson", "comparison": "equal", "value": "true", "path": "$.success" }, "defaultEnable": true, "enable": true },
+    { "id": "sync-pull.assert.states", "type": "assertion", "data": { "name": "返回同步状态数组", "subject": "responseJson", "comparison": "exists", "path": "$.data.states" }, "defaultEnable": true, "enable": true }
+  ],
+  "inheritPreProcessors": {},
+  "inheritPostProcessors": {},
+  "auth": { "type": "bearer", "bearer": { "token": "{{JWT_TOKEN}}" } },
+  "securityScheme": {},
+  "advancedSettings": { "timeout": 15000, "followRedirect": true, "SSLValidate": true },
+  "tagIds": []
+}

@@ -29,3 +29,19 @@ apifox mock get <mockId> --project 8689463 --branch main
 ```
 
 阶段验收标准：接口数、Mock 数和唯一 `apiDetailId` 数均为 18，且缺失、越界和重复覆盖均为 0。
+
+## 隔离单接口回归
+
+`test-cases/` 保存 22 条单接口用例的完整 payload：18 条成功路径，以及 `/auth/me` 无 Bearer、`/sync/pull` 无 Bearer、`/proxy` 缺少 URL、iTunes 限流共 4 条安全或边界路径。
+
+`mock-server.mjs` 只读取本目录的固定 Mock payload，并监听 `127.0.0.1:48765`。`environment-cli-mock.json` 将 Apifox 的 `default`、`core`、`edge` 三个服务映射到该服务器；项目中的对应环境名为“AurioClub CLI 隔离 Mock”。隔离限流使用 `term=__rate_limit__`，不会依赖或消耗生产 iTunes 配额。
+
+```powershell
+node docs/apifox/8689463/mock-server.mjs
+apifox cli-schema validate environment-update --file docs/apifox/8689463/environment-cli-mock.json
+apifox test-case run <caseId> --project 8689463 --environment <environmentId> --global-var "JWT_TOKEN=mock-token" --reporters json --out-dir <temporaryReportDir>
+```
+
+用例已存在于远端，不能批量重复 `create`。维护单条用例时必须执行 `test-case get -> cli-schema validate test-case-update -> test-case update -> test-case get`，并在隔离环境重新运行。
+
+2026-08-12 阶段验收：22 份 JSON 报告均可解析，22/22 步骤、22/22 请求和 60/60 断言通过，失败项与运行时错误均为 0；报告中的 22 个请求目标全部为 `127.0.0.1`。Apifox JSON 报告会包含 CLI 运行上下文和访问凭据快照，只能存放在临时目录，汇总后必须删除，禁止提交。

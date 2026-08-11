@@ -1,0 +1,86 @@
+{
+  "name": "正向 - 获取播客目录",
+  "categoryId": 12686164,
+  "responseId": "160407173",
+  "apiDetailId": 498765776,
+  "method": "get",
+  "path": "/podcasts",
+  "parameters": {
+    "path": [],
+    "query": [
+      {
+        "id": "ruQRUeGori",
+        "name": "limit",
+        "value": "1",
+        "type": "integer",
+        "enable": true
+      },
+      {
+        "id": "qBPBULZ6Sv",
+        "name": "offset",
+        "value": "0",
+        "type": "integer",
+        "enable": true
+      }
+    ],
+    "header": [],
+    "cookie": []
+  },
+  "commonParameters": {},
+  "requestBody": {
+    "type": "none"
+  },
+  "preProcessors": [],
+  "postProcessors": [
+    {
+      "id": "podcasts.assert.status",
+      "type": "assertion",
+      "data": {
+        "name": "HTTP 状态码为 200",
+        "subject": "httpCode",
+        "comparison": "equal",
+        "value": "200",
+        "path": ""
+      },
+      "defaultEnable": true,
+      "enable": true
+    },
+    {
+      "id": "podcasts.assert.success",
+      "type": "assertion",
+      "data": {
+        "name": "业务状态为成功",
+        "subject": "responseJson",
+        "comparison": "equal",
+        "value": "true",
+        "path": "$.success"
+      },
+      "defaultEnable": true,
+      "enable": true
+    },
+    {
+      "id": "podcasts.assert.data",
+      "type": "assertion",
+      "data": {
+        "name": "返回播客数组",
+        "subject": "responseJson",
+        "comparison": "exists",
+        "path": "$.data"
+      },
+      "defaultEnable": true,
+      "enable": true
+    }
+  ],
+  "inheritPreProcessors": {},
+  "inheritPostProcessors": {},
+  "auth": {
+    "type": "noauth"
+  },
+  "securityScheme": {},
+  "advancedSettings": {
+    "timeout": 15000,
+    "followRedirect": true,
+    "SSLValidate": true
+  },
+  "tagIds": []
+}
