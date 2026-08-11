@@ -728,6 +728,7 @@ import {
   shouldPollTranscription,
   transcriptionAction,
   transcriptionDetail,
+  transcriptionExecutorLabel,
   transcriptionProgress,
   transcriptionTitle,
   transcriptionWarning,
@@ -1403,14 +1404,6 @@ export default {
     const handleSettingsToggle = (event: Event) => {
       if ((event.target as HTMLDetailsElement).open) void loadBackendStatus()
     }
-    const backendExecutorLabel = (
-      executor: LX.Podcast.AsrExecutor | LX.Podcast.TranscriptionExecutor
-    ) => {
-      if (executor === 'cuda') return 'CUDA GPU'
-      if (executor === 'directml') return 'DirectML GPU'
-      if (executor === 'vulkan') return 'Vulkan GPU'
-      return 'CPU'
-    }
     const backendExecutorIsGpu = (
       executor: LX.Podcast.AsrExecutor | LX.Podcast.TranscriptionExecutor
     ) => executor != null && executor !== 'cpu'
@@ -1786,7 +1779,7 @@ export default {
       changeAsrAcceleration,
       loadBackendStatus,
       handleSettingsToggle,
-      backendExecutorLabel,
+      backendExecutorLabel: transcriptionExecutorLabel,
       backendExecutorIsGpu,
       backendDisplayExecutor,
       saveAiPublicSettings,

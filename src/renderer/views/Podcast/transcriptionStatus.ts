@@ -24,6 +24,20 @@ const RUNNING_STAGES = new Set<LX.Podcast.TranscriptionStage>([
   'saving',
 ])
 
+type ComputeExecutor = NonNullable<
+  LX.Podcast.AsrExecutor | LX.Podcast.TranscriptionExecutor
+>
+
+const EXECUTOR_LABELS: Record<ComputeExecutor, string> = {
+  cpu: 'CPU',
+  cuda: 'CUDA GPU',
+  directml: 'DirectML GPU',
+  vulkan: 'Vulkan GPU',
+}
+
+export const transcriptionExecutorLabel = (executor: ComputeExecutor) =>
+  EXECUTOR_LABELS[executor]
+
 export interface TranscriptionAction {
   kind: 'generate' | 'cancel'
   label: string
@@ -122,11 +136,10 @@ export const transcriptionDetail = (
   const parts: string[] = []
   if (status.startedAt) parts.push(`已运行 ${formatElapsed(now - status.startedAt)}`)
   if (status.currentSegment) parts.push(`当前处理第 ${status.currentSegment} 段`)
-  if (status.asrExecutor) parts.push(`语音识别：${asrExecutorLabel(status.asrExecutor)}`)
+  if (status.asrExecutor) parts.push(`语音识别：${transcriptionExecutorLabel(status.asrExecutor)}`)
   if (status.asrExecutorFallbackReason) parts.push(status.asrExecutorFallbackReason)
   if (status.executor) {
-    parts.push(`说话人分离：${status.executor === 'directml' ? 'DirectML GPU' :
-      status.executor === 'vulkan' ? 'Vulkan GPU' : 'CPU'}`)
+    parts.push(`说话人分离：${transcriptionExecutorLabel(status.executor)}`)
   }
   if (status.executorFallbackReason) parts.push(status.executorFallbackReason)
   if (status.speakerError) parts.push(`说话人分离失败：${status.speakerError}`)
@@ -168,17 +181,11 @@ const segmentSummary = (status: LX.Podcast.TranscriptionStatus) =>
     : ''
 
 const asrExecutorSummary = (status: LX.Podcast.TranscriptionStatus) => status.asrExecutor
-  ? ` · ${asrExecutorLabel(status.asrExecutor)}`
+  ? ` · ${transcriptionExecutorLabel(status.asrExecutor)}`
   : ''
 
-const asrExecutorLabel = (executor: LX.Podcast.AsrExecutor) => {
-  if (executor === 'cuda') return 'CUDA GPU'
-  if (executor === 'vulkan') return 'Vulkan GPU'
-  return 'CPU'
-}
-
 const executorSummary = (status: LX.Podcast.TranscriptionStatus) => status.executor
-  ? ` · ${status.executor === 'directml' ? 'DirectML GPU' : 'CPU'}`
+  ? ` · ${transcriptionExecutorLabel(status.executor)}`
   : ''
 
 const formatElapsed = (milliseconds: number) => {

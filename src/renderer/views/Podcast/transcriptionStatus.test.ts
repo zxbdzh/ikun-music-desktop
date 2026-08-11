@@ -3,6 +3,7 @@ import {
   shouldPollTranscription,
   transcriptionAction,
   transcriptionDetail,
+  transcriptionExecutorLabel,
   transcriptionProgress,
   transcriptionTitle,
   transcriptionWarning,
@@ -72,6 +73,7 @@ describe('podcast transcription presentation', () => {
       asrExecutor: 'cpu',
       asrExecutorFallbackReason: 'CUDA GPU 未加载，已回退 CPU',
     }), 10_000)).toContain('语音识别：CPU · CUDA GPU 未加载，已回退 CPU')
+    expect(transcriptionExecutorLabel('vulkan')).toBe('Vulkan GPU')
   })
 
   it('warns about a slow slice while a fresh heartbeat still proves the backend is alive', () => {
@@ -110,9 +112,14 @@ describe('podcast transcription presentation', () => {
     }))).toBe('正在下载说话人模型 · 25%')
     expect(transcriptionTitle(status({
       stage: 'diarizing',
-      executor: 'cpu',
+      executor: 'vulkan',
       progress: 0.1,
-    }))).toBe('正在区分说话人 · CPU · 10%')
+    }))).toBe('正在区分说话人 · Vulkan GPU · 10%')
+    expect(transcriptionDetail(status({
+      stage: 'diarizing',
+      executor: 'vulkan',
+      lastHeartbeatAt: 2_000,
+    }), 2_000)).toContain('说话人分离：Vulkan GPU')
     expect(transcriptionDetail(status({
       stage: 'diarizing',
       startedAt: 1_000,
