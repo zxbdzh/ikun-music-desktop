@@ -90,8 +90,54 @@ export class AurioClubClient {
     return this.request('/auth/login-email', { method: 'POST', body: { email, code } })
   }
 
+  async registerPassword(email: string, code: string, password: string): Promise<unknown> {
+    return this.request('/auth/register-password', {
+      method: 'POST',
+      body: { email, code, password },
+    })
+  }
+
+  async resetPassword(email: string, code: string, newPassword: string): Promise<void> {
+    await this.request('/auth/reset-password', {
+      method: 'POST',
+      body: { email, code, new_password: newPassword },
+    })
+  }
+
   async me(): Promise<unknown> {
     return this.request('/auth/me', { authenticated: true })
+  }
+
+  async updateProfile(username: string): Promise<unknown> {
+    return this.request('/auth/profile', {
+      method: 'PUT',
+      body: { username },
+      authenticated: true,
+    })
+  }
+
+  async changePassword(oldPassword: string, newPassword: string): Promise<void> {
+    await this.request('/auth/change-password', {
+      method: 'POST',
+      body: { old_password: oldPassword, new_password: newPassword },
+      authenticated: true,
+    })
+  }
+
+  async linkDevice(deviceId: string, migrateGuestData: boolean): Promise<void> {
+    await this.request('/auth/link-device', {
+      method: 'POST',
+      body: { device_id: deviceId, migrate_guest_data: migrateGuestData },
+      authenticated: true,
+    })
+  }
+
+  async track(batch: LX.Podcast.AnalyticsEvent[]): Promise<void> {
+    await this.request('/track', {
+      method: 'POST',
+      body: { batch },
+      response: 'none',
+    })
   }
 
   async pull(since: number): Promise<unknown> {
@@ -121,7 +167,7 @@ export class AurioClubClient {
       edge?: boolean
       baseUrl?: string
       envelope?: boolean
-      response?: 'json' | 'text'
+      response?: 'json' | 'text' | 'none'
     } = {}
   ): Promise<T> {
     const controller = new AbortController()
@@ -148,6 +194,10 @@ export class AurioClubClient {
       if (options.response === 'text') {
         if (!response.ok) throw await toHttpError(response)
         return (await response.text()) as T
+      }
+      if (options.response === 'none') {
+        if (!response.ok) throw await toHttpError(response)
+        return undefined as T
       }
 
       const value = (await response.json()) as unknown

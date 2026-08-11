@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { safeStorage } from 'electron'
+import { app, safeStorage } from 'electron'
 import { AurioClubClient, AurioClubError, assertPublicHttpUrl } from './aurioClubClient'
 import { parsePublisherTranscript } from './captions'
 import { parsePodcastFeed } from './rss'
@@ -73,6 +73,7 @@ export class PodcastModule {
   >()
   private currentEpisodeId: string | null = null
   private deviceId = ''
+  private readonly analyticsSessionId = randomUUID()
   private syncTask: Promise<LX.Podcast.Session> | null = null
   private syncTimer: ReturnType<typeof setTimeout> | null = null
   private initialized = false
@@ -195,6 +196,21 @@ export class PodcastModule {
         return this.login(await this.client.loginPassword(command.email, command.password))
       case 'login-email':
         return this.login(await this.client.loginEmail(command.email, command.code))
+      case 'register-password':
+        return this.login(
+          await this.client.registerPassword(command.email, command.code, command.password)
+        )
+      case 'reset-password':
+        return this.client.resetPassword(command.email, command.code, command.newPassword)
+      case 'update-profile':
+        return this.updateProfile(command.username)
+      case 'change-password':
+        if (!this.session.account) throw new Error('请先登录 AurioClub')
+        return this.client.changePassword(command.oldPassword, command.newPassword)
+      case 'link-device':
+        return this.linkDevice(command.migrateGuestData)
+      case 'track-event':
+        return this.trackEvent(command.event, command.targetId, command.properties)
       case 'logout':
         return this.logout()
       case 'session':
@@ -1193,6 +1209,46 @@ export class PodcastModule {
       true
     )
     return migrated
+  }
+
+  private async updateProfile(username: string): Promise<LX.Podcast.Session> {
+    if (!this.session.account) throw new Error('请先登录 AurioClub')
+    const account = normalizeUser(await this.client.updateProfile(username))
+    this.session = { ...this.session, account }
+    return this.session
+  }
+
+  private async linkDevice(migrateGuestData: boolean): Promise<LX.Podcast.Session> {
+    if (!this.session.account) throw new Error('请先登录 AurioClub')
+    await this.client.linkDevice(this.deviceId, migrateGuestData)
+    return this.syncNow()
+  }
+
+  private async trackEvent(
+    event: string,
+    targetId?: string,
+    properties: Record<string, unknown> = {}
+  ): Promise<void> {
+    const eventName = event.trim()
+    if (!eventName) return
+    try {
+      await this.client.track([{
+        d_id: this.deviceId,
+        u_id: this.session.account?.id ?? null,
+        s_id: this.analyticsSessionId,
+        p_form: 'desktop',
+        v_name: app.getVersion(),
+        event: eventName,
+        t_id: targetId?.trim() || null,
+        ts: Date.now(),
+        props: properties,
+      }])
+    } catch (error) {
+      console.warn(
+        `[podcast] analytics event ${eventName} was not sent:`,
+        error instanceof Error ? error.message : error
+      )
+    }
   }
 
   private async login(value: unknown): Promise<LX.Podcast.Session> {

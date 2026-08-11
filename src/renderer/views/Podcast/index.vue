@@ -424,50 +424,201 @@
           <small>{{ aiConnectionState }}</small>
         </div>
       </div>
-      <div :class="$style.account">
-        <template v-if="session?.account">
-          <span>{{ session.account.username || session.account.email }}</span>
-          <span :class="$style.syncSummary">
-            <small role="status" :class="{ [$style.syncError]: syncPresentation.isError }">
-              {{ syncPresentation.label }}
-            </small>
-            <small v-if="syncPresentation.detail" role="alert" :class="$style.syncError">
-              {{ syncPresentation.detail }}
-            </small>
-          </span>
-          <button
-            v-if="syncPresentation.action === 'sync'"
-            type="button"
-            :disabled="syncPresentation.busy"
-            @click="syncNow"
-          >
-            {{ syncPresentation.actionLabel }}
-          </button>
-          <button
-            v-else-if="syncPresentation.action === 'reauthenticate'"
-            type="button"
-            @click="reauthenticate"
-          >
-            {{ syncPresentation.actionLabel }}
-          </button>
-          <button type="button" @click="logout">退出</button>
-        </template>
+      <section :class="$style.accountPanel" aria-labelledby="podcast-account-title">
+        <header :class="$style.accountHeader">
+          <div :class="$style.accountIdentity">
+            <strong id="podcast-account-title">
+              {{ session?.account?.username || 'AurioClub 账户' }}
+            </strong>
+            <small v-if="session?.account">{{ session.account.email }}</small>
+          </div>
+          <template v-if="session?.account">
+            <span :class="$style.syncSummary">
+              <small role="status" :class="{ [$style.syncError]: syncPresentation.isError }">
+                {{ syncPresentation.label }}
+              </small>
+              <small v-if="syncPresentation.detail" role="alert" :class="$style.syncError">
+                {{ syncPresentation.detail }}
+              </small>
+            </span>
+            <button
+              v-if="syncPresentation.action === 'sync'"
+              type="button"
+              :disabled="syncPresentation.busy"
+              @click="syncNow"
+            >
+              {{ syncPresentation.actionLabel }}
+            </button>
+            <button
+              v-else-if="syncPresentation.action === 'reauthenticate'"
+              type="button"
+              @click="reauthenticate"
+            >
+              {{ syncPresentation.actionLabel }}
+            </button>
+            <button type="button" :disabled="accountBusy !== null" @click="logout">退出</button>
+          </template>
+        </header>
+
+        <div v-if="session?.account" :class="$style.accountGrid">
+          <form :class="$style.accountForm" @submit.prevent="updateProfile">
+            <strong>个人资料</strong>
+            <label for="podcast-account-username">用户名</label>
+            <div :class="$style.fieldAction">
+              <input
+                id="podcast-account-username"
+                v-model="profileUsername"
+                type="text"
+                autocomplete="nickname"
+                required
+              />
+              <button type="submit" :disabled="accountBusy !== null">
+                {{ accountBusy === 'profile' ? '保存中' : '保存' }}
+              </button>
+            </div>
+          </form>
+
+          <form :class="$style.accountForm" @submit.prevent="changePassword">
+            <strong>修改密码</strong>
+            <label for="podcast-old-password">当前密码</label>
+            <input
+              id="podcast-old-password"
+              v-model="oldPassword"
+              type="password"
+              autocomplete="current-password"
+              required
+            />
+            <label for="podcast-new-password">新密码</label>
+            <input
+              id="podcast-new-password"
+              v-model="newPassword"
+              type="password"
+              autocomplete="new-password"
+              required
+            />
+            <label for="podcast-confirm-password">确认新密码</label>
+            <input
+              id="podcast-confirm-password"
+              v-model="confirmNewPassword"
+              type="password"
+              autocomplete="new-password"
+              required
+            />
+            <button type="submit" :disabled="accountBusy !== null">
+              {{ accountBusy === 'password' ? '修改中' : '修改密码' }}
+            </button>
+          </form>
+
+          <section :class="$style.accountForm">
+            <strong>当前设备</strong>
+            <label :class="$style.checkboxLabel">
+              <input v-model="migrateGuestData" type="checkbox" />
+              迁移此设备的游客数据
+            </label>
+            <button type="button" :disabled="accountBusy !== null" @click="linkDevice">
+              {{ accountBusy === 'device' ? '关联中' : '关联设备' }}
+            </button>
+          </section>
+        </div>
+
         <template v-else>
-          <select v-model="loginMode" aria-label="登录方式">
-            <option value="password">密码登录</option>
-            <option value="code">邮箱验证码</option>
-          </select>
-          <input v-model="email" type="email" autocomplete="username" placeholder="邮箱" />
-          <input
-            v-model="credential"
-            :type="loginMode === 'password' ? 'password' : 'text'"
-            :autocomplete="loginMode === 'password' ? 'current-password' : 'one-time-code'"
-            :placeholder="loginMode === 'password' ? '密码' : '验证码'"
-          />
-          <button v-if="loginMode === 'code'" type="button" @click="sendCode">发送验证码</button>
-          <button type="button" @click="login">登录</button>
+          <nav :class="$style.authModes" aria-label="账户操作">
+            <button
+              v-for="mode in authModes"
+              :key="mode.id"
+              type="button"
+              :class="{ [$style.activeAccountMode]: authMode === mode.id }"
+              :aria-pressed="authMode === mode.id"
+              @click="selectAuthMode(mode.id)"
+            >
+              {{ mode.label }}
+            </button>
+          </nav>
+
+          <form :class="$style.authForm" @submit.prevent="submitAuthentication">
+            <div v-if="authMode === 'login'" :class="$style.authMethods" role="group" aria-label="登录方式">
+              <button
+                type="button"
+                :class="{ [$style.activeAccountMode]: loginMode === 'password' }"
+                :aria-pressed="loginMode === 'password'"
+                @click="selectLoginMode('password')"
+              >
+                密码
+              </button>
+              <button
+                type="button"
+                :class="{ [$style.activeAccountMode]: loginMode === 'code' }"
+                :aria-pressed="loginMode === 'code'"
+                @click="selectLoginMode('code')"
+              >
+                验证码
+              </button>
+            </div>
+
+            <label for="podcast-account-email">邮箱</label>
+            <input
+              id="podcast-account-email"
+              v-model="email"
+              type="email"
+              autocomplete="username"
+              required
+            />
+
+            <template v-if="authNeedsCode">
+              <label for="podcast-account-code">验证码</label>
+              <div :class="$style.fieldAction">
+                <input
+                  id="podcast-account-code"
+                  v-model="verificationCode"
+                  type="text"
+                  inputmode="numeric"
+                  autocomplete="one-time-code"
+                  required
+                />
+                <button type="button" :disabled="accountBusy !== null" @click="sendCode">
+                  {{ accountBusy === 'send-code' ? '发送中' : '发送验证码' }}
+                </button>
+              </div>
+            </template>
+
+            <template v-if="authNeedsPassword">
+              <label for="podcast-account-password">
+                {{ authMode === 'reset' ? '新密码' : '密码' }}
+              </label>
+              <input
+                id="podcast-account-password"
+                v-model="authPassword"
+                type="password"
+                :autocomplete="authMode === 'login' ? 'current-password' : 'new-password'"
+                required
+              />
+            </template>
+
+            <template v-if="authMode !== 'login'">
+              <label for="podcast-account-password-confirm">确认密码</label>
+              <input
+                id="podcast-account-password-confirm"
+                v-model="authPasswordConfirm"
+                type="password"
+                autocomplete="new-password"
+                required
+              />
+            </template>
+
+            <button type="submit" :disabled="accountBusy !== null">
+              {{ authSubmitLabel }}
+            </button>
+          </form>
         </template>
-      </div>
+
+        <p
+          v-if="accountMessage"
+          :class="[$style.accountMessage, { [$style.syncError]: accountMessageError }]"
+          :role="accountMessageError ? 'alert' : 'status'"
+        >
+          {{ accountMessage }}
+        </p>
+      </section>
     </details>
 
     <div v-if="subscribeTarget" :class="$style.modalBackdrop" @click.self="subscribeTarget = null">
@@ -535,6 +686,17 @@ export default {
   name: 'Podcast',
   setup() {
     type PodcastView = 'discover' | 'favorites' | 'history'
+    type AuthMode = 'login' | 'register' | 'reset'
+    type AccountOperation =
+      | 'send-code'
+      | 'login'
+      | 'register'
+      | 'reset'
+      | 'profile'
+      | 'password'
+      | 'device'
+      | 'logout'
+      | null
     const views: Array<{ id: PodcastView; label: string }> = [
       { id: 'discover', label: '发现' },
       { id: 'favorites', label: '收藏' },
@@ -566,9 +728,37 @@ export default {
     const transcriptionStatuses = ref<Record<string, LX.Podcast.TranscriptionStatus | null>>({})
     const session = ref<LX.Podcast.Session | null>(null)
     const syncPresentation = computed(() => syncStatusPresentation(session.value))
+    const authModes: Array<{ id: AuthMode; label: string }> = [
+      { id: 'login', label: '登录' },
+      { id: 'register', label: '注册' },
+      { id: 'reset', label: '忘记密码' },
+    ]
+    const authMode = ref<AuthMode>('login')
     const loginMode = ref<'password' | 'code'>('password')
     const email = ref('')
-    const credential = ref('')
+    const verificationCode = ref('')
+    const authPassword = ref('')
+    const authPasswordConfirm = ref('')
+    const profileUsername = ref('')
+    const oldPassword = ref('')
+    const newPassword = ref('')
+    const confirmNewPassword = ref('')
+    const migrateGuestData = ref(true)
+    const accountBusy = ref<AccountOperation>(null)
+    const accountMessage = ref('')
+    const accountMessageError = ref(false)
+    const authNeedsCode = computed(() => authMode.value !== 'login' || loginMode.value === 'code')
+    const authNeedsPassword = computed(
+      () => authMode.value !== 'login' || loginMode.value === 'password'
+    )
+    const authSubmitLabel = computed(() => {
+      if (accountBusy.value === 'login') return '登录中'
+      if (accountBusy.value === 'register') return '注册中'
+      if (accountBusy.value === 'reset') return '重置中'
+      if (authMode.value === 'register') return '注册并登录'
+      if (authMode.value === 'reset') return '重置密码'
+      return '登录'
+    })
     const aiConfig = ref<LX.Podcast.SpeakerAiConfig | null>(null)
     const aiEnabled = ref(appSetting['podcast.aiEnabled'])
     const aiBaseUrl = ref(appSetting['podcast.aiBaseUrl'])
@@ -771,12 +961,14 @@ export default {
       sources.value = sources.value.map((item) => (item.id === source.id ? source : item))
       selectedSource.value = source
       subscribeTarget.value = null
+      trackEvent('podcast_subscribe', source.id, { auto_download: autoDownload })
     }
     const unsubscribe = async (source: LX.Podcast.Source) => {
       await sendPodcastCommand({ action: 'unsubscribe', sourceId: source.id })
       const value = { ...source, subscribed: false, autoDownload: false }
       sources.value = sources.value.map((item) => (item.id === source.id ? value : item))
       selectedSource.value = value
+      trackEvent('podcast_unsubscribe', source.id)
     }
     const playEpisode = async (index: number) => {
       if (!selectedSource.value) return
@@ -786,6 +978,7 @@ export default {
       )
       updateSetting({ 'player.playbackRate': appSetting['podcast.playbackRate'] })
       playList(LIST_IDS.TEMP, index)
+      trackEvent('podcast_play', episodes.value[index]?.id, { source: 'show' })
     }
     const playLibraryEpisode = async (index: number) => {
       await setTempList(
@@ -794,6 +987,9 @@ export default {
       )
       updateSetting({ 'player.playbackRate': appSetting['podcast.playbackRate'] })
       playList(LIST_IDS.TEMP, index)
+      trackEvent('podcast_play', libraryItems.value[index]?.episode.id, {
+        source: activeView.value,
+      })
     }
     const loadLibrary = async () => {
       if (activeView.value === 'discover') return
@@ -828,6 +1024,7 @@ export default {
       libraryItems.value = libraryItems.value
         .map((item) => item.episode.id === episode.id ? { ...item, state } : item)
         .filter((item) => activeView.value !== 'favorites' || item.state.isFavorite)
+      trackEvent(state.isFavorite ? 'podcast_favorite' : 'podcast_unfavorite', episode.id)
     }
     const openPopular = async (item: LX.Podcast.PopularSource) => {
       const existing = sources.value.find((source) => source.title === item.source)
@@ -846,6 +1043,7 @@ export default {
     const downloadEpisode = async (episode: LX.Podcast.Episode) => {
       await sendPodcastCommand({ action: 'download-episode', episodeId: episode.id })
       downloaded.value = new Set([...downloaded.value, episode.id])
+      trackEvent('podcast_download', episode.id)
     }
     const refreshTranscriptionStatus = async (episodeId: string) => {
       const status = await sendPodcastCommand<LX.Podcast.TranscriptionStatus | null>({
@@ -1018,32 +1216,194 @@ export default {
         aiTesting.value = false
       }
     }
+    const applySession = (value: LX.Podcast.Session) => {
+      session.value = value
+      profileUsername.value = value.account?.username ?? ''
+    }
+    const setAccountFeedback = (message: string, isError = false) => {
+      accountMessage.value = message
+      accountMessageError.value = isError
+    }
+    const accountErrorText = (value: unknown) =>
+      value instanceof Error ? value.message : String(value)
+    const runAccountOperation = async (
+      operation: Exclude<AccountOperation, null>,
+      task: () => Promise<void>,
+      successMessage: string
+    ) => {
+      if (accountBusy.value) return
+      accountBusy.value = operation
+      setAccountFeedback('')
+      try {
+        await task()
+        setAccountFeedback(successMessage)
+      } catch (value) {
+        setAccountFeedback(accountErrorText(value), true)
+      } finally {
+        accountBusy.value = null
+      }
+    }
+    const clearAuthSecrets = () => {
+      verificationCode.value = ''
+      authPassword.value = ''
+      authPasswordConfirm.value = ''
+    }
+    const selectAuthMode = (mode: AuthMode) => {
+      authMode.value = mode
+      clearAuthSecrets()
+      setAccountFeedback('')
+    }
+    const selectLoginMode = (mode: 'password' | 'code') => {
+      loginMode.value = mode
+      clearAuthSecrets()
+      setAccountFeedback('')
+    }
+    const validEmail = () => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value.trim())
+    const validateEmail = () => {
+      if (validEmail()) return true
+      setAccountFeedback('请输入有效的邮箱地址', true)
+      return false
+    }
+    const trackEvent = (
+      event: string,
+      targetId?: string,
+      properties?: Record<string, unknown>
+    ) => {
+      void sendPodcastCommand({ action: 'track-event', event, targetId, properties })
+        .catch(() => undefined)
+    }
     const loadSession = async () => {
-      session.value = await sendPodcastCommand<LX.Podcast.Session>({ action: 'session' })
+      applySession(await sendPodcastCommand<LX.Podcast.Session>({ action: 'session' }))
     }
     const sendCode = async () => {
-      await sendPodcastCommand({ action: 'send-code', email: email.value.trim() })
-    }
-    const login = async () => {
-      session.value = await sendPodcastCommand<LX.Podcast.Session>(
-        loginMode.value === 'password'
-          ? { action: 'login-password', email: email.value.trim(), password: credential.value }
-          : { action: 'login-email', email: email.value.trim(), code: credential.value.trim() }
+      if (!validateEmail()) return
+      await runAccountOperation(
+        'send-code',
+        async () => sendPodcastCommand({ action: 'send-code', email: email.value.trim() }),
+        '验证码已发送，请检查邮箱'
       )
-      credential.value = ''
     }
-    const logout = async () => {
-      session.value = await sendPodcastCommand<LX.Podcast.Session>({ action: 'logout' })
+    const submitAuthentication = async () => {
+      if (!validateEmail()) return
+      if (authNeedsCode.value && !verificationCode.value.trim()) {
+        setAccountFeedback('请输入邮箱验证码', true)
+        return
+      }
+      if (authNeedsPassword.value && !authPassword.value) {
+        setAccountFeedback('请输入密码', true)
+        return
+      }
+      if (authMode.value !== 'login' && authPassword.value !== authPasswordConfirm.value) {
+        setAccountFeedback('两次输入的密码不一致', true)
+        return
+      }
+
+      const mode = authMode.value
+      const method = loginMode.value
+      const operation = mode === 'login' ? 'login' : mode
+      const successMessage = mode === 'register'
+        ? '注册并登录成功'
+        : mode === 'reset'
+          ? '密码已重置，请使用新密码登录'
+          : '登录成功'
+      await runAccountOperation(operation, async () => {
+        if (mode === 'login') {
+          applySession(await sendPodcastCommand<LX.Podcast.Session>(
+            method === 'password'
+              ? {
+                  action: 'login-password',
+                  email: email.value.trim(),
+                  password: authPassword.value,
+                }
+              : {
+                  action: 'login-email',
+                  email: email.value.trim(),
+                  code: verificationCode.value.trim(),
+                }
+          ))
+          trackEvent('account_login', undefined, { method })
+        } else if (mode === 'register') {
+          applySession(await sendPodcastCommand<LX.Podcast.Session>({
+            action: 'register-password',
+            email: email.value.trim(),
+            code: verificationCode.value.trim(),
+            password: authPassword.value,
+          }))
+          trackEvent('account_register')
+        } else {
+          await sendPodcastCommand({
+            action: 'reset-password',
+            email: email.value.trim(),
+            code: verificationCode.value.trim(),
+            newPassword: authPassword.value,
+          })
+          authMode.value = 'login'
+          loginMode.value = 'password'
+          trackEvent('account_password_reset')
+        }
+        clearAuthSecrets()
+      }, successMessage)
     }
-    const reauthenticate = async () => {
-      await logout()
+    const updateProfile = async () => {
+      const username = profileUsername.value.trim()
+      if (!username) {
+        setAccountFeedback('用户名不能为空', true)
+        return
+      }
+      await runAccountOperation('profile', async () => {
+        applySession(await sendPodcastCommand<LX.Podcast.Session>({
+          action: 'update-profile',
+          username,
+        }))
+        trackEvent('account_profile_update')
+      }, '用户名已更新')
     }
+    const changePassword = async () => {
+      if (!oldPassword.value || !newPassword.value) {
+        setAccountFeedback('请输入当前密码和新密码', true)
+        return
+      }
+      if (newPassword.value !== confirmNewPassword.value) {
+        setAccountFeedback('两次输入的新密码不一致', true)
+        return
+      }
+      await runAccountOperation('password', async () => {
+        await sendPodcastCommand({
+          action: 'change-password',
+          oldPassword: oldPassword.value,
+          newPassword: newPassword.value,
+        })
+        oldPassword.value = ''
+        newPassword.value = ''
+        confirmNewPassword.value = ''
+        trackEvent('account_password_change')
+      }, '密码已修改')
+    }
+    const linkDevice = async () => {
+      await runAccountOperation('device', async () => {
+        applySession(await sendPodcastCommand<LX.Podcast.Session>({
+          action: 'link-device',
+          migrateGuestData: migrateGuestData.value,
+        }))
+        trackEvent('account_device_link', undefined, {
+          migrate_guest_data: migrateGuestData.value,
+        })
+      }, '当前设备已关联')
+    }
+    const performLogout = async (message: string) => {
+      await runAccountOperation('logout', async () => {
+        applySession(await sendPodcastCommand<LX.Podcast.Session>({ action: 'logout' }))
+        clearAuthSecrets()
+      }, message)
+    }
+    const logout = async () => performLogout('已退出登录')
+    const reauthenticate = async () => performLogout('请重新登录')
     const syncNow = async () => {
       if (!session.value) return
       const previous = session.value
       session.value = { ...previous, syncState: 'syncing', error: undefined }
       try {
-        session.value = await sendPodcastCommand<LX.Podcast.Session>({ action: 'sync-now' })
+        applySession(await sendPodcastCommand<LX.Podcast.Session>({ action: 'sync-now' }))
       } catch (value) {
         session.value = {
           ...previous,
@@ -1093,9 +1453,24 @@ export default {
       transcriptionStatuses,
       session,
       syncPresentation,
+      authModes,
+      authMode,
       loginMode,
       email,
-      credential,
+      verificationCode,
+      authPassword,
+      authPasswordConfirm,
+      profileUsername,
+      oldPassword,
+      newPassword,
+      confirmNewPassword,
+      migrateGuestData,
+      accountBusy,
+      accountMessage,
+      accountMessageError,
+      authNeedsCode,
+      authNeedsPassword,
+      authSubmitLabel,
       aiConfig,
       aiEnabled,
       aiBaseUrl,
@@ -1158,8 +1533,13 @@ export default {
       saveAiPublicSettings,
       saveAiConfig,
       testAiConnection,
+      selectAuthMode,
+      selectLoginMode,
       sendCode,
-      login,
+      submitAuthentication,
+      updateProfile,
+      changePassword,
+      linkDevice,
       logout,
       reauthenticate,
       syncNow,
@@ -1257,12 +1637,31 @@ export default {
 .settingGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 20px; padding: 12px 0 4px; }
 .settingGrid label, .settingGrid > div { display: grid; grid-template-columns: 110px auto minmax(0, 1fr); align-items: center; gap: 8px; }
 .settingGrid code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: .7; }
-.account { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 0 4px; border-top: 1px solid var(--color-primary-light-900-alpha-100); }
-.account input { min-width: 150px; }
-.account small { opacity: .65; margin-right: auto; }
+.accountPanel { display: grid; gap: 14px; padding: 14px 0 5px; border-top: 1px solid var(--color-primary-light-900-alpha-100); }
+.accountHeader { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.accountIdentity { display: grid; gap: 2px; min-width: 150px; }
+.accountIdentity strong { font-size: 13px; }
+.accountIdentity small { opacity: .65; }
 .syncSummary { display: grid; gap: 2px; margin-right: auto; }
-.account .syncSummary small { margin-right: 0; }
-.account .syncError { color: #d84a4a; opacity: 1; }
+.syncSummary small { opacity: .65; }
+.syncError { color: #d84a4a; opacity: 1 !important; }
+.accountGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; }
+.accountForm { display: grid; align-content: start; gap: 7px; min-width: 0; margin: 0; padding-top: 12px; border-top: 1px solid var(--color-primary-light-900-alpha-100); }
+.accountForm > strong { margin-bottom: 2px; font-size: 12px; }
+.accountForm > label:not(.checkboxLabel), .authForm > label { font-size: 11px; opacity: .72; }
+.accountForm input, .authForm input { width: 100%; min-width: 0; box-sizing: border-box; }
+.accountForm > button { justify-self: start; }
+.checkboxLabel { display: flex; align-items: center; gap: 8px; min-height: 30px; }
+.checkboxLabel input { width: auto; }
+.fieldAction { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: stretch; gap: 8px; }
+.authModes, .authMethods { display: flex; align-items: center; gap: 4px; }
+.authModes button, .authMethods button { border-color: transparent; background: transparent; }
+.authModes button.activeAccountMode, .authMethods button.activeAccountMode { border-color: var(--color-primary-light-900-alpha-200); background: var(--color-primary-light-300-alpha-500); }
+.authForm { display: grid; gap: 7px; width: min(100%, 560px); }
+.authMethods { margin-bottom: 3px; }
+.authForm > button { justify-self: start; margin-top: 3px; }
+.accountMessage { min-height: 18px; margin: 0; font-size: 11px; opacity: .72; }
+.accountPanel :is(button, input):focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
 .empty { margin: 30px 8px; text-align: center; opacity: .55; }
 .error { color: #d84a4a; padding: 8px; }
 .modalBackdrop { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; background: rgba(0, 0, 0, .42); }
@@ -1278,6 +1677,7 @@ export default {
   .showHeader { grid-template-columns: 48px minmax(0, 1fr); }
   .settingGrid { grid-template-columns: 1fr; }
   .backendGrid { grid-template-columns: 1fr; }
+  .accountGrid { grid-template-columns: 1fr; }
   .settings[open] { max-height: 80vh; }
   .settingGrid label, .settingGrid > div { grid-template-columns: 100px minmax(0, 1fr); }
   .settingGrid code { grid-column: 1 / -1; }

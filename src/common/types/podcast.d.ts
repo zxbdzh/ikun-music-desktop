@@ -270,6 +270,18 @@ declare namespace LX {
       error?: string
     }
 
+    interface AnalyticsEvent {
+      d_id: string
+      u_id: string | null
+      s_id: string
+      p_form: string
+      v_name: string
+      event: string
+      t_id: string | null
+      ts: number
+      props: Record<string, unknown>
+    }
+
     interface SyncState {
       accountId: string
       watermark: number
@@ -312,6 +324,17 @@ declare namespace LX {
       | { action: 'login-password'; email: string; password: string }
       | { action: 'send-code'; email: string }
       | { action: 'login-email'; email: string; code: string }
+      | { action: 'register-password'; email: string; code: string; password: string }
+      | { action: 'reset-password'; email: string; code: string; newPassword: string }
+      | { action: 'update-profile'; username: string }
+      | { action: 'change-password'; oldPassword: string; newPassword: string }
+      | { action: 'link-device'; migrateGuestData: boolean }
+      | {
+          action: 'track-event'
+          event: string
+          targetId?: string
+          properties?: Record<string, unknown>
+        }
       | { action: 'logout' }
       | { action: 'session' }
       | { action: 'sync-now' }
