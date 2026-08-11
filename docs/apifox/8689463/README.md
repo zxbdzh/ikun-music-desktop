@@ -45,3 +45,17 @@ apifox test-case run <caseId> --project 8689463 --environment <environmentId> --
 用例已存在于远端，不能批量重复 `create`。维护单条用例时必须执行 `test-case get -> cli-schema validate test-case-update -> test-case update -> test-case get`，并在隔离环境重新运行。
 
 2026-08-12 阶段验收：22 份 JSON 报告均可解析，22/22 步骤、22/22 请求和 60/60 断言通过，失败项与运行时错误均为 0；报告中的 22 个请求目标全部为 `127.0.0.1`。Apifox JSON 报告会包含 CLI 运行上下文和访问凭据快照，只能存放在临时目录，汇总后必须删除，禁止提交。
+
+## 全接口契约回归场景
+
+`test-scenarios/full-contract-regression.create.json` 是场景元数据创建 payload；`full-contract-regression.imports.json` 固化 18 组接口与 22 条源用例 ID 的导入清单。远端场景名为“AurioClub 全接口契约回归”。Apifox 创建场景时不会保存 `steps`，因此必须先创建元数据，再按清单逐组执行 `import-steps --source test-case --sync manual`。
+
+```powershell
+apifox cli-schema validate test-scenario-create --file docs/apifox/8689463/test-scenarios/full-contract-regression.create.json
+apifox test-scenario create --project 8689463 --file docs/apifox/8689463/test-scenarios/full-contract-regression.create.json
+apifox test-scenario import-steps <scenarioId> --project 8689463 --source test-case --endpoint <endpointId> --ids "<caseId[,caseId]>" --sync manual
+apifox test-scenario get <scenarioId> --project 8689463 --with-case-detail
+apifox test-scenario run <scenarioId> --project 8689463 --environment <environmentId> --global-var "JWT_TOKEN=mock-token" --reporters json --out-dir <temporaryReportDir>
+```
+
+2026-08-12 场景验收：回读得到 22 个启用的 HTTP 步骤，编号 1–22 唯一连续，覆盖 18 个接口并保留 60 个断言；隔离运行 22/22 步骤、22/22 请求和 60/60 断言通过，0 失败、0 运行时错误、0 个非本机请求。

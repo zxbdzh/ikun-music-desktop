@@ -1,0 +1,23 @@
+{
+  "sync": "manual",
+  "imports": [
+    { "endpointId": 498765763, "testCaseIds": [403017260, 403017263] },
+    { "endpointId": 498765764, "testCaseIds": [403017259] },
+    { "endpointId": 498765765, "testCaseIds": [403017261] },
+    { "endpointId": 498765766, "testCaseIds": [403017262] },
+    { "endpointId": 498765767, "testCaseIds": [403017264] },
+    { "endpointId": 498765768, "testCaseIds": [403017269] },
+    { "endpointId": 498765769, "testCaseIds": [403017265] },
+    { "endpointId": 498765770, "testCaseIds": [403017270] },
+    { "endpointId": 498765771, "testCaseIds": [403017271] },
+    { "endpointId": 498765772, "testCaseIds": [403017266, 403017273] },
+    { "endpointId": 498765773, "testCaseIds": [403017272] },
+    { "endpointId": 498765774, "testCaseIds": [403017276] },
+    { "endpointId": 498765775, "testCaseIds": [403017275] },
+    { "endpointId": 498765776, "testCaseIds": [403016684] },
+    { "endpointId": 498765777, "testCaseIds": [403017267] },
+    { "endpointId": 498765778, "testCaseIds": [403017278, 403017274] },
+    { "endpointId": 498765779, "testCaseIds": [403017277] },
+    { "endpointId": 498765782, "testCaseIds": [403017268, 403017347] }
+  ]
+}
