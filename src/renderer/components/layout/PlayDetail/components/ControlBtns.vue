@@ -18,7 +18,7 @@ div(:class="$style.footerLeftControlBtns")
   common-playback-rate-btn
   common-volume-btn
   common-toggle-play-mode-btn
-  button(:class="$style.footerLeftControlBtn" :aria-label="$t('share__title')" @click="handleShareCurrentMusic")
+  button(:class="[$style.footerLeftControlBtn, $style.shareBtn]" type="button" :aria-label="$t('share__title')" :title="$t('share__title')" @click="handleShareCurrentMusic")
     svg(version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" width="95%" viewBox="0 0 24 24" space="preserve")
       use(xlink:href="#icon-refresh")
   button(:class="$style.footerLeftControlBtn" :aria-label="$t('song_memory')" @click="handleOpenSongMemory")
@@ -151,6 +151,25 @@ export default {
     &.active {
       color: var(--color-primary);
       opacity: 0.8;
+    }
+
+    &.shareBtn {
+      width: 44px;
+      height: 44px;
+      flex: 0 0 44px;
+      box-sizing: border-box;
+      padding: 12px;
+      border-radius: 6px;
+
+      svg {
+        width: 20px;
+        height: 20px;
+      }
+
+      &:focus-visible {
+        outline: 2px solid var(--color-primary);
+        outline-offset: 2px;
+      }
     }
   }
 

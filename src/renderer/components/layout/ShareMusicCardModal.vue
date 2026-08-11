@@ -1654,4 +1654,10 @@ watch(
     overflow-x: auto;
   }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .page {
+    animation: none !important;
+  }
+}
 </style>
