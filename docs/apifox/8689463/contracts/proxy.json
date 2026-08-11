@@ -64,10 +64,10 @@
       "id": "138519782",
       "name": "请求有误",
       "code": 400,
-      "contentType": "noContent",
-      "jsonSchema": {},
+      "contentType": "json",
+      "jsonSchema": { "$ref": "#/definitions/302532840" },
       "itemSchema": {},
-      "description": "缺少或无法解析 url；当前服务返回空响应体。",
+      "description": "缺少或无法解析 url。",
       "mediaType": "application/json",
       "headers": [],
       "oasExtensions": "{}"

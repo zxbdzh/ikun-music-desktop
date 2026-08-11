@@ -6,7 +6,7 @@
 
 `contracts/` 保存需要完整结构更新的接口 payload。执行更新前必须重新 `endpoint get` 对照远端资源，并通过 `endpoint-create` Schema 校验；`endpoint update` 是 PUT 风格操作，不会按响应 ID 合并数组。
 
-- `contracts/proxy.json`：将 `/proxy` 的 200 主响应修正为 XML 字符串，并按生产实测将缺少 URL 的 400 响应修正为空体；HTML、纯文本、二进制等附加媒体类型以及 502 错误 Schema 均保留。
+- `contracts/proxy.json`：将 `/proxy` 的 200 主响应修正为 XML 字符串；缺少 URL 的 400 与 502 均继续引用生产响应匹配的 `ProxyError`。HTML、纯文本、二进制等附加媒体类型均保留。
 
 ## Mock
 

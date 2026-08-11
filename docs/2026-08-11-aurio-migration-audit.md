@@ -126,13 +126,13 @@ Apifox CLI 2.2.9 的整改阶段 1 回读结果：
 3. `/podcasts` 存在错误重复的 200 响应 `165266986`。
 4. `/stats/popular-sources` 存在错误重复的 200 响应 `166940786`。
 5. 项目设置为 `allowAutomationWriteMainBranch=true`，`main` 未保护，且本阶段直接更新已成功；分支详情仍返回 `isAiWritableBranch=false`，该字段不能作为当前写权限的唯一判据。
-6. 单接口运行发现 `/proxy` 的 200 实际返回 XML、400 实际返回空体，与原 JSON/ApiError 声明不一致；现已修正为 XML 字符串与空响应体，并完整保留 7 种附加媒体类型和 502 错误 Schema。
+6. 单接口运行发现 `/proxy` 的 200 实际返回 XML，与原主响应 JSON 声明不一致；现已修正为 XML 字符串，并完整保留 7 种附加媒体类型。400 与 502 的 `ProxyError` Schema 经生产响应复核后保持不变。
 
 本阶段已按 `cli-schema get -> validate -> update -> get` 闭环修复 `/sync/pull`，未写入真实 Bearer，也未删除任何响应。Apifox 仍不能判定为“迁移完成”或“质量门禁就绪”；删除两个重复响应属于破坏性操作，执行前仍需单独确认。
 
 Mock 阶段已按 `cli-schema get -> validate -> create -> get/list` 闭环完成：18 份创建 payload 全部通过 `mock-create` 校验，远端 18 个 Mock 恰好覆盖 18 个接口，缺失、越界和重复覆盖均为 0。`/proxy` 的固定 RSS 样例同时包含原始文章链接和音频 enclosure，可用于博客长内容分享及音频回退验证；所有文件仅含 mock 占位数据。
 
-`/proxy` 契约修复同样完成 `get -> validate -> update -> get` 闭环：1 个查询参数和 3 个响应均保留，200 主响应为 XML 字符串，400 为空体，502 继续引用既有错误 Schema。
+`/proxy` 契约修复同样完成 `get -> validate -> update -> get` 闭环：1 个查询参数和 3 个响应均保留，200 主响应为 XML 字符串，400 与 502 继续引用既有 `ProxyError` Schema。
 
 ## 验证证据
 
