@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import {
   aurioExpected,
@@ -6,6 +7,11 @@ import {
   verifyJsonReport,
   verifyJunitReport
 } from './aurio-contract-verifier.mjs'
+
+const regressionWorkflow = readFileSync(
+  new URL('../../.github/workflows/aurio-contract-regression.yml', import.meta.url),
+  'utf8'
+)
 
 function reportItem ([method, path], index) {
   return {
@@ -96,6 +102,17 @@ test('accepts complete JSON, JUnit, and Mock audit evidence', () => {
     assertions: 60
   })
   assert.deepEqual(verifyAuditLog(validAuditLog()), { requests: 22 })
+})
+
+test('keeps privileged regression on main and the protected environment', () => {
+  assert.match(regressionWorkflow, /^    if: github\.ref == 'refs\/heads\/main'$/m)
+  assert.match(regressionWorkflow, /^    environment: aurio-contract-regression$/m)
+  assert.match(
+    regressionWorkflow,
+    /Missing APIFOX_ACCESS_TOKEN Environment Secret in protected environment aurio-contract-regression/
+  )
+  assert.doesNotMatch(regressionWorkflow, /^  pull_request(?:_target)?:/m)
+  assert.doesNotMatch(regressionWorkflow, /APIFOX_ACCESS_TOKEN repository secret/i)
 })
 
 test('rejects JSON stats that do not explicitly pass every step', () => {

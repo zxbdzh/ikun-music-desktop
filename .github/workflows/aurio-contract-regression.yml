@@ -24,6 +24,8 @@ concurrency:
 jobs:
   contract-regression:
     name: Isolated Apifox suite
+    if: github.ref == 'refs/heads/main'
+    environment: aurio-contract-regression
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -46,7 +48,7 @@ jobs:
       - name: Verify Apifox access token
         env:
           APIFOX_ACCESS_TOKEN: ${{ secrets.APIFOX_ACCESS_TOKEN }}
-        run: test -n "$APIFOX_ACCESS_TOKEN" || { echo '::error::Missing APIFOX_ACCESS_TOKEN repository secret'; exit 1; }
+        run: test -n "$APIFOX_ACCESS_TOKEN" || { echo '::error::Missing APIFOX_ACCESS_TOKEN Environment Secret in protected environment aurio-contract-regression'; exit 1; }
 
       - name: Run isolated contract suite
         env:
