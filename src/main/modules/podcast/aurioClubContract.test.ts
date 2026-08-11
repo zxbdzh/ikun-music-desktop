@@ -1,4 +1,12 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, expectTypeOf, it, vi } from 'vitest'
+import type {
+  AurioClubAuthSessionData,
+  AurioClubItunesSearchResponse,
+  AurioClubPodcast,
+  AurioClubPopularSource,
+  AurioClubSyncPullData,
+  AurioClubUserData,
+} from './aurioClubContract'
 import { AurioClubClient } from './aurioClubClient'
 
 const CORE_BASE_URL = 'https://core.example/api/v1'
@@ -23,7 +31,7 @@ describe('AurioClubClient released endpoint contract', () => {
         code: 'SUCCESS',
         message: 'ok',
         trace_id: 'trace-contract',
-        data: {},
+        data: contractDataFor(url),
       })
     })
     const client = new AurioClubClient({
@@ -123,6 +131,29 @@ describe('AurioClubClient released endpoint contract', () => {
   })
 })
 
+describe('AurioClubClient response types', () => {
+  it('exposes the documented structured response contracts', () => {
+    expectTypeOf<ReturnType<AurioClubClient['catalog']>>()
+      .toEqualTypeOf<Promise<AurioClubPodcast[]>>()
+    expectTypeOf<ReturnType<AurioClubClient['popularSources']>>()
+      .toEqualTypeOf<Promise<AurioClubPopularSource[]>>()
+    expectTypeOf<ReturnType<AurioClubClient['searchItunes']>>()
+      .toEqualTypeOf<Promise<AurioClubItunesSearchResponse>>()
+    expectTypeOf<ReturnType<AurioClubClient['loginPassword']>>()
+      .toEqualTypeOf<Promise<AurioClubAuthSessionData>>()
+    expectTypeOf<ReturnType<AurioClubClient['loginEmail']>>()
+      .toEqualTypeOf<Promise<AurioClubAuthSessionData>>()
+    expectTypeOf<ReturnType<AurioClubClient['registerPassword']>>()
+      .toEqualTypeOf<Promise<AurioClubAuthSessionData>>()
+    expectTypeOf<ReturnType<AurioClubClient['me']>>()
+      .toEqualTypeOf<Promise<AurioClubUserData>>()
+    expectTypeOf<ReturnType<AurioClubClient['updateProfile']>>()
+      .toEqualTypeOf<Promise<AurioClubUserData>>()
+    expectTypeOf<ReturnType<AurioClubClient['pull']>>()
+      .toEqualTypeOf<Promise<AurioClubSyncPullData>>()
+  })
+})
+
 const normalizeCall = (input: RequestInfo | URL, init?: RequestInit) => {
   const url = new URL(String(input))
   return {
@@ -141,6 +172,31 @@ const request = (
   origin = new URL(CORE_BASE_URL).origin,
   authenticated = false
 ) => ({ method, origin: new URL(origin).origin, path, body, authenticated })
+
+const aurioUser = {
+  id: 'user-1',
+  email: 'user@example.com',
+  username: 'AurioUser',
+  points: 0,
+  membership_tier: 'free',
+  is_premium: 0,
+} as const
+
+const contractDataFor = (url: string): unknown => {
+  if (url.endsWith('/podcasts') || url.includes('/stats/popular-sources')) return []
+  if (
+    url.endsWith('/auth/login-password') ||
+    url.endsWith('/auth/login-email') ||
+    url.endsWith('/auth/register-password')
+  ) {
+    return { token: 'test-token', user: aurioUser }
+  }
+  if (url.endsWith('/auth/me') || url.endsWith('/auth/profile')) return { user: aurioUser }
+  if (url.includes('/sync/pull')) {
+    return { states: [], server_time: 1_786_032_000 }
+  }
+  return {}
+}
 
 const jsonResponse = (value: unknown) => new Response(JSON.stringify(value), {
   status: 200,

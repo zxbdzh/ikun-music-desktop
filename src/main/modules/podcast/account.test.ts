@@ -14,8 +14,8 @@ vi.mock('electron', () => ({
 describe('PodcastModule account workflows', () => {
   it('reuses the login workflow after password registration', async () => {
     const client = {
-      registerPassword: vi.fn(async () => ({ token: 'token-1' })),
-      me: vi.fn(async () => ({ id: 'user-1', email: 'user@example.com', username: 'AurioUser' })),
+      registerPassword: vi.fn(async () => ({ token: 'token-1', user: aurioUser })),
+      me: vi.fn(async () => ({ user: aurioUser })),
     }
     const module = preparedModule(client)
     const persistSession = vi.fn()
@@ -47,7 +47,7 @@ describe('PodcastModule account workflows', () => {
   it('refreshes the in-memory account after a profile update', async () => {
     const client = {
       updateProfile: vi.fn(async () => ({
-        user: { id: 'user-1', email: 'user@example.com', username: 'NewName' },
+        user: { ...aurioUser, username: 'NewName' },
       })),
     }
     const module = preparedModule(client, signedInSession())
@@ -141,6 +141,15 @@ const signedInSession = (): LX.Podcast.Session => ({
   syncEnabled: true,
   syncState: 'idle',
 })
+
+const aurioUser = {
+  id: 'user-1',
+  email: 'user@example.com',
+  username: 'AurioUser',
+  points: 0,
+  membership_tier: 'free',
+  is_premium: 0,
+} as const
 
 const preparedModule = (
   client: Record<string, unknown>,

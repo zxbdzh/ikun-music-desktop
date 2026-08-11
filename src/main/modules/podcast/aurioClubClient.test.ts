@@ -21,7 +21,14 @@ describe('AurioClubClient request routing', () => {
   })
 
   it('falls back to the official iTunes Search API when the edge search fails', async () => {
-    const result = { resultCount: 1, results: [{ trackId: 1602959416 }] }
+    const result = {
+      resultCount: 1,
+      results: [{
+        trackId: 1602959416,
+        collectionName: '大小马聊科技',
+        feedUrl: 'https://feeds.example/show.xml',
+      }],
+    }
     const fetcher = vi
       .fn()
       .mockResolvedValueOnce(
@@ -73,7 +80,7 @@ describe('AurioClubClient request routing', () => {
   })
 
   it('routes public registration and password reset requests with API field names', async () => {
-    const fetcher = vi.fn(async () => envelopeResponse({ token: 'token-1' }))
+    const fetcher = vi.fn(async () => envelopeResponse({ token: 'token-1', user: userData }))
     const client = new AurioClubClient({
       coreBaseUrl: 'https://core.example/api/v1',
       fetcher: fetcher as unknown as typeof fetch,
@@ -109,8 +116,8 @@ describe('AurioClubClient request routing', () => {
   })
 
   it('routes authenticated profile, password, and device requests with a bearer token', async () => {
-    const fetcher = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
-      envelopeResponse({ id: 'user-1' })
+    const fetcher = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) =>
+      envelopeResponse(String(input).endsWith('/auth/profile') ? { user: userData } : {})
     )
     const client = new AurioClubClient({
       coreBaseUrl: 'https://core.example/api/v1',
@@ -175,12 +182,149 @@ describe('AurioClubClient request routing', () => {
       })
     )
   })
+
+  it('accepts minimal contract data, nullable sync fields, and unknown additions', async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(envelopeResponse([{
+        id: 1,
+        rss_url: 'https://feeds.example/show.xml',
+        name: { zh: '示例播客' },
+        future_field: true,
+      }]))
+      .mockResolvedValueOnce(envelopeResponse({
+        states: [{
+          podcast_id: 'episode-1',
+          server_updated_at: 1_786_032_000,
+          position_seconds: null,
+          is_finished: null,
+          is_favorite: null,
+          history_hidden: null,
+          article_metadata_json: null,
+          future_field: true,
+        }],
+        preferences: {
+          server_updated_at: 1_786_032_000,
+          subscriptions_json: null,
+          app_settings_json: null,
+          future_field: true,
+        },
+        server_time: 1_786_032_000,
+        future_field: true,
+      })) as unknown as typeof fetch
+    const client = new AurioClubClient({
+      coreBaseUrl: 'https://core.example/api/v1',
+      getToken: async () => 'token-1',
+      fetcher,
+    })
+
+    await expect(client.catalog()).resolves.toHaveLength(1)
+    await expect(client.pull(0)).resolves.toMatchObject({
+      states: [{ position_seconds: null }],
+      preferences: { subscriptions_json: null },
+    })
+  })
+
+  it('rejects invalid envelope data with its trace ID', async () => {
+    const fetcher = vi.fn(async () => envelopeResponse([{
+      id: 1,
+      rss_url: 'https://feeds.example/show.xml',
+      name: 'invalid',
+    }], 'trace-contract')) as unknown as typeof fetch
+    const client = new AurioClubClient({
+      coreBaseUrl: 'https://core.example/api/v1',
+      fetcher,
+    })
+
+    await expect(client.catalog()).rejects.toMatchObject({
+      code: 'INVALID_RESPONSE',
+      traceId: 'trace-contract',
+      status: 200,
+    })
+  })
+
+  it.each([
+    {
+      name: 'popular sources',
+      data: [{ source: '节目', total_duration: '3600', view_count: 1 }],
+      invoke: (client: AurioClubClient) => client.popularSources(7, 'duration'),
+    },
+    {
+      name: 'authentication sessions',
+      data: { token: 'token-1', user: { ...userData, points: '0' } },
+      invoke: (client: AurioClubClient) => client.loginPassword('user@example.com', 'password'),
+    },
+    {
+      name: 'user profiles',
+      data: { user: { ...userData, is_premium: 2 } },
+      invoke: (client: AurioClubClient) => client.me(),
+    },
+    {
+      name: 'sync pulls',
+      data: { states: [], server_time: '1786032000' },
+      invoke: (client: AurioClubClient) => client.pull(0),
+    },
+  ])('rejects invalid $name data without coercing wire types', async ({ data, invoke }) => {
+    const fetcher = vi.fn(async () => envelopeResponse(data, 'trace-invalid'))
+    const client = new AurioClubClient({
+      coreBaseUrl: 'https://core.example/api/v1',
+      getToken: async () => 'token-1',
+      fetcher: fetcher as unknown as typeof fetch,
+    })
+
+    await expect(invoke(client)).rejects.toMatchObject({
+      code: 'INVALID_RESPONSE',
+      traceId: 'trace-invalid',
+      status: 200,
+    })
+  })
+
+  it.each([1_786_032_000, '1786032000', null])(
+    'accepts the documented subscription expiration shape: %s',
+    async (subscriptionExpiresAt) => {
+      const data = {
+        user: { ...userData, subscription_expires_at: subscriptionExpiresAt },
+      }
+      const fetcher = vi.fn(async () => envelopeResponse(data))
+      const client = new AurioClubClient({
+        coreBaseUrl: 'https://core.example/api/v1',
+        getToken: async () => 'token-1',
+        fetcher: fetcher as unknown as typeof fetch,
+      })
+
+      await expect(client.me()).resolves.toEqual(data)
+    }
+  )
+
+  it('rejects invalid direct iTunes data after the official fallback', async () => {
+    const fetcher = vi.fn(async () => new Response(JSON.stringify({ results: [{}] }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })) as unknown as typeof fetch
+    const client = new AurioClubClient({ edgeBaseUrl: 'https://edge.example', fetcher })
+
+    await expect(client.searchItunes('technology')).rejects.toMatchObject({
+      code: 'INVALID_RESPONSE',
+      traceId: '',
+      status: 200,
+    })
+    expect(fetcher).toHaveBeenCalledTimes(2)
+  })
 })
 
-const envelopeResponse = (data: unknown) => new Response(JSON.stringify({
+const userData = {
+  id: 'user-1',
+  email: 'user@example.com',
+  username: 'AurioUser',
+  points: 0,
+  membership_tier: 'free',
+  is_premium: 0,
+} as const
+
+const envelopeResponse = (data: unknown, traceId = 'trace-1') => new Response(JSON.stringify({
   success: true,
   code: 'SUCCESS',
   message: 'ok',
-  trace_id: 'trace-1',
+  trace_id: traceId,
   data,
 }), { status: 200, headers: { 'Content-Type': 'application/json' } })

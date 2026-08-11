@@ -1,3 +1,18 @@
+import {
+  decodeAurioClubAuthSession,
+  decodeAurioClubItunesSearch,
+  decodeAurioClubPodcasts,
+  decodeAurioClubPopularSources,
+  decodeAurioClubSyncPull,
+  decodeAurioClubUserData,
+  type AurioClubAuthSessionData,
+  type AurioClubItunesSearchResponse,
+  type AurioClubPodcast,
+  type AurioClubPopularSource,
+  type AurioClubSyncPullData,
+  type AurioClubUserData,
+} from './aurioClubContract'
+
 const CORE_BASE_URL = 'https://api.aurioclub.com/api/v1'
 const EDGE_BASE_URL = 'https://app.aurioclub.com'
 const ITUNES_BASE_URL = 'https://itunes.apple.com'
@@ -44,28 +59,32 @@ export class AurioClubClient {
     this.fetcher = options.fetcher ?? fetch
   }
 
-  async catalog(): Promise<unknown> {
-    return this.request('/podcasts')
+  async catalog(): Promise<AurioClubPodcast[]> {
+    return this.request('/podcasts', { decode: decodeAurioClubPodcasts })
   }
 
   async popularSources(
     days: LX.Podcast.PopularPeriod,
     sort: LX.Podcast.PopularSort
-  ): Promise<unknown> {
-    return this.request(`/stats/popular-sources?days=${days}&sort=${sort}`)
+  ): Promise<AurioClubPopularSource[]> {
+    return this.request(`/stats/popular-sources?days=${days}&sort=${sort}`, {
+      decode: decodeAurioClubPopularSources,
+    })
   }
 
-  async searchItunes(query: string): Promise<unknown> {
+  async searchItunes(query: string): Promise<AurioClubItunesSearchResponse> {
     const term = encodeURIComponent(query)
     try {
       return await this.request(`/api/itunes-search?term=${term}`, {
         edge: true,
         envelope: false,
+        decode: decodeAurioClubItunesSearch,
       })
     } catch {
       return this.request(`/search?term=${term}&media=podcast`, {
         baseUrl: ITUNES_BASE_URL,
         envelope: false,
+        decode: decodeAurioClubItunesSearch,
       })
     }
   }
@@ -82,18 +101,31 @@ export class AurioClubClient {
     await this.request('/auth/send-code', { method: 'POST', body: { email } })
   }
 
-  async loginPassword(email: string, password: string): Promise<unknown> {
-    return this.request('/auth/login-password', { method: 'POST', body: { email, password } })
+  async loginPassword(email: string, password: string): Promise<AurioClubAuthSessionData> {
+    return this.request('/auth/login-password', {
+      method: 'POST',
+      body: { email, password },
+      decode: decodeAurioClubAuthSession,
+    })
   }
 
-  async loginEmail(email: string, code: string): Promise<unknown> {
-    return this.request('/auth/login-email', { method: 'POST', body: { email, code } })
+  async loginEmail(email: string, code: string): Promise<AurioClubAuthSessionData> {
+    return this.request('/auth/login-email', {
+      method: 'POST',
+      body: { email, code },
+      decode: decodeAurioClubAuthSession,
+    })
   }
 
-  async registerPassword(email: string, code: string, password: string): Promise<unknown> {
+  async registerPassword(
+    email: string,
+    code: string,
+    password: string
+  ): Promise<AurioClubAuthSessionData> {
     return this.request('/auth/register-password', {
       method: 'POST',
       body: { email, code, password },
+      decode: decodeAurioClubAuthSession,
     })
   }
 
@@ -104,15 +136,19 @@ export class AurioClubClient {
     })
   }
 
-  async me(): Promise<unknown> {
-    return this.request('/auth/me', { authenticated: true })
+  async me(): Promise<AurioClubUserData> {
+    return this.request('/auth/me', {
+      authenticated: true,
+      decode: decodeAurioClubUserData,
+    })
   }
 
-  async updateProfile(username: string): Promise<unknown> {
+  async updateProfile(username: string): Promise<AurioClubUserData> {
     return this.request('/auth/profile', {
       method: 'PUT',
       body: { username },
       authenticated: true,
+      decode: decodeAurioClubUserData,
     })
   }
 
@@ -140,9 +176,10 @@ export class AurioClubClient {
     })
   }
 
-  async pull(since: number): Promise<unknown> {
+  async pull(since: number): Promise<AurioClubSyncPullData> {
     return this.request(`/sync/pull?since=${Math.max(0, Math.floor(since))}`, {
       authenticated: true,
+      decode: decodeAurioClubSyncPull,
     })
   }
 
@@ -168,6 +205,7 @@ export class AurioClubClient {
       baseUrl?: string
       envelope?: boolean
       response?: 'json' | 'text' | 'none'
+      decode?: (value: unknown) => T
     } = {}
   ): Promise<T> {
     const controller = new AbortController()
@@ -203,7 +241,7 @@ export class AurioClubClient {
       const value = (await response.json()) as unknown
       if (options.envelope === false) {
         if (!response.ok) throw await toHttpError(response, value)
-        return value as T
+        return decodeData(value, options.decode, '', response.status)
       }
       if (!isEnvelope(value)) {
         throw new AurioClubError('AurioClub 返回了无法识别的数据', 'INVALID_RESPONSE', '', response.status)
@@ -211,10 +249,30 @@ export class AurioClubClient {
       if (!response.ok || !value.success) {
         throw new AurioClubError(value.message, value.code, value.trace_id, response.status)
       }
-      return value.data as T
+      return decodeData(value.data, options.decode, value.trace_id, response.status)
     } finally {
       clearTimeout(timeout)
     }
+  }
+}
+
+const decodeData = <T>(
+  value: unknown,
+  decode: ((value: unknown) => T) | undefined,
+  traceId: string,
+  status: number
+): T => {
+  if (!decode) return value as T
+  try {
+    return decode(value)
+  } catch (error) {
+    const detail = error instanceof Error ? `：${error.message}` : ''
+    throw new AurioClubError(
+      `AurioClub 返回了无法识别的数据${detail}`,
+      'INVALID_RESPONSE',
+      traceId,
+      status
+    )
   }
 }
 
