@@ -59,3 +59,19 @@ apifox test-scenario run <scenarioId> --project 8689463 --environment <environme
 ```
 
 2026-08-12 场景验收：回读得到 22 个启用的 HTTP 步骤，编号 1–22 唯一连续，覆盖 18 个接口并保留 60 个断言；隔离运行 22/22 步骤、22/22 请求和 60/60 断言通过，0 失败、0 运行时错误、0 个非本机请求。
+
+## 套件与 CI 门禁
+
+`test-suites/full-contract-regression.create.json` 使用前端兼容的 `STATIC_TEST_SCENARIO` 结构引用全接口场景。远端“AurioClub 隔离契约回归套件”包含 1 个非空套件项；2026-08-12 上传的云报告 `25268012` 状态为 `done`，22/22 步骤通过。本地报告额外确认 22/22 请求、60/60 断言、0 失败和 0 个非本机目标。
+
+`scripts/apifox/run-aurio-contract-regression.mjs` 负责启动隔离 Mock、运行套件、校验固定统计、拒绝非本机请求，并在 `finally` 中停止子进程和删除含凭据快照的临时报告。可通过以下入口运行：
+
+```powershell
+npm run test:apifox
+$env:APIFOX_ACCESS_TOKEN = '<repository-secret>'
+npm run test:apifox -- --upload-report
+```
+
+`.github/workflows/aurio-contract-regression.yml` 在 `main` 的治理资产发生变化时、手动触发时，以及每天 `02:30 UTC` 定时运行同一编排器。工作流要求仓库 Secret `APIFOX_ACCESS_TOKEN`；当前远端尚未配置该 Secret，因此工作流在首次远端运行前仍有一个外部配置步骤。
+
+项目当前没有 Apifox Runner。Apifox 云端定时任务无法启动本仓库的 Mock，也无法访问 `127.0.0.1:48765`，因此未创建一个必然失败的 Apifox 定时任务；定时门禁由能在作业内启动 Mock 的 GitHub Actions 承担。

@@ -1,0 +1,48 @@
+name: AurioClub Contract Regression
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '30 2 * * *'
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/aurio-contract-regression.yml'
+      - 'docs/apifox/8689463/**'
+      - 'scripts/apifox/**'
+      - 'package.json'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aurio-contract-regression
+  cancel-in-progress: false
+
+jobs:
+  contract-regression:
+    name: Isolated Apifox suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Apifox CLI
+        run: npm install --global apifox-cli@2.2.9
+
+      - name: Verify Apifox access token
+        env:
+          APIFOX_ACCESS_TOKEN: ${{ secrets.APIFOX_ACCESS_TOKEN }}
+        run: test -n "$APIFOX_ACCESS_TOKEN" || { echo '::error::Missing APIFOX_ACCESS_TOKEN repository secret'; exit 1; }
+
+      - name: Run isolated contract suite
+        env:
+          APIFOX_ACCESS_TOKEN: ${{ secrets.APIFOX_ACCESS_TOKEN }}
+        run: npm run test:apifox -- --upload-report
