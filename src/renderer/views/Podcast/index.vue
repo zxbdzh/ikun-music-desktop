@@ -162,16 +162,39 @@
             <button
               v-if="!selectedSource.subscribed"
               type="button"
-              @click="subscribeTarget = selectedSource"
+              :data-podcast-subscription-action="selectedSource.id"
+              :disabled="sourceActionBusy"
+              @click="openSubscribeDialog(selectedSource)"
             >
               订阅
             </button>
-            <button v-else type="button" @click="unsubscribe(selectedSource)">取消订阅</button>
-            <button type="button" :disabled="loadingEpisodes" @click="loadEpisodes(true)">刷新单集</button>
+            <button
+              v-else
+              type="button"
+              :data-podcast-subscription-action="selectedSource.id"
+              :disabled="sourceActionBusy"
+              @click="unsubscribe(selectedSource)"
+            >
+              {{ sourceActionBusy ? '取消中' : '取消订阅' }}
+            </button>
+            <button type="button" :disabled="loadingEpisodes" @click="loadEpisodes(true)">
+              {{ loadingEpisodes ? '刷新中' : '刷新单集' }}
+            </button>
           </div>
+          <p
+            v-if="sourceActionMessage"
+            :class="[$style.showActionMessage, { [$style.error]: sourceActionError }]"
+            :role="sourceActionError ? 'alert' : 'status'"
+          >
+            {{ sourceActionMessage }}
+          </p>
 
           <div :class="$style.episodeList">
-            <article v-for="(episode, index) in episodes" :key="episode.id" :class="$style.episode">
+            <article
+              v-for="(episode, index) in visibleEpisodes"
+              :key="episode.id"
+              :class="$style.episode"
+            >
               <div>
                 <h3>{{ episode.title }}</h3>
                 <p>
@@ -211,17 +234,34 @@
                     {{ transcriptionWarning(transcriptionStatuses[episode.id], now) }}
                   </small>
                 </div>
+                <small
+                  v-if="episodeActionErrors[episode.id]"
+                  :class="$style.episodeActionError"
+                  role="alert"
+                >
+                  {{ episodeActionErrors[episode.id] }}
+                </small>
               </div>
               <div :class="$style.episodeActions">
                 <button
                   type="button"
+                  :disabled="favoriteBusy.has(episode.id)"
                   :title="episodeStates[episode.id]?.isFavorite ? '取消收藏' : '收藏'"
                   @click="toggleFavorite(episode)"
                 >
-                  {{ episodeStates[episode.id]?.isFavorite ? '已收藏' : '收藏' }}
+                  {{ favoriteBusy.has(episode.id)
+                    ? '处理中'
+                    : episodeStates[episode.id]?.isFavorite ? '已收藏' : '收藏' }}
                 </button>
-                <button type="button" title="下载" @click="downloadEpisode(episode)">
-                  {{ downloaded.has(episode.id) ? '已下载' : '下载' }}
+                <button
+                  type="button"
+                  :disabled="downloading.has(episode.id) || downloadStates[episode.id]?.isDownloaded"
+                  :title="downloadStates[episode.id]?.isDownloaded ? '已下载' : '下载'"
+                  @click="downloadEpisode(episode)"
+                >
+                  {{ downloading.has(episode.id)
+                    ? '下载中'
+                    : downloadStates[episode.id]?.isDownloaded ? '已下载' : '下载' }}
                 </button>
                 <button
                   type="button"
@@ -245,6 +285,14 @@
                 <button type="button" title="播放" @click="playEpisode(index)">播放</button>
               </div>
             </article>
+            <button
+              v-if="hasMoreEpisodes"
+              type="button"
+              :class="$style.loadMore"
+              @click="loadMoreEpisodes"
+            >
+              加载更多（剩余 {{ episodes.length - visibleEpisodes.length }} 集）
+            </button>
             <p v-if="!loadingEpisodes && !episodes.length" :class="$style.empty">暂无单集</p>
           </div>
         </template>
@@ -273,8 +321,14 @@
             </small>
           </div>
           <div :class="$style.episodeActions">
-            <button type="button" @click="toggleFavorite(item.episode, item.state)">
-              {{ item.state.isFavorite ? '取消收藏' : '收藏' }}
+            <button
+              type="button"
+              :disabled="favoriteBusy.has(item.episode.id)"
+              @click="toggleFavorite(item.episode, item.state)"
+            >
+              {{ favoriteBusy.has(item.episode.id)
+                ? '处理中'
+                : item.state.isFavorite ? '取消收藏' : '收藏' }}
             </button>
             <button type="button" @click="playLibraryEpisode(index)">播放</button>
           </div>
@@ -621,14 +675,29 @@
       </section>
     </details>
 
-    <div v-if="subscribeTarget" :class="$style.modalBackdrop" @click.self="subscribeTarget = null">
-      <section :class="$style.modal" role="dialog" aria-modal="true" aria-labelledby="subscribe-title">
+    <div v-if="subscribeTarget" :class="$style.modalBackdrop" @click.self="closeSubscribeDialog">
+      <section
+        ref="subscribeDialog"
+        :class="$style.modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="subscribe-title"
+        tabindex="-1"
+        @keydown="handleSubscribeDialogKeydown"
+      >
         <h2 id="subscribe-title">订阅 {{ subscribeTarget.title }}</h2>
         <p>是否自动下载最新 3 个未播放单集？自动下载使用任意网络，手动下载内容不会自动删除。</p>
+        <p v-if="subscriptionError" :class="$style.modalError" role="alert">
+          {{ subscriptionError }}
+        </p>
         <div>
-          <button type="button" @click="subscribeTarget = null">取消</button>
-          <button type="button" @click="subscribe(false)">仅订阅</button>
-          <button type="button" @click="subscribe(true)">订阅并自动下载</button>
+          <button type="button" @click="closeSubscribeDialog">取消</button>
+          <button type="button" :disabled="subscriptionBusy" @click="subscribe(false)">
+            {{ subscriptionBusy ? '处理中' : '仅订阅' }}
+          </button>
+          <button type="button" :disabled="subscriptionBusy" @click="subscribe(true)">
+            {{ subscriptionBusy ? '处理中' : '订阅并自动下载' }}
+          </button>
         </div>
       </section>
     </div>
@@ -636,7 +705,7 @@
 </template>
 
 <script lang="ts">
-import { computed, onBeforeUnmount, ref } from '@common/utils/vueTools'
+import { computed, nextTick, onBeforeUnmount, ref } from '@common/utils/vueTools'
 import { LIST_IDS } from '@common/constants'
 import { openSaveDir, sendPodcastCommand, showSelectDialog } from '@renderer/utils/ipc'
 import { setTempList } from '@renderer/store/list/action'
@@ -682,6 +751,16 @@ const formatDuration = (seconds: number) => {
     : `${minutes}:${String(rest).padStart(2, '0')}`
 }
 
+const EPISODE_PAGE_SIZE = 50
+const DIALOG_FOCUSABLE_SELECTOR = [
+  'button:not([disabled])',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[href]',
+  '[tabindex]:not([tabindex="-1"])',
+].join(',')
+
 export default {
   name: 'Podcast',
   setup() {
@@ -724,7 +803,20 @@ export default {
     const hasSubscriptions = computed(() => sources.value.some((source) => source.subscribed))
     const selectedSource = ref<LX.Podcast.Source | null>(null)
     const subscribeTarget = ref<LX.Podcast.Source | null>(null)
-    const downloaded = ref(new Set<string>())
+    const subscribeDialog = ref<HTMLElement | null>(null)
+    const subscriptionBusy = ref(false)
+    const subscriptionError = ref('')
+    const sourceActionBusy = ref(false)
+    const sourceActionMessage = ref('')
+    const sourceActionError = ref(false)
+    const downloadStates = ref<Record<string, LX.Podcast.DownloadState | undefined>>({})
+    const downloading = ref(new Set<string>())
+    const favoriteBusy = ref(new Set<string>())
+    const episodeActionErrors = ref<Record<string, string | undefined>>({})
+    const visibleEpisodeCount = ref(EPISODE_PAGE_SIZE)
+    const visibleEpisodes = computed(() => episodes.value.slice(0, visibleEpisodeCount.value))
+    const hasMoreEpisodes = computed(() => visibleEpisodeCount.value < episodes.value.length)
+    let subscribeTrigger: HTMLElement | null = null
     const transcriptionStatuses = ref<Record<string, LX.Podcast.TranscriptionStatus | null>>({})
     const session = ref<LX.Podcast.Session | null>(null)
     const syncPresentation = computed(() => syncStatusPresentation(session.value))
@@ -923,7 +1015,28 @@ export default {
         action: 'episode-states',
         episodeIds,
       })
-      episodeStates.value = Object.fromEntries(states.map((state) => [state.episodeId, state]))
+      episodeStates.value = {
+        ...episodeStates.value,
+        ...Object.fromEntries(states.map((state) => [state.episodeId, state])),
+      }
+    }
+    const loadDownloadStates = async (episodeIds: string[]) => {
+      const states = await sendPodcastCommand<LX.Podcast.DownloadState[]>({
+        action: 'download-states',
+        episodeIds,
+      })
+      downloadStates.value = {
+        ...downloadStates.value,
+        ...Object.fromEntries(states.map((state) => [state.episodeId, state])),
+      }
+    }
+    const loadEpisodeMetadata = async (items: LX.Podcast.Episode[]) => {
+      const episodeIds = items.map((episode) => episode.id)
+      await Promise.all([loadEpisodeStates(episodeIds), loadDownloadStates(episodeIds)])
+      void Promise.all(items.map((episode) => refreshTranscriptionStatus(episode.id)))
+        .then((statuses) => statuses.forEach((status, index) => {
+          scheduleTranscriptionPoll(items[index]?.id, status)
+        }))
     }
     const loadEpisodes = async (refresh = false) => {
       if (!selectedSource.value) return
@@ -935,11 +1048,12 @@ export default {
           sourceId: selectedSource.value.id,
           refresh,
         })
-        await loadEpisodeStates(episodes.value.map((episode) => episode.id))
-        void Promise.all(episodes.value.map((episode) => refreshTranscriptionStatus(episode.id)))
-          .then((statuses) => statuses.forEach((status, index) => {
-            scheduleTranscriptionPoll(episodes.value[index]?.id, status)
-          }))
+        visibleEpisodeCount.value = EPISODE_PAGE_SIZE
+        episodeStates.value = {}
+        downloadStates.value = {}
+        transcriptionStatuses.value = {}
+        episodeActionErrors.value = {}
+        await loadEpisodeMetadata(visibleEpisodes.value)
       } catch (value) {
         error.value = value instanceof Error ? value.message : String(value)
       } finally {
@@ -949,26 +1063,106 @@ export default {
     const selectSource = (source: LX.Podcast.Source) => {
       clearTranscriptionPolls()
       selectedSource.value = source
+      sourceActionMessage.value = ''
       void loadEpisodes()
+    }
+    const loadMoreEpisodes = () => {
+      const start = visibleEpisodeCount.value
+      visibleEpisodeCount.value = Math.min(
+        episodes.value.length,
+        visibleEpisodeCount.value + EPISODE_PAGE_SIZE
+      )
+      void loadEpisodeMetadata(episodes.value.slice(start, visibleEpisodeCount.value)).catch((value) => {
+        error.value = value instanceof Error ? value.message : String(value)
+      })
+    }
+    const openSubscribeDialog = async (source: LX.Podcast.Source) => {
+      subscribeTrigger = document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null
+      subscribeTarget.value = source
+      subscriptionError.value = ''
+      await nextTick()
+      subscribeDialog.value?.focus()
+    }
+    const closeSubscribeDialog = async () => {
+      const sourceId = subscribeTarget.value?.id
+      subscribeTarget.value = null
+      subscriptionError.value = ''
+      await nextTick()
+      const fallback = [...document.querySelectorAll<HTMLElement>('[data-podcast-subscription-action]')]
+        .find((element) => element.dataset.podcastSubscriptionAction === sourceId)
+      const target = subscribeTrigger?.isConnected ? subscribeTrigger : fallback
+      target?.focus()
+      subscribeTrigger = null
+    }
+    const handleSubscribeDialogKeydown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        void closeSubscribeDialog()
+        return
+      }
+      if (event.key !== 'Tab' || !subscribeDialog.value) return
+      const focusable = [...subscribeDialog.value.querySelectorAll<HTMLElement>(
+        DIALOG_FOCUSABLE_SELECTOR
+      )]
+      if (!focusable.length) {
+        event.preventDefault()
+        subscribeDialog.value.focus()
+        return
+      }
+      const first = focusable[0]
+      const last = focusable.at(-1)!
+      const active = document.activeElement
+      if (event.shiftKey && (active === first || active === subscribeDialog.value)) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault()
+        first.focus()
+      }
     }
     const subscribe = async (autoDownload: boolean) => {
       if (!subscribeTarget.value) return
-      const source = await sendPodcastCommand<LX.Podcast.Source>({
-        action: 'subscribe',
-        source: subscribeTarget.value,
-        autoDownload,
-      })
-      sources.value = sources.value.map((item) => (item.id === source.id ? source : item))
-      selectedSource.value = source
-      subscribeTarget.value = null
-      trackEvent('podcast_subscribe', source.id, { auto_download: autoDownload })
+      const target = subscribeTarget.value
+      subscriptionBusy.value = true
+      subscriptionError.value = ''
+      try {
+        const source = await sendPodcastCommand<LX.Podcast.Source>({
+          action: 'subscribe',
+          source: target,
+          autoDownload,
+        })
+        sources.value = sources.value.map((item) => (item.id === source.id ? source : item))
+        selectedSource.value = source
+        sourceActionMessage.value = '订阅成功'
+        sourceActionError.value = false
+        trackEvent('podcast_subscribe', source.id, { auto_download: autoDownload })
+        await closeSubscribeDialog()
+      } catch (value) {
+        subscriptionError.value = value instanceof Error ? value.message : String(value)
+      } finally {
+        subscriptionBusy.value = false
+      }
     }
     const unsubscribe = async (source: LX.Podcast.Source) => {
-      await sendPodcastCommand({ action: 'unsubscribe', sourceId: source.id })
-      const value = { ...source, subscribed: false, autoDownload: false }
-      sources.value = sources.value.map((item) => (item.id === source.id ? value : item))
-      selectedSource.value = value
-      trackEvent('podcast_unsubscribe', source.id)
+      if (sourceActionBusy.value) return
+      sourceActionBusy.value = true
+      sourceActionMessage.value = ''
+      try {
+        await sendPodcastCommand({ action: 'unsubscribe', sourceId: source.id })
+        const value = { ...source, subscribed: false, autoDownload: false }
+        sources.value = sources.value.map((item) => (item.id === source.id ? value : item))
+        selectedSource.value = value
+        sourceActionMessage.value = '已取消订阅'
+        sourceActionError.value = false
+        trackEvent('podcast_unsubscribe', source.id)
+      } catch (value) {
+        sourceActionMessage.value = value instanceof Error ? value.message : String(value)
+        sourceActionError.value = true
+      } finally {
+        sourceActionBusy.value = false
+      }
     }
     const playEpisode = async (index: number) => {
       if (!selectedSource.value) return
@@ -1014,17 +1208,33 @@ export default {
       episode: LX.Podcast.Episode,
       knownState?: LX.Podcast.EpisodeState
     ) => {
-      const current = knownState ?? episodeStates.value[episode.id]
-      const state = await sendPodcastCommand<LX.Podcast.EpisodeState>({
-        action: 'set-favorite',
-        episodeId: episode.id,
-        isFavorite: !current?.isFavorite,
-      })
-      episodeStates.value = { ...episodeStates.value, [episode.id]: state }
-      libraryItems.value = libraryItems.value
-        .map((item) => item.episode.id === episode.id ? { ...item, state } : item)
-        .filter((item) => activeView.value !== 'favorites' || item.state.isFavorite)
-      trackEvent(state.isFavorite ? 'podcast_favorite' : 'podcast_unfavorite', episode.id)
+      if (favoriteBusy.value.has(episode.id)) return
+      favoriteBusy.value = new Set([...favoriteBusy.value, episode.id])
+      const nextErrors = { ...episodeActionErrors.value }
+      delete nextErrors[episode.id]
+      episodeActionErrors.value = nextErrors
+      try {
+        const current = knownState ?? episodeStates.value[episode.id]
+        const state = await sendPodcastCommand<LX.Podcast.EpisodeState>({
+          action: 'set-favorite',
+          episodeId: episode.id,
+          isFavorite: !current?.isFavorite,
+        })
+        episodeStates.value = { ...episodeStates.value, [episode.id]: state }
+        libraryItems.value = libraryItems.value
+          .map((item) => item.episode.id === episode.id ? { ...item, state } : item)
+          .filter((item) => activeView.value !== 'favorites' || item.state.isFavorite)
+        trackEvent(state.isFavorite ? 'podcast_favorite' : 'podcast_unfavorite', episode.id)
+      } catch (value) {
+        episodeActionErrors.value = {
+          ...episodeActionErrors.value,
+          [episode.id]: value instanceof Error ? value.message : String(value),
+        }
+      } finally {
+        const next = new Set(favoriteBusy.value)
+        next.delete(episode.id)
+        favoriteBusy.value = next
+      }
     }
     const openPopular = async (item: LX.Podcast.PopularSource) => {
       const existing = sources.value.find((source) => source.title === item.source)
@@ -1041,9 +1251,28 @@ export default {
       ? `${formatDuration(item.totalDuration)} 收听`
       : `${item.viewCount} 次播放`
     const downloadEpisode = async (episode: LX.Podcast.Episode) => {
-      await sendPodcastCommand({ action: 'download-episode', episodeId: episode.id })
-      downloaded.value = new Set([...downloaded.value, episode.id])
-      trackEvent('podcast_download', episode.id)
+      if (downloading.value.has(episode.id) || downloadStates.value[episode.id]?.isDownloaded) return
+      downloading.value = new Set([...downloading.value, episode.id])
+      const nextErrors = { ...episodeActionErrors.value }
+      delete nextErrors[episode.id]
+      episodeActionErrors.value = nextErrors
+      try {
+        const state = await sendPodcastCommand<LX.Podcast.DownloadState>({
+          action: 'download-episode',
+          episodeId: episode.id,
+        })
+        downloadStates.value = { ...downloadStates.value, [episode.id]: state }
+        trackEvent('podcast_download', episode.id)
+      } catch (value) {
+        episodeActionErrors.value = {
+          ...episodeActionErrors.value,
+          [episode.id]: value instanceof Error ? value.message : String(value),
+        }
+      } finally {
+        const next = new Set(downloading.value)
+        next.delete(episode.id)
+        downloading.value = next
+      }
     }
     const refreshTranscriptionStatus = async (episodeId: string) => {
       const status = await sendPodcastCommand<LX.Podcast.TranscriptionStatus | null>({
@@ -1449,7 +1678,18 @@ export default {
       hasSubscriptions,
       selectedSource,
       subscribeTarget,
-      downloaded,
+      subscribeDialog,
+      subscriptionBusy,
+      subscriptionError,
+      sourceActionBusy,
+      sourceActionMessage,
+      sourceActionError,
+      downloadStates,
+      downloading,
+      favoriteBusy,
+      episodeActionErrors,
+      visibleEpisodes,
+      hasMoreEpisodes,
       transcriptionStatuses,
       session,
       syncPresentation,
@@ -1504,7 +1744,11 @@ export default {
       importOpml,
       exportOpml,
       loadEpisodes,
+      loadMoreEpisodes,
       selectSource,
+      openSubscribeDialog,
+      closeSubscribeDialog,
+      handleSubscribeDialogKeydown,
       subscribe,
       unsubscribe,
       playEpisode,
@@ -1605,11 +1849,15 @@ export default {
 .libraryItem small { display: block; margin-top: 4px; opacity: .7; }
 .showHeader { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding-bottom: 14px; }
 .showHeader img { width: 56px; height: 56px; }
+.showActionMessage { margin: -7px 0 12px; font-size: 12px; opacity: .72; }
+.showActionMessage.error { padding: 0; }
 .episodeList { border-top: 1px solid var(--color-primary-light-900-alpha-100); }
 .episode { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 16px; padding: 13px 4px; border-bottom: 1px solid var(--color-primary-light-900-alpha-100); }
-.episodeActions { display: flex; gap: 6px; }
+.episodeActions { display: flex; justify-content: flex-end; gap: 6px; flex-wrap: wrap; }
 .episode h3 { margin: 0; font-size: 14px; letter-spacing: 0; }
 .episode p { margin: 5px 0 0; opacity: .62; font-size: 11px; }
+.episodeActionError { display: block; margin-top: 7px; color: #d84a4a; font-size: 12px; }
+.loadMore { display: block; margin: 14px auto 2px; }
 .transcriptionStatus { display: grid; gap: 3px; min-height: 16px; margin-top: 7px; font-family: Consolas, "Microsoft YaHei UI", sans-serif; font-size: 11px; opacity: .82; }
 .transcriptionHeadline { display: flex; align-items: center; gap: 9px; min-width: 0; }
 .transcriptionHeadline strong { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 11px; font-weight: 600; }
@@ -1666,7 +1914,9 @@ export default {
 .error { color: #d84a4a; padding: 8px; }
 .modalBackdrop { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; background: rgba(0, 0, 0, .42); }
 .modal { width: min(460px, calc(100vw - 40px)); box-sizing: border-box; padding: 20px; border-radius: 6px; background: var(--color-primary-light-100); box-shadow: 0 14px 40px rgba(0, 0, 0, .28); }
+.modal:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 3px; }
 .modal p { line-height: 1.6; opacity: .72; }
+.modal .modalError { color: #d84a4a; opacity: 1; }
 .modal div { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
 @media (max-width: 760px) {
   .toolbar { align-items: stretch; flex-direction: column; gap: 10px; padding: 14px; }
@@ -1674,12 +1924,18 @@ export default {
   .content { grid-template-columns: 1fr; overflow: auto; }
   .sources { max-height: 40vh; border-right: 0; border-bottom: 1px solid var(--color-primary-light-900-alpha-100); }
   .episodes { overflow: visible; padding: 14px; }
-  .showHeader { grid-template-columns: 48px minmax(0, 1fr); }
+  .showHeader { grid-template-columns: auto minmax(0, 1fr); }
   .settingGrid { grid-template-columns: 1fr; }
   .backendGrid { grid-template-columns: 1fr; }
   .accountGrid { grid-template-columns: 1fr; }
   .settings[open] { max-height: 80vh; }
   .settingGrid label, .settingGrid > div { grid-template-columns: 100px minmax(0, 1fr); }
   .settingGrid code { grid-column: 1 / -1; }
+}
+@media (max-width: 520px) {
+  .episode { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .episodeActions { justify-content: flex-start; }
+  .libraryItem { grid-template-columns: 48px minmax(0, 1fr); }
+  .libraryItem .episodeActions { grid-column: 1 / -1; }
 }
 </style>

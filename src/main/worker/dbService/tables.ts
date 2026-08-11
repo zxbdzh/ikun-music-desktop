@@ -298,10 +298,15 @@ tables.set(
     "sort_order" INTEGER NOT NULL,
     PRIMARY KEY("id")
   );
-  INSERT INTO "podcast_subscription_group" ("id", "name", "is_expanded", "sort_order")
-  VALUES ('default_group', '默认', 1, 0);
 `
 )
+
+export const initialData = [
+  `
+  INSERT OR IGNORE INTO "podcast_subscription_group" ("id", "name", "is_expanded", "sort_order")
+  VALUES ('default_group', '默认', 1, 0);
+`,
+]
 tables.set(
   'podcast_episode',
   `

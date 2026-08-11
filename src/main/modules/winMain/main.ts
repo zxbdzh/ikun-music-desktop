@@ -63,6 +63,7 @@ const winEvent = () => {
 export const createWindow = () => {
   closeWindow()
   const windowSizeInfo = getWindowSizeInfo(global.lx.appSetting['common.windowSizeId'])
+  const minimumWindowSize = getWindowSizeInfo(0)
 
   const { shouldUseDarkColors, theme } = global.lx.theme
   const ses = session.fromPartition('persist:win-main')
@@ -74,8 +75,10 @@ export const createWindow = () => {
    */
   const options: Electron.BrowserWindowConstructorOptions = {
     height: windowSizeInfo.height,
+    minHeight: minimumWindowSize.height,
     useContentSize: true,
     width: windowSizeInfo.width,
+    minWidth: minimumWindowSize.width,
     frame: false,
     transparent: !global.envParams.cmdParams.dt,
     hasShadow: global.envParams.cmdParams.dt,

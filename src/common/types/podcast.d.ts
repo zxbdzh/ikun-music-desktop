@@ -242,6 +242,11 @@ declare namespace LX {
       serverUpdatedAt: number
     }
 
+    interface DownloadState {
+      episodeId: string
+      isDownloaded: boolean
+    }
+
     type PopularPeriod = 1 | 7 | 30
     type PopularSort = 'duration' | 'count'
 
@@ -318,6 +323,7 @@ declare namespace LX {
       | { action: 'identify-speakers'; episodeId: string }
       | { action: 'activate-episode'; episodeId: string }
       | { action: 'deactivate-episode' }
+      | { action: 'download-states'; episodeIds: string[] }
       | { action: 'download-episode'; episodeId: string }
       | { action: 'storage-migrate'; kind: 'download' | 'cache'; path: string }
       | { action: 'save-progress'; episodeId: string; positionSeconds: number; isFinished: boolean }

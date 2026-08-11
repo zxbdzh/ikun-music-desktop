@@ -174,11 +174,10 @@ export class PodcastModule {
         this.transcriptionStatus = null
         global.lx.event_app.player_status({ transcript: null })
         return undefined
-      case 'download-episode': {
-        const episode = await global.lx.worker.dbService.podcastEpisodeGet(command.episodeId)
-        if (!episode) throw new Error('找不到播客单集')
-        return this.storage.downloadEpisode(episode, 'download')
-      }
+      case 'download-states':
+        return this.downloadStates(command.episodeIds)
+      case 'download-episode':
+        return this.downloadEpisode(command.episodeId)
       case 'storage-migrate': {
         const target = await this.storage.migrate(command.kind, command.path)
         if (command.kind === 'download') {
@@ -1381,6 +1380,22 @@ export class PodcastModule {
     await global.lx.worker.dbService.podcastEpisodeStateSave(next)
     this.scheduleSync()
     return next
+  }
+
+  private async downloadEpisode(episodeId: string): Promise<LX.Podcast.DownloadState> {
+    const episode = await global.lx.worker.dbService.podcastEpisodeGet(episodeId)
+    if (!episode) throw new Error('找不到播客单集')
+    await this.storage.downloadEpisode(episode, 'download')
+    return { episodeId, isDownloaded: true }
+  }
+
+  private async downloadStates(episodeIds: string[]): Promise<LX.Podcast.DownloadState[]> {
+    return Promise.all([...new Set(episodeIds)].map(async (episodeId) => {
+      const episode = await global.lx.worker.dbService.podcastEpisodeGet(episodeId)
+      return episode
+        ? this.storage.downloadState(episode)
+        : { episodeId, isDownloaded: false }
+    }))
   }
 
   private async episodeStates(episodeIds: string[]): Promise<LX.Podcast.EpisodeState[]> {
