@@ -7,7 +7,7 @@
 
 ## 执行结论
 
-> IKUN 已完成 AurioClub 18 个接口的客户端功能映射和主要用户流程接入，带时间轴的播客长逐字稿已支持分页、范围导出、失败续传和文章地址优先分享，实机 UI/UX 在本轮验证范围内设计合理。BetterLyrics 已接入 IKUN v2 播客逐字稿，并完成长歌词图片分页分享。Apifox 的接口、Schema、环境、Mock、测试用例、场景、套件和报告等核心资源迁移完整，但重复响应、摘要计数、分支治理、GitHub Secret 与 Required Check 仍需整改。
+> IKUN 已完成 AurioClub 18 个接口的客户端功能映射和主要用户流程接入，带时间轴的播客长逐字稿已支持分页、范围导出、失败续传和文章地址优先分享，实机 UI/UX 在本轮验证范围内设计合理。BetterLyrics 已接入 IKUN v2 播客逐字稿，并完成长歌词图片分页分享。Apifox 的接口、Schema、环境、Mock、测试用例、场景、套件和报告等核心资源迁移完整，但重复响应、摘要计数、Apifox 分支治理与 GitHub Environment Secret 仍需整改。
 
 | 对象 | 判定 | 依据 |
 |---|---|---|
@@ -135,14 +135,15 @@ Apifox CLI 2.2.9 最新回读：
 2. `/podcasts` 仍有重复 200 响应 `165266986`；`/stats/popular-sources` 仍有重复 200 响应 `166940786`。删除属于破坏性操作，本轮未在没有单独确认的情况下执行。
 3. Apifox `main` 仍为 `isProtected=false`，项目允许自动化写主分支。
 4. GitHub Environment `aurio-contract-regression` 已存在，且部署分支策略仅允许 `main`；实时回归工作流已声明该 Environment。
-5. GitHub `main` 已启用 Require pull request、管理员强制和会话解决；`APIFOX_ACCESS_TOKEN` Environment Secret 仍为 0 个，Required Status Check 仍未配置。
-6. 两个 Aurio 工作流尚未进入远端 `main`，必须先经首个 PR 运行 `Contract verifier unit`，合并后才能把该上下文设为 Required Check。
+5. GitHub `main` 已启用 Require pull request、管理员强制、会话解决和严格的 `Contract verifier unit` Required Status Check。
+6. PR `#1` 已通过 `Contract verifier unit` 并以 merge 方式合入 `main`；两个 Aurio 工作流已经进入远端主分支。
+7. `APIFOX_ACCESS_TOKEN` Environment Secret 仍为 0 个。合并后的实时回归在“Verify Apifox access token”步骤明确失败关闭，未在空凭据下继续执行，也未回退读取 Repository/Organization Secret。
 
 ## 双轴代码审查
 
 ### Standards
 
-硬违规为 0：`.editorconfig` 的 UTF-8、LF、2 空格、尾空白和末行规则通过，35 个本地提交均使用中文 Conventional Commits。以下为不阻断交付的结构性判断项：
+硬违规为 0：`.editorconfig` 的 UTF-8、LF、2 空格、尾空白和末行规则通过，审查范围内提交均使用中文 Conventional Commits。以下为不阻断交付的结构性判断项：
 
 - Duplicated Code：`stableId` 分散在 RSS、OPML 和同步元数据模块；文件存在性与摘要计算也在 ASR、存储模块重复。
 - Repeated Switches：转写状态展示仍在动作和标题两处按 `stage` 分派，新增阶段需要同步维护。
@@ -182,7 +183,8 @@ Spec 轴剩余 1 个范围项，最主要风险是本地 ASR/说话人能力带�
 - CLI 资源回读：18 接口、42 Schema、9 环境、18 Mock、22 用例、1 场景、1 套件、1 报告。
 - CI 验证器：`14/14` 通过。
 - 本地真实隔离回归：22/22 步骤、22/22 实际请求、63/63 断言，全部目标为本机。
-- GitHub Environment 和 `main` 分支保护已回读；Environment Secret 缺失，Required Status Check 为空，远端尚无历史 PR。
+- GitHub Environment 和 `main` 分支保护已回读；PR `#1` 的 `Contract verifier unit` 成功并已合并，该检查已设为严格 Required Check。
+- 远端实时回归已触发并因 Environment Secret 缺失而失败关闭；失败日志明确停在 Token 预检，未发起 Apifox 请求。
 
 ## 本轮阶段提交
 
@@ -194,6 +196,7 @@ IKUN：
 - `c7cd69b fix: 统一播客转写后端标识`
 - `99d3821 fix: 遵循 RSS 默认文章链接语义`
 - `e4e6f3d fix: 为播客资料库增加渐进加载`
+- `5b837fc docs: 更新 AurioClub 移植终审`
 
 BetterLyrics：
 
@@ -206,4 +209,4 @@ BetterLyrics：
 
 IKUN 的 AurioClub 客户端移植在本轮范围内完整，带时间轴的播客长逐字稿分页与分享功能完整，UI/UX 设计合理；分享链接遵循“原始文章地址优先、音频地址回退”。BetterLyrics 已完成同类长内容的图片分页分享与 IKUN v2 逐字稿接入，但不返回文章或音频链接。普通博客正文自动转歌词卡片不在当前实现中，应作为新的内容模型需求单独设计。
 
-Apifox 的核心项目资源迁移完整，当前状态为：**核心资源迁移完整，治理整改中**。剩余工作是清理两处重复响应、修复或规避摘要计数异常、保护 Apifox 主分支、配置 GitHub Environment Secret，并在首个 PR 检查成功后启用 Required Status Check。
+Apifox 的核心项目资源迁移完整，当前状态为：**核心资源迁移完整，治理整改中**。GitHub 首个 PR 与 Required Check 已闭环；剩余工作是清理两处重复响应、修复或规避摘要计数异常、保护 Apifox 主分支，并由仓库管理员在受保护 Environment 中配置 `APIFOX_ACCESS_TOKEN`。
