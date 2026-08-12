@@ -162,6 +162,21 @@ describe('AurioClub progress synchronization', () => {
     const podcastEpisodeStateSave = vi.fn(async (item: LX.Podcast.EpisodeState) => {
       states.set(item.episodeId, item)
     })
+    const podcastLibraryPageGet = vi.fn(async (
+      _accountId: string,
+      kind: LX.Podcast.LibraryKind
+    ): Promise<LX.Podcast.LibraryPage> => ({
+      items: [...states.values()]
+        .filter((item) => kind === 'favorites'
+          ? item.isFavorite
+          : !item.historyHidden && (item.positionSeconds > 0 || item.isFinished))
+        .map((item) => ({
+          episode: episodes.get(item.episodeId)!,
+          source: sources.find((source) => source.id === episodes.get(item.episodeId)?.sourceId)!,
+          state: item,
+        })),
+      nextCursor: null,
+    }))
     global.lx = { worker: { dbService: {
       podcastSyncStateGet: vi.fn(async () => syncState()),
       podcastEpisodeStatesGet: vi.fn(async (_accountId: string, dirtyOnly = false) =>
@@ -173,14 +188,15 @@ describe('AurioClub progress synchronization', () => {
       podcastSourcesSave,
       podcastEpisodeGet: vi.fn(async (episodeId: string) => episodes.get(episodeId) ?? null),
       podcastEpisodesSave,
+      podcastLibraryPageGet,
       podcastLongFormContentsSave: vi.fn(async () => undefined),
       podcastSyncStateSave: vi.fn(async () => undefined),
     } } } as unknown as typeof global.lx
     const module = createModule(client)
 
     await (module as any).performSync()
-    const favorites = await (module as any).library('favorites') as LX.Podcast.LibraryItem[]
-    const history = await (module as any).library('history') as LX.Podcast.LibraryItem[]
+    const favorites = await (module as any).library('favorites') as LX.Podcast.LibraryPage
+    const history = await (module as any).library('history') as LX.Podcast.LibraryPage
 
     expect(podcastSourcesSave).toHaveBeenCalledOnce()
     expect(podcastEpisodesSave).toHaveBeenCalledOnce()
@@ -193,8 +209,8 @@ describe('AurioClub progress synchronization', () => {
       originalUrl: 'https://example.com/articles/remote-article',
       audioUrl: 'https://cdn.example.com/remote-article.mp3',
     })
-    expect(favorites.map((item) => item.episode.id)).toEqual(['remote-article'])
-    expect(history).toEqual([])
+    expect(favorites.items.map((item) => item.episode.id)).toEqual(['remote-article'])
+    expect(history.items).toEqual([])
   })
 
   it('restores missing entities before preserving a newer dirty local state', async () => {

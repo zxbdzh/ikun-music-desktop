@@ -4,6 +4,7 @@ import {
   activatePodcastEpisode,
   cancelPendingLyricRequest,
   getLyricInfo,
+  getMusicUrl,
   startPodcastLyricRefresh,
 } from './podcast'
 
@@ -167,6 +168,16 @@ describe('podcast playback activation', () => {
     } as LX.Music.MusicInfo
 
     await expect(activatePodcastEpisode(music)).resolves.toBeNull()
+    expect(sendPodcastCommand).not.toHaveBeenCalled()
+  })
+
+  it('rejects a blog without audio before activating playback', async () => {
+    const blog = {
+      id: 'article-1',
+      meta: { podcast: true, audioUrl: '' },
+    } as LX.Music.MusicInfoPodcast
+
+    await expect(getMusicUrl(blog)).rejects.toThrow('当前博客没有可播放的音频')
     expect(sendPodcastCommand).not.toHaveBeenCalled()
   })
 })

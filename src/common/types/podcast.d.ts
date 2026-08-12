@@ -283,10 +283,39 @@ declare namespace LX {
       viewCount: number
     }
 
+    type LibraryKind = 'favorites' | 'history'
+
+    interface LibraryCursor {
+      clientUpdatedAt: number
+      episodeId: string
+    }
+
+    interface LibraryEpisode {
+      id: string
+      sourceId: string
+      title: string
+      artworkUrl: string
+      originalUrl?: string
+      audioUrl: string
+      publishedAt: number
+      durationSeconds: number
+    }
+
+    interface LibrarySource {
+      id: string
+      title: string
+      artworkUrl: string
+    }
+
     interface LibraryItem {
-      episode: Episode
-      source: Source
+      episode: LibraryEpisode
+      source: LibrarySource
       state: EpisodeState
+    }
+
+    interface LibraryPage {
+      items: LibraryItem[]
+      nextCursor: LibraryCursor | null
     }
 
     interface Account {
@@ -326,7 +355,7 @@ declare namespace LX {
       | { action: 'popular-sources'; days: PopularPeriod; sort: PopularSort }
       | { action: 'episodes'; sourceId: string; refresh?: boolean }
       | { action: 'episode-states'; episodeIds: string[] }
-      | { action: 'library'; kind: 'favorites' | 'history' }
+      | { action: 'library'; kind: LibraryKind; cursor?: LibraryCursor; limit?: number }
       | { action: 'set-favorite'; episodeId: string; isFavorite: boolean }
       | { action: 'subscription-groups' }
       | { action: 'subscription-group-save'; group: Partial<SubscriptionGroup> & { name: string } }

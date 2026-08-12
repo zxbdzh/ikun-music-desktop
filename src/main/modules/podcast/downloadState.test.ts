@@ -57,6 +57,30 @@ describe('PodcastModule download state commands', () => {
     })).resolves.toEqual({ episodeId: episode.id, isDownloaded: true })
     expect(downloadEpisode).toHaveBeenCalledWith(episode, 'download')
   })
+
+  it('does not query storage or download when a blog has no audio URL', async () => {
+    const module = preparedModule()
+    const episode = testEpisode({ audioUrl: '' })
+    const downloadState = vi.fn()
+    const downloadEpisode = vi.fn()
+    ;(module as any).storage = { downloadState, downloadEpisode }
+    global.lx = {
+      worker: {
+        dbService: { podcastEpisodeGet: vi.fn(async () => episode) },
+      },
+    } as unknown as typeof global.lx
+
+    await expect(module.execute({
+      action: 'download-states',
+      episodeIds: [episode.id],
+    })).resolves.toEqual([{ episodeId: episode.id, isDownloaded: false }])
+    await expect(module.execute({
+      action: 'download-episode',
+      episodeId: episode.id,
+    })).rejects.toThrow('当前博客没有可下载的音频')
+    expect(downloadState).not.toHaveBeenCalled()
+    expect(downloadEpisode).not.toHaveBeenCalled()
+  })
 })
 
 const preparedModule = () => {
@@ -65,7 +89,7 @@ const preparedModule = () => {
   return module
 }
 
-const testEpisode = (): LX.Podcast.Episode => ({
+const testEpisode = (value: Partial<LX.Podcast.Episode> = {}): LX.Podcast.Episode => ({
   id: 'episode-1',
   sourceId: 'source-1',
   guid: 'guid-1',
@@ -78,4 +102,5 @@ const testEpisode = (): LX.Podcast.Episode => ({
   transcriptReferences: [],
   chapters: [],
   updatedAt: 0,
+  ...value,
 })

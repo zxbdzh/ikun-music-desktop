@@ -906,8 +906,11 @@ const loadPodcastLongForm = async (mInfo) => {
 }
 
 const refreshPodcastContent = async (generation, mInfo) => {
+  const transcriptRequest = mInfo.meta?.audioUrl?.trim()
+    ? loadPodcastTranscript(mInfo)
+    : Promise.resolve([])
   const [transcriptResult, longFormResult] = await Promise.allSettled([
-    loadPodcastTranscript(mInfo),
+    transcriptRequest,
     loadPodcastLongForm(mInfo),
   ])
   if (generation !== lyricLoadGeneration || musicInfo.value !== mInfo) return

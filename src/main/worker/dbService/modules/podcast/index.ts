@@ -254,6 +254,84 @@ export const podcastEpisodeStatesGet = (
   return rows.map(fromEpisodeStateRow)
 }
 
+export const podcastLibraryPageGet = (
+  accountId: string,
+  kind: LX.Podcast.LibraryKind,
+  cursor?: LX.Podcast.LibraryCursor,
+  limit = 50
+): LX.Podcast.LibraryPage => {
+  if (!Number.isFinite(limit)) throw new Error('无效的资料库分页大小')
+  if (cursor && (
+    !Number.isFinite(cursor.clientUpdatedAt) ||
+    cursor.clientUpdatedAt < 0 ||
+    typeof cursor.episodeId !== 'string' ||
+    !cursor.episodeId.trim()
+  )) {
+    throw new Error('无效的资料库分页游标')
+  }
+  const pageSize = Math.min(100, Math.max(1, Math.trunc(limit)))
+  const cursorClause = cursor
+    ? `AND (
+        state.client_updated_at < @cursorUpdatedAt OR
+        (state.client_updated_at = @cursorUpdatedAt AND state.episode_id < @cursorEpisodeId)
+      )`
+    : ''
+  const stateClause = kind === 'favorites'
+    ? 'state.is_favorite = 1'
+    : 'state.history_hidden = 0 AND (state.position_seconds > 0 OR state.is_finished = 1)'
+  const statement = getDB().prepare(`
+    SELECT
+      episode.id AS episode_id,
+      episode.source_id AS episode_source_id,
+      episode.title AS episode_title,
+      episode.artwork_url AS episode_artwork_url,
+      episode.original_url AS episode_original_url,
+      episode.audio_url AS episode_audio_url,
+      episode.published_at AS episode_published_at,
+      episode.duration_seconds AS episode_duration_seconds,
+      source.id AS source_id,
+      source.title AS source_title,
+      source.artwork_url AS source_artwork_url,
+      state.account_id,
+      state.position_seconds,
+      state.is_finished,
+      state.is_favorite,
+      state.history_hidden,
+      state.dirty_mask,
+      state.client_updated_at,
+      state.server_updated_at
+    FROM podcast_episode_state AS state
+    INNER JOIN podcast_episode AS episode ON episode.id = state.episode_id
+    INNER JOIN podcast_source AS source ON source.id = episode.source_id
+    WHERE state.account_id = @accountId
+      AND ${stateClause}
+      ${cursorClause}
+    ORDER BY state.client_updated_at DESC, state.episode_id DESC
+    LIMIT @fetchLimit
+  `)
+  const parameters = cursor
+    ? {
+        accountId,
+        cursorUpdatedAt: cursor.clientUpdatedAt,
+        cursorEpisodeId: cursor.episodeId,
+        fetchLimit: pageSize + 1,
+      }
+    : { accountId, fetchLimit: pageSize + 1 }
+  const rows = statement.all(parameters) as LibraryRow[]
+  const pageRows = rows.slice(0, pageSize)
+  const lastRow = pageRows.at(-1)
+
+  return {
+    items: pageRows.map(fromLibraryRow),
+    nextCursor: rows.length > pageSize && lastRow
+      ? {
+          clientUpdatedAt: lastRow.client_updated_at,
+          episodeId: lastRow.episode_id,
+        }
+      : null,
+  }
+}
+
 export const podcastEpisodeStatesMarkClean = (states: LX.Podcast.EpisodeState[]) => {
   const db = getDB()
   const statement = db.prepare<[string, string, number]>(`
@@ -424,6 +502,20 @@ interface EpisodeStateRow {
   history_hidden: number
 }
 
+interface LibraryRow extends EpisodeStateRow {
+  episode_id: string
+  episode_source_id: string
+  episode_title: string
+  episode_artwork_url: string
+  episode_original_url: string
+  episode_audio_url: string
+  episode_published_at: number
+  episode_duration_seconds: number
+  source_id: string
+  source_title: string
+  source_artwork_url: string
+}
+
 interface SyncStateRow {
   account_id: string
   watermark: number
@@ -526,6 +618,24 @@ const fromEpisodeStateRow = (row: EpisodeStateRow): LX.Podcast.EpisodeState => (
   dirtyMask: row.dirty_mask,
   clientUpdatedAt: row.client_updated_at,
   serverUpdatedAt: row.server_updated_at,
+})
+const fromLibraryRow = (row: LibraryRow): LX.Podcast.LibraryItem => ({
+  episode: {
+    id: row.episode_id,
+    sourceId: row.episode_source_id,
+    title: row.episode_title,
+    artworkUrl: row.episode_artwork_url,
+    originalUrl: row.episode_original_url || undefined,
+    audioUrl: row.episode_audio_url,
+    publishedAt: row.episode_published_at,
+    durationSeconds: row.episode_duration_seconds,
+  },
+  source: {
+    id: row.source_id,
+    title: row.source_title,
+    artworkUrl: row.source_artwork_url,
+  },
+  state: fromEpisodeStateRow(row),
 })
 const safeJson = <T>(value: string, fallback: T): T => {
   try {
