@@ -26,7 +26,7 @@ import { toRef } from '@common/utils/vueTools'
 import { usePodcastArtworkFallback } from './podcastArtwork'
 
 const props = withDefaults(defineProps<{
-  src?: string | null
+  src?: string
   alt?: string
 }>(), {
   src: '',
