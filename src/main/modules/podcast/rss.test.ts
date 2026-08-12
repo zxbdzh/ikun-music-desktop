@@ -65,4 +65,34 @@ describe('podcast RSS parser', () => {
     expect(feed.episodes[0].guid).toBe('https://cdn.example.com/no-guid.mp3')
     expect(feed.episodes[0].originalUrl).toBe('')
   })
+
+  it('separates RSS article content from the lightweight episode summary', () => {
+    const feed = parsePodcastFeed(
+      `<?xml version="1.0"?><rss xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Blog</title><item><guid>article-1</guid><title>Long post</title><link>https://blog.example.com/posts/1</link><description>Short summary</description><content:encoded><![CDATA[<h2>Title</h2><p>Full <strong>article</strong> body.</p>]]></content:encoded></item></channel></rss>`,
+      'https://blog.example.com/feed.xml'
+    )
+
+    expect(feed.episodes).toHaveLength(1)
+    expect(feed.episodes[0]).toMatchObject({
+      description: 'Short summary',
+      audioUrl: '',
+      originalUrl: 'https://blog.example.com/posts/1',
+    })
+    expect(feed.longFormContents[0]).toMatchObject({
+      contentId: feed.episodes[0].id,
+      blockCount: 2,
+      shareUrl: 'https://blog.example.com/posts/1',
+    })
+    expect(feed.longFormContents[0].blocks.map((block) => block.text))
+      .toEqual(['Title', 'Full article body.'])
+  })
+
+  it('does not expose a short summary as long-form content', () => {
+    const feed = parsePodcastFeed(
+      `<?xml version="1.0"?><rss><channel><title>Show</title><item><guid>episode</guid><title>Episode</title><description>One-line summary</description><enclosure url="https://cdn.example.com/episode.mp3"/></item></channel></rss>`,
+      'https://example.com/feed.xml'
+    )
+
+    expect(feed.longFormContents).toEqual([])
+  })
 })

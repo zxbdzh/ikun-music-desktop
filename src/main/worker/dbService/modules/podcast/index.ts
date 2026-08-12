@@ -176,6 +176,39 @@ export const podcastEpisodesSave = (episodes: LX.Podcast.Episode[]) => {
   })(episodes)
 }
 
+export const podcastLongFormContentGet = (
+  episodeId: string
+): LX.Podcast.LongFormContentDocument | null => {
+  const row = getDB()
+    .prepare<[string]>(`SELECT document_json FROM podcast_long_form_content WHERE episode_id=?`)
+    .get(episodeId) as { document_json: string } | undefined
+  if (!row) return null
+  try {
+    const document = JSON.parse(row.document_json) as LX.Podcast.LongFormContentDocument
+    return document.protocolVersion === 1 && document.contentId === episodeId ? document : null
+  } catch {
+    return null
+  }
+}
+
+export const podcastLongFormContentsSave = (
+  documents: LX.Podcast.LongFormContentDocument[]
+) => {
+  const db = getDB()
+  const statement = db.prepare(`
+    INSERT INTO podcast_long_form_content (episode_id, document_json, updated_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(episode_id) DO UPDATE SET
+      document_json=excluded.document_json,
+      updated_at=excluded.updated_at
+  `)
+  db.transaction((items: LX.Podcast.LongFormContentDocument[]) => {
+    for (const document of items) {
+      statement.run(document.contentId, JSON.stringify(document), Date.now())
+    }
+  })(documents)
+}
+
 export const podcastEpisodeStateGet = (
   accountId: string,
   episodeId: string

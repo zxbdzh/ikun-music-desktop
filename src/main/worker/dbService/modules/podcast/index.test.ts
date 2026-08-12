@@ -3,6 +3,8 @@ import { getDB } from '../../db'
 import {
   podcastEpisodeStateGet,
   podcastEpisodeStateSave,
+  podcastLongFormContentGet,
+  podcastLongFormContentsSave,
   podcastTranscriptGet,
   podcastTranscriptSpeakerReferenceGet,
 } from './index'
@@ -137,5 +139,33 @@ describe('podcastTranscriptGet', () => {
     ])
 
     expect(podcastTranscriptSpeakerReferenceGet('episode-v2')).toEqual(reference)
+  })
+})
+
+describe('podcast long-form content persistence', () => {
+  it('stores and restores a protocol v1 document', () => {
+    const run = vi.fn()
+    const get = vi.fn(() => ({ document_json: JSON.stringify({
+      protocolVersion: 1,
+      contentId: 'episode-1',
+      revision: 3,
+      title: 'Article',
+      blocks: [{ id: 'block-1', kind: 'paragraph', text: 'Body' }],
+      blockCount: 1,
+      characterCount: 4,
+      originalUrl: null,
+      audioUrl: null,
+      shareUrl: null,
+    }) }))
+    vi.mocked(getDB).mockReturnValue({
+      prepare: vi.fn((sql: string) => sql.includes('SELECT') ? { get } : { run }),
+      transaction: (callback: (items: unknown[]) => void) => callback,
+    } as unknown as ReturnType<typeof getDB>)
+
+    const document = podcastLongFormContentGet('episode-1')!
+    podcastLongFormContentsSave([document])
+
+    expect(document.blocks[0].text).toBe('Body')
+    expect(run).toHaveBeenCalledWith('episode-1', JSON.stringify(document), expect.any(Number))
   })
 })

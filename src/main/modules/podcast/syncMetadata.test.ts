@@ -6,7 +6,9 @@ import {
   parseArticleMetadataJson,
   resolveArticleMetadataUrl,
   restorePodcastEntities,
+  longFormContentFromArticleMetadata,
 } from './syncMetadata'
+import { createLongFormContent } from './longFormContent'
 
 const source: LX.Podcast.Source = {
   id: 'source-1',
@@ -28,7 +30,7 @@ const episode: LX.Podcast.Episode = {
   sourceId: source.id,
   guid: 'episode-guid-1',
   title: 'Example episode',
-  description: 'Long-form article content',
+  description: 'Episode summary',
   artworkUrl: 'https://example.com/episode.jpg',
   originalUrl: 'https://example.com/articles/episode-1',
   audioUrl: 'https://cdn.example.com/episode-1.mp3',
@@ -64,12 +66,20 @@ describe('AurioClub article metadata', () => {
   })
 
   it('serializes real Source and Episode fields for progress upload', () => {
-    const metadata = articleMetadataFromPodcast(episode, source)
+    const content = createLongFormContent({
+      contentId: episode.id,
+      title: episode.title,
+      content: 'Long-form article content',
+      originalUrl: episode.originalUrl,
+      audioUrl: episode.audioUrl,
+    })
+    const metadata = articleMetadataFromPodcast(episode, source, content)
 
     expect(metadata).toMatchObject({
       articleId: episode.id,
       title: episode.title,
-      content: episode.description,
+      description: episode.description,
+      content: 'Long-form article content',
       url: episode.originalUrl,
       image: episode.artworkUrl,
       displayTime: Math.floor(episode.publishedAt / 1_000),
@@ -153,13 +163,15 @@ describe('AurioClub article metadata', () => {
       id: 'remote-episode',
       sourceId: first.source.id,
       title: 'Remote article',
-      description: 'Full blog content',
+      description: 'Summary',
       originalUrl: 'https://example.com/articles/remote-episode',
       audioUrl: 'https://cdn.example.com/remote.mp3',
       publishedAt: 1_786_032_000_000,
       durationSeconds: 600,
     })
-    expect(articleMetadataFromPodcast(first.episode, first.source).content)
+    const restoredContent = longFormContentFromArticleMetadata(metadata)
+    expect(restoredContent?.blocks.map((block) => block.text)).toEqual(['Full blog content'])
+    expect(articleMetadataFromPodcast(first.episode, first.source, restoredContent).content)
       .toBe('Full blog content')
   })
 })

@@ -6,6 +6,11 @@ import { AurioClubClient, AurioClubError, assertPublicHttpUrl } from './aurioClu
 import { parsePublisherTranscript } from './captions'
 import { parsePodcastFeed } from './rss'
 import { createTranscriptDelta, transcriptDescriptor } from './transcript'
+import {
+  createLongFormContent,
+  longFormContentDescriptor,
+  parseLongFormContent,
+} from './longFormContent'
 import { PodcastStorage } from './storage'
 import {
   PodcastAsr,
@@ -30,6 +35,7 @@ import {
   encodeArticleMetadata,
   parseArticleMetadataJson,
   restorePodcastEntities,
+  longFormContentFromArticleMetadata,
   type ArticleMetadata,
 } from './syncMetadata'
 import { normalizePopularSources } from './discovery'
@@ -72,6 +78,7 @@ export class PodcastModule {
     syncState: 'local',
   }
   private currentTranscript: LX.Podcast.TranscriptSnapshot | null = null
+  private currentLongFormContent: LX.Podcast.LongFormContentDocument | null = null
   private transcriptionStatus: LX.Podcast.TranscriptionStatus | null = null
   private readonly transcriptionStatuses = new Map<string, LX.Podcast.TranscriptionStatus>()
   private readonly transcriptHistory = new Map<
@@ -158,6 +165,8 @@ export class PodcastModule {
         return undefined
       case 'transcript':
         return this.transcript(command.episodeId, command.sinceRevision ?? 0)
+      case 'long-form-content':
+        return this.longFormContent(command.episodeId)
       case 'transcription-status':
         return this.loadTranscriptionStatus(command.episodeId)
       case 'backend-status':
@@ -178,8 +187,9 @@ export class PodcastModule {
       case 'deactivate-episode':
         this.currentEpisodeId = null
         this.currentTranscript = null
+        this.currentLongFormContent = null
         this.transcriptionStatus = null
-        global.lx.event_app.player_status({ transcript: null })
+        global.lx.event_app.player_status({ transcript: null, longFormContent: null })
         return undefined
       case 'download-states':
         return this.downloadStates(command.episodeIds)
@@ -228,6 +238,34 @@ export class PodcastModule {
 
   getTranscriptDescriptor(): LX.Podcast.TranscriptDescriptor | null {
     return this.currentTranscript ? transcriptDescriptor(this.currentTranscript) : null
+  }
+
+  async longFormContent(
+    episodeId: string,
+    requireCurrent = false
+  ): Promise<LX.Podcast.LongFormContentDocument | null> {
+    if (requireCurrent && episodeId !== this.currentEpisodeId) return null
+    let document = parseLongFormContent(
+      await global.lx.worker.dbService.podcastLongFormContentGet(episodeId)
+    )
+    if (document) return document
+    const episode = await global.lx.worker.dbService.podcastEpisodeGet(episodeId)
+    if (!episode || !episode.description.trim()) return null
+    document = createLongFormContent({
+      contentId: episode.id,
+      title: episode.title,
+      content: episode.description,
+      originalUrl: episode.originalUrl,
+      audioUrl: episode.audioUrl,
+    })
+    const structuredDescription = /<\/?[a-z][^>]*>|\n\s*\n/i.test(episode.description)
+    const articleWithoutAudio = !!episode.originalUrl?.trim() && !episode.audioUrl.trim()
+    if (
+      !document ||
+      (!articleWithoutAudio && !structuredDescription && document.characterCount < 280)
+    ) return null
+    await global.lx.worker.dbService.podcastLongFormContentsSave([document])
+    return document
   }
 
   getTranscriptionStatus(contentId?: string): LX.Podcast.TranscriptionStatus | null {
@@ -319,6 +357,9 @@ export class PodcastModule {
         mediaKind: 'podcast',
         contentId: episodeId,
         transcript: transcriptDescriptor(snapshot),
+        longFormContent: this.currentLongFormContent
+          ? longFormContentDescriptor(this.currentLongFormContent)
+          : null,
       })
     }
     const baseSnapshot = this.transcriptHistory.get(episodeId)?.get(sinceRevision)
@@ -331,10 +372,13 @@ export class PodcastModule {
     this.currentEpisodeId = episodeId
     this.currentTranscript = null
     this.transcriptionStatus = this.getTranscriptionStatus(episodeId)
+    const longFormContent = await this.longFormContent(episodeId)
+    this.currentLongFormContent = longFormContent
     global.lx.event_app.player_status({
       mediaKind: 'podcast',
       contentId: episode.id,
       transcript: null,
+      longFormContent: longFormContent ? longFormContentDescriptor(longFormContent) : null,
     })
     void this.transcript(episode.id).catch((error) => {
       console.warn('[podcast] transcript unavailable:', error instanceof Error ? error.message : error)
@@ -390,6 +434,7 @@ export class PodcastModule {
     const episodes = feed.episodes.map((episode) => ({ ...episode, sourceId: source.id }))
     await global.lx.worker.dbService.podcastSourcesSave([mergedSource])
     await global.lx.worker.dbService.podcastEpisodesSave(episodes)
+    await global.lx.worker.dbService.podcastLongFormContentsSave(feed.longFormContents)
     return episodes
   }
 
@@ -1305,10 +1350,12 @@ export class PodcastModule {
         const sourceById = new Map(sources.map((source) => [source.id, source]))
         const items = await Promise.all(dirtyStates.map(async (state) => {
           const episode = await global.lx.worker.dbService.podcastEpisodeGet(state.episodeId)
+          const longFormContent = episode ? await this.longFormContent(episode.id) : null
           const metadata = episode
             ? encodeArticleMetadata(articleMetadataFromPodcast(
                 episode,
-                sourceById.get(episode.sourceId)
+                sourceById.get(episode.sourceId),
+                longFormContent
               ))
             : null
           return toRemoteProgress(state, metadata)
@@ -1327,7 +1374,11 @@ export class PodcastModule {
         if (remote.articleMetadata) {
           const existingEpisode = await global.lx.worker.dbService
             .podcastEpisodeGet(remote.episodeId)
+          const existingLongFormContent = existingEpisode
+            ? await this.longFormContent(existingEpisode.id)
+            : null
           const restored = restorePodcastEntities(remote.articleMetadata, remote.serverUpdatedAt)
+          const longFormContent = longFormContentFromArticleMetadata(remote.articleMetadata)
           sourceById ??= new Map(
             (await global.lx.worker.dbService.podcastSourcesGet())
               .map((source) => [source.id, source])
@@ -1357,6 +1408,9 @@ export class PodcastModule {
                 audioUrl,
               }])
             }
+          }
+          if (longFormContent && !existingLongFormContent) {
+            await global.lx.worker.dbService.podcastLongFormContentsSave([longFormContent])
           }
         }
         const local = await global.lx.worker.dbService.podcastEpisodeStateGet(account.id, remote.episodeId)

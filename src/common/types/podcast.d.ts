@@ -232,6 +232,31 @@ declare namespace LX {
       speakers: Speaker[]
     }
 
+    type LongFormContentBlockKind = 'heading' | 'paragraph' | 'list-item' | 'quote'
+
+    interface LongFormContentBlock {
+      id: string
+      kind: LongFormContentBlockKind
+      text: string
+      level?: number
+    }
+
+    interface LongFormContentDescriptor {
+      protocolVersion: 1
+      contentId: string
+      revision: number
+      blockCount: number
+      characterCount: number
+    }
+
+    interface LongFormContentDocument extends LongFormContentDescriptor {
+      title: string
+      blocks: LongFormContentBlock[]
+      originalUrl: string | null
+      audioUrl: string | null
+      shareUrl: string | null
+    }
+
     interface EpisodeState {
       accountId: string
       episodeId: string
@@ -312,6 +337,7 @@ declare namespace LX {
       | { action: 'subscribe'; source: Source; autoDownload: boolean }
       | { action: 'unsubscribe'; sourceId: string }
       | { action: 'transcript'; episodeId: string; sinceRevision?: number }
+      | { action: 'long-form-content'; episodeId: string }
       | { action: 'transcription-status'; episodeId: string }
       | { action: 'backend-status' }
       | {

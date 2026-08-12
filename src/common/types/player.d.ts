@@ -43,6 +43,7 @@ declare namespace LX {
       mediaKind: 'music' | 'podcast'
       contentId: string
       transcript: LX.Podcast.TranscriptDescriptor | null
+      longFormContent: LX.Podcast.LongFormContentDescriptor | null
     }
   }
 }

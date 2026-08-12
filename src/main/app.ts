@@ -75,6 +75,7 @@ export const initGlobalData = () => {
       mediaKind: 'music',
       contentId: '',
       transcript: null,
+      longFormContent: null,
     },
   }
 

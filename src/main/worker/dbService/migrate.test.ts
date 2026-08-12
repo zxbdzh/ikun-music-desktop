@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import migrateDatabase, {
   migratePodcastEpisodeHistoryHidden,
   migratePodcastEpisodeOriginalUrl,
+  migratePodcastLongFormContent,
   migratePodcastSubscriptions,
   normalizePodcastSourceSchema,
 } from './migrate'
@@ -20,7 +21,7 @@ const database = (options: {
       return { get: vi.fn(() => ({ field_value: options.version ?? '5' })) }
     }
     if (sql.includes('sqlite_master')) {
-      return { get: vi.fn(() => options.hasGroupTable ? { name: 'podcast_subscription_group' } : undefined) }
+      return { get: vi.fn((_name?: string) => options.hasGroupTable ? { name: 'table' } : undefined) }
     }
     if (sql.includes('PRAGMA table_info(podcast_episode)')) {
       return { all: vi.fn(() => (options.episodeColumns ?? []).map((name) => ({ name }))) }
@@ -111,8 +112,28 @@ describe('podcast episode history visibility database migration', () => {
   })
 })
 
+describe('podcast long-form content database migration', () => {
+  it('creates independent long-form content storage', () => {
+    const db = database()
+
+    migratePodcastLongFormContent(db.value)
+
+    expect(db.exec.mock.calls.flat().join('\n')).toContain(
+      'CREATE TABLE "podcast_long_form_content"'
+    )
+  })
+
+  it('is idempotent when long-form storage already exists', () => {
+    const db = database({ hasGroupTable: true })
+
+    migratePodcastLongFormContent(db.value)
+
+    expect(db.exec).not.toHaveBeenCalled()
+  })
+})
+
 describe('database migration dispatch', () => {
-  it('upgrades a v5 database to v6 with hidden history storage', () => {
+  it('upgrades a v5 database to v7 with hidden history and long-form storage', () => {
     const db = database({
       version: '5',
       episodeStateColumns: ['account_id', 'episode_id'],
@@ -123,7 +144,17 @@ describe('database migration dispatch', () => {
     expect(db.exec).toHaveBeenCalledWith(
       'ALTER TABLE podcast_episode_state ADD COLUMN "history_hidden" INTEGER NOT NULL DEFAULT 0'
     )
-    expect(db.run).toHaveBeenCalledWith({ name: 'version', value: '6' })
+    expect(db.exec.mock.calls.flat().join('\n')).toContain('podcast_long_form_content')
+    expect(db.run).toHaveBeenCalledWith({ name: 'version', value: '7' })
+  })
+
+  it('upgrades a v6 database to v7 with long-form storage', () => {
+    const db = database({ version: '6' })
+
+    migrateDatabase(db.value)
+
+    expect(db.exec.mock.calls.flat().join('\n')).toContain('podcast_long_form_content')
+    expect(db.run).toHaveBeenCalledWith({ name: 'version', value: '7' })
   })
 })
 

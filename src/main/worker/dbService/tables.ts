@@ -119,6 +119,7 @@ type Tables =
   | 'podcast_episode'
   | 'podcast_episode_state'
   | 'podcast_transcript'
+  | 'podcast_long_form_content'
   | 'podcast_sync_state'
 
 const tables = new Map<Tables, string>()
@@ -364,6 +365,17 @@ tables.set(
 `
 )
 tables.set(
+  'podcast_long_form_content',
+  `
+  CREATE TABLE "podcast_long_form_content" (
+    "episode_id" TEXT NOT NULL,
+    "document_json" TEXT NOT NULL,
+    "updated_at" INTEGER NOT NULL,
+    PRIMARY KEY("episode_id")
+  );
+`
+)
+tables.set(
   'podcast_sync_state',
   `
   CREATE TABLE "podcast_sync_state" (
@@ -378,4 +390,4 @@ tables.set(
 
 export default tables
 
-export const DB_VERSION = '6'
+export const DB_VERSION = '7'

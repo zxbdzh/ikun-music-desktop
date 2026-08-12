@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { createLongFormContent, longFormContentText, summarizeLongFormContent } from './longFormContent'
 
 export const MAX_ARTICLE_METADATA_BYTES = 1024 * 1024
 
@@ -50,7 +51,8 @@ export const encodeArticleMetadata = (value: ArticleMetadata): string | null => 
 
 export const articleMetadataFromPodcast = (
   episode: LX.Podcast.Episode,
-  source?: LX.Podcast.Source
+  source?: LX.Podcast.Source,
+  longFormContent?: LX.Podcast.LongFormContentDocument | null
 ): ArticleMetadata => {
   const url = normalizeHttpUrl(episode.originalUrl)
   const image = normalizeHttpUrl(episode.artworkUrl) ?? normalizeHttpUrl(source?.artworkUrl)
@@ -69,7 +71,8 @@ export const articleMetadataFromPodcast = (
   return {
     articleId: episode.id,
     title: episode.title.trim() || episode.id,
-    ...(episode.description ? { content: episode.description } : {}),
+    ...(episode.description ? { description: episode.description } : {}),
+    ...(longFormContent ? { content: longFormContentText(longFormContent) } : {}),
     ...(url ? { url } : {}),
     ...(image ? { image } : {}),
     ...(publishedAt ? { publishedAt } : {}),
@@ -102,7 +105,7 @@ export const restorePodcastEntities = (
       ? [metadata.tags]
       : []
   const sourceName = metadata.source?.name ?? hostnameLabel(sourceUrl) ?? 'AurioClub 同步内容'
-  const description = metadata.content || metadata.description || ''
+  const description = metadata.description || summarizeLongFormContent(metadata.content ?? '')
   const artworkUrl = metadata.image ?? ''
 
   const source: LX.Podcast.Source = {
@@ -138,6 +141,16 @@ export const restorePodcastEntities = (
   }
   return { source, episode }
 }
+
+export const longFormContentFromArticleMetadata = (
+  metadata: ArticleMetadata
+): LX.Podcast.LongFormContentDocument | null => createLongFormContent({
+  contentId: metadata.articleId,
+  title: metadata.title,
+  content: metadata.content ?? '',
+  originalUrl: metadata.url,
+  audioUrl: metadata.audioUrl ?? undefined,
+})
 
 export const resolveArticleMetadataUrl = (metadata: ArticleMetadata): string =>
   normalizeHttpUrl(metadata.url) ?? normalizeHttpUrl(metadata.audioUrl) ?? ''

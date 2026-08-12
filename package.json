@@ -197,6 +197,7 @@
     "fast-xml-parser": "^5.8.0",
     "font-list": "^2.0.1",
     "html-to-image": "^1.11.13",
+    "htmlparser2": "^10.1.0",
     "iconv-lite": "^0.7.0",
     "image-size": "^1.1.0",
     "jschardet": "^3.1.4",

@@ -31,7 +31,7 @@ const episode: LX.Podcast.Episode = {
   sourceId: source.id,
   guid: 'episode-guid-1',
   title: 'Example episode',
-  description: 'Full article body',
+  description: 'Article summary',
   artworkUrl: 'https://example.com/episode.jpg',
   originalUrl: 'https://example.com/articles/episode-1',
   audioUrl: 'https://cdn.example.com/episode-1.mp3',
@@ -83,6 +83,18 @@ describe('AurioClub progress synchronization', () => {
       podcastEpisodeStatesGet: vi.fn(async () => [dirtyState]),
       podcastSourcesGet: vi.fn(async () => [source]),
       podcastEpisodeGet: vi.fn(async () => episode),
+      podcastLongFormContentGet: vi.fn(async () => ({
+        protocolVersion: 1,
+        contentId: episode.id,
+        revision: 1,
+        title: episode.title,
+        blocks: [{ id: 'block-1', kind: 'paragraph', text: 'Full article body' }],
+        blockCount: 1,
+        characterCount: 17,
+        originalUrl: episode.originalUrl,
+        audioUrl: episode.audioUrl,
+        shareUrl: episode.originalUrl,
+      })),
       podcastEpisodeStatesMarkClean,
       podcastSyncStateSave: vi.fn(async () => undefined),
     } } } as unknown as typeof global.lx
@@ -101,7 +113,8 @@ describe('AurioClub progress synchronization', () => {
     expect(JSON.parse(body.items[0].article_metadata_json)).toMatchObject({
       articleId: episode.id,
       title: episode.title,
-      content: episode.description,
+      description: episode.description,
+      content: 'Full article body',
       url: episode.originalUrl,
       audioUrl: episode.audioUrl,
       source: { name: source.title, url: source.feedUrl },
@@ -160,6 +173,7 @@ describe('AurioClub progress synchronization', () => {
       podcastSourcesSave,
       podcastEpisodeGet: vi.fn(async (episodeId: string) => episodes.get(episodeId) ?? null),
       podcastEpisodesSave,
+      podcastLongFormContentsSave: vi.fn(async () => undefined),
       podcastSyncStateSave: vi.fn(async () => undefined),
     } } } as unknown as typeof global.lx
     const module = createModule(client)
@@ -175,7 +189,7 @@ describe('AurioClub progress synchronization', () => {
       historyHidden: true,
     }))
     expect(episodes.get('remote-article')).toMatchObject({
-      description: 'Long blog body',
+      description: 'Summary',
       originalUrl: 'https://example.com/articles/remote-article',
       audioUrl: 'https://cdn.example.com/remote-article.mp3',
     })
@@ -212,6 +226,7 @@ describe('AurioClub progress synchronization', () => {
       podcastSourcesSave,
       podcastEpisodeGet: vi.fn(async () => null),
       podcastEpisodesSave,
+      podcastLongFormContentsSave: vi.fn(async () => undefined),
       podcastSyncStateSave: vi.fn(async () => undefined),
     } } } as unknown as typeof global.lx
 
@@ -256,7 +271,9 @@ describe('AurioClub progress synchronization', () => {
       podcastEpisodeStateSave: vi.fn(async () => undefined),
       podcastSourcesGet: vi.fn(async () => [source]),
       podcastEpisodeGet: vi.fn(async () => existingEpisode),
+      podcastLongFormContentGet: vi.fn(async () => null),
       podcastEpisodesSave,
+      podcastLongFormContentsSave: vi.fn(async () => undefined),
       podcastSyncStateSave: vi.fn(async () => undefined),
     } } } as unknown as typeof global.lx
 
@@ -278,6 +295,7 @@ describe('AurioClub progress synchronization', () => {
       })
       const podcastEpisodeStateSave = vi.fn(async () => undefined)
       const podcastEpisodesSave = vi.fn(async () => undefined)
+      const podcastLongFormContentsSave = vi.fn(async () => undefined)
       const client = {
         pull: vi.fn(async () => ({
           states: [{
@@ -302,7 +320,20 @@ describe('AurioClub progress synchronization', () => {
         podcastEpisodeStateSave,
         podcastSourcesGet: vi.fn(async () => [source]),
         podcastEpisodeGet: vi.fn(async () => episode),
+        podcastLongFormContentGet: vi.fn(async () => ({
+          protocolVersion: 1,
+          contentId: episode.id,
+          revision: 1,
+          title: episode.title,
+          blocks: [{ id: 'block-1', kind: 'paragraph', text: 'Local RSS body' }],
+          blockCount: 1,
+          characterCount: 14,
+          originalUrl: episode.originalUrl,
+          audioUrl: episode.audioUrl,
+          shareUrl: episode.originalUrl,
+        })),
         podcastEpisodesSave,
+        podcastLongFormContentsSave,
         podcastSyncStateSave: vi.fn(async () => undefined),
       } } } as unknown as typeof global.lx
       const module = createModule(client)
@@ -311,6 +342,7 @@ describe('AurioClub progress synchronization', () => {
       await (module as any).performSync()
 
       expect(podcastEpisodesSave).not.toHaveBeenCalled()
+      expect(podcastLongFormContentsSave).not.toHaveBeenCalled()
       expect(podcastEpisodeStateSave).not.toHaveBeenCalled()
     }
   )

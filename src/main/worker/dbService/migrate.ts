@@ -124,6 +124,13 @@ export const migratePodcastEpisodeHistoryHidden = (db: Database.Database) => {
   )
 }
 
+export const migratePodcastLongFormContent = (db: Database.Database) => {
+  const exists = db
+    .prepare("SELECT name FROM \"main\".sqlite_master WHERE type='table' AND name=?;")
+    .get('podcast_long_form_content')
+  if (!exists) db.exec(tables.get('podcast_long_form_content')!)
+}
+
 export default (db: Database.Database) => {
   // PRAGMA user_version = x
   // console.log(db.prepare('PRAGMA user_version').get().user_version)
@@ -141,6 +148,7 @@ export default (db: Database.Database) => {
       normalizePodcastSourceSchema(db)
       migratePodcastEpisodeOriginalUrl(db)
       migratePodcastEpisodeHistoryHidden(db)
+      migratePodcastLongFormContent(db)
       db.prepare('UPDATE "main"."db_info" SET "field_value"=@value WHERE "field_name"=@name').run({
         name: 'version',
         value: DB_VERSION,
@@ -152,6 +160,7 @@ export default (db: Database.Database) => {
       normalizePodcastSourceSchema(db)
       migratePodcastEpisodeOriginalUrl(db)
       migratePodcastEpisodeHistoryHidden(db)
+      migratePodcastLongFormContent(db)
       db.prepare('UPDATE "main"."db_info" SET "field_value"=@value WHERE "field_name"=@name').run({
         name: 'version',
         value: DB_VERSION,
@@ -162,6 +171,7 @@ export default (db: Database.Database) => {
       normalizePodcastSourceSchema(db)
       migratePodcastEpisodeOriginalUrl(db)
       migratePodcastEpisodeHistoryHidden(db)
+      migratePodcastLongFormContent(db)
       db.prepare('UPDATE "main"."db_info" SET "field_value"=@value WHERE "field_name"=@name').run({
         name: 'version',
         value: DB_VERSION,
@@ -171,6 +181,7 @@ export default (db: Database.Database) => {
       normalizePodcastSourceSchema(db)
       migratePodcastEpisodeOriginalUrl(db)
       migratePodcastEpisodeHistoryHidden(db)
+      migratePodcastLongFormContent(db)
       db.prepare('UPDATE "main"."db_info" SET "field_value"=@value WHERE "field_name"=@name').run({
         name: 'version',
         value: DB_VERSION,
@@ -178,6 +189,14 @@ export default (db: Database.Database) => {
       break
     case '5':
       migratePodcastEpisodeHistoryHidden(db)
+      migratePodcastLongFormContent(db)
+      db.prepare('UPDATE "main"."db_info" SET "field_value"=@value WHERE "field_name"=@name').run({
+        name: 'version',
+        value: DB_VERSION,
+      })
+      break
+    case '6':
+      migratePodcastLongFormContent(db)
       db.prepare('UPDATE "main"."db_info" SET "field_value"=@value WHERE "field_name"=@name').run({
         name: 'version',
         value: DB_VERSION,
