@@ -31,4 +31,20 @@ describe('database initialization', () => {
 
     expect(verifyDB(db)).toBe(true)
   })
+
+  test('accepts SQLite-normalized index definitions without IF NOT EXISTS', () => {
+    const sqliteMasterRows = Array.from(tables.entries()).map(([name, sql]) => ({
+      type: /^\s*CREATE INDEX/.test(sql) ? 'index' : 'table',
+      name,
+      tbl_name: name,
+      sql: `${sql.replace(/\bIF\s+NOT\s+EXISTS\b/i, '').split(';', 1)[0]};`,
+    }))
+    const db = {
+      prepare: vi.fn(() => ({
+        all: vi.fn(() => sqliteMasterRows),
+      })),
+    } as unknown as Database.Database
+
+    expect(verifyDB(db)).toBe(true)
+  })
 })
