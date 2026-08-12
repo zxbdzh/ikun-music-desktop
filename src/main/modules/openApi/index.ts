@@ -212,6 +212,34 @@ const handleStartServer = async (port: number, ip: string) =>
             })
           return
         }
+        case '/long-form-content': {
+          if (!isLoopbackRequest(req)) {
+            sendResponse(res, 403, 'Forbidden', undefined, false)
+            return
+          }
+          const contentId = requestUrl.searchParams.get('contentId')?.trim()
+          if (!contentId || contentId !== global.lx.player_status.contentId) {
+            sendResponse(res, 404, 'Long-form content not found', undefined, false)
+            return
+          }
+          void podcastModule
+            .longFormContent(contentId, true)
+            .then((document) => {
+              if (!document) {
+                sendResponse(res, 404, 'Long-form content not found', undefined, false)
+                return
+              }
+              sendResponse(res, 200, document, 'application/json; charset=utf-8', false)
+            })
+            .catch((error) => {
+              console.warn(
+                '[open-api] long-form content request failed:',
+                error instanceof Error ? error.message : error
+              )
+              sendResponse(res, 404, 'Long-form content not found', undefined, false)
+            })
+          return
+        }
         case '/transcription-status': {
           if (!isLoopbackRequest(req)) {
             sendResponse(res, 403, 'Forbidden')

@@ -22,36 +22,6 @@ const state = (value: Partial<LX.Podcast.EpisodeState> = {}): LX.Podcast.Episode
   ...value,
 })
 
-const source: LX.Podcast.Source = {
-  id: 'source-1',
-  title: '测试节目',
-  author: '测试作者',
-  description: '',
-  artworkUrl: '',
-  feedUrl: 'https://example.com/feed.xml',
-  categories: [],
-  subscribed: true,
-  autoDownload: false,
-  groupId: 'default_group',
-  subscriptionOrder: 0,
-  updatedAt: 1,
-}
-
-const episode = (id: string): LX.Podcast.Episode => ({
-  id,
-  sourceId: source.id,
-  guid: id,
-  title: `单集 ${id}`,
-  description: '',
-  artworkUrl: '',
-  audioUrl: `https://example.com/${id}.mp3`,
-  publishedAt: 1,
-  durationSeconds: 600,
-  transcriptReferences: [],
-  chapters: [],
-  updatedAt: 1,
-})
-
 describe('podcast library', () => {
   it('preserves playback progress when changing favorite state', async () => {
     const module = new PodcastModule()
@@ -106,58 +76,40 @@ describe('podcast library', () => {
     })
   })
 
-  it('returns only favorite items and orders the newest state first', async () => {
+  it('forwards the account, kind, cursor and page size to database pagination', async () => {
     const module = new PodcastModule()
-    ;(module as any).session = { account: null, syncEnabled: false, syncState: 'local' }
-    const states = [
-      state({ accountId: 'local', episodeId: 'old', isFavorite: true, clientUpdatedAt: 10 }),
-      state({ accountId: 'local', episodeId: 'new', isFavorite: true, clientUpdatedAt: 20 }),
-      state({
-        accountId: 'local',
-        episodeId: 'hidden',
-        isFavorite: true,
-        historyHidden: true,
-        clientUpdatedAt: 25,
-      }),
-      state({ accountId: 'local', episodeId: 'plain', isFavorite: false, clientUpdatedAt: 30 }),
-    ]
+    ;(module as any).session = {
+      account: { id: 'account-1', email: 'user@example.com', username: '用户' },
+      syncEnabled: false,
+      syncState: 'idle',
+    }
+    const cursor = { clientUpdatedAt: 25, episodeId: 'episode-25' }
+    const page: LX.Podcast.LibraryPage = {
+      items: [],
+      nextCursor: { clientUpdatedAt: 10, episodeId: 'episode-10' },
+    }
+    const podcastLibraryPageGet = vi.fn(async () => page)
     global.lx = {
-      worker: { dbService: {
-        podcastEpisodeStatesGet: vi.fn(async () => states),
-        podcastEpisodeGet: vi.fn(async (id: string) => episode(id)),
-        podcastSourcesGet: vi.fn(async () => [source]),
-      } },
+      worker: { dbService: { podcastLibraryPageGet } },
     } as unknown as typeof global.lx
 
-    const result = await (module as any).library('favorites') as LX.Podcast.LibraryItem[]
+    const result = await (module as any).library('favorites', cursor, 25)
 
-    expect(result.map((item) => item.episode.id)).toEqual(['hidden', 'new', 'old'])
+    expect(result).toBe(page)
+    expect(podcastLibraryPageGet).toHaveBeenCalledWith('account-1', 'favorites', cursor, 25)
   })
 
-  it('includes started and finished episodes in history', async () => {
+  it('uses the local account and default page size when pagination is omitted', async () => {
     const module = new PodcastModule()
     ;(module as any).session = { account: null, syncEnabled: false, syncState: 'local' }
-    const states = [
-      state({ accountId: 'local', episodeId: 'started', positionSeconds: 30 }),
-      state({ accountId: 'local', episodeId: 'finished', positionSeconds: 0, isFinished: true }),
-      state({
-        accountId: 'local',
-        episodeId: 'hidden',
-        positionSeconds: 60,
-        historyHidden: true,
-      }),
-      state({ accountId: 'local', episodeId: 'untouched', positionSeconds: 0, isFinished: false }),
-    ]
+    const page: LX.Podcast.LibraryPage = { items: [], nextCursor: null }
+    const podcastLibraryPageGet = vi.fn(async () => page)
     global.lx = {
-      worker: { dbService: {
-        podcastEpisodeStatesGet: vi.fn(async () => states),
-        podcastEpisodeGet: vi.fn(async (id: string) => episode(id)),
-        podcastSourcesGet: vi.fn(async () => [source]),
-      } },
+      worker: { dbService: { podcastLibraryPageGet } },
     } as unknown as typeof global.lx
 
-    const result = await (module as any).library('history') as LX.Podcast.LibraryItem[]
+    await expect((module as any).library('history')).resolves.toBe(page)
 
-    expect(result.map((item) => item.episode.id)).toEqual(['started', 'finished'])
+    expect(podcastLibraryPageGet).toHaveBeenCalledWith('local', 'history', undefined, 50)
   })
 })

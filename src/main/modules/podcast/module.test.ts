@@ -964,6 +964,129 @@ describe('PodcastModule transcript preparation', () => {
   })
 })
 
+describe('PodcastModule long-form content lifecycle', () => {
+  const document: LX.Podcast.LongFormContentDocument = {
+    protocolVersion: 1,
+    contentId: 'article-1',
+    revision: 9,
+    title: 'Long article',
+    blocks: [{ id: 'block-1', kind: 'paragraph', text: 'Full article body' }],
+    blockCount: 1,
+    characterCount: 17,
+    originalUrl: 'https://example.com/articles/1',
+    audioUrl: 'https://cdn.example.com/articles/1.mp3',
+    shareUrl: 'https://example.com/articles/1',
+  }
+
+  it('publishes a lightweight descriptor when an article is activated', async () => {
+    const playerStatus = vi.fn()
+    const episode = {
+      id: document.contentId,
+      sourceId: 'source-1',
+      title: document.title,
+      description: 'Summary',
+      originalUrl: document.originalUrl ?? '',
+      audioUrl: document.audioUrl ?? '',
+      artworkUrl: '',
+      durationSeconds: 1_800,
+      transcriptReferences: [],
+    }
+    const module = new PodcastModule()
+    global.lx = {
+      player_status: { progress: 0 },
+      event_app: { player_status: playerStatus },
+      worker: { dbService: {
+        podcastEpisodeGet: vi.fn(async () => episode),
+        podcastSourcesGet: vi.fn(async () => [{
+          id: episode.sourceId,
+          title: 'Example source',
+          artworkUrl: 'https://example.com/source.jpg',
+        }]),
+        podcastLongFormContentGet: vi.fn(async () => document),
+        podcastTranscriptGet: vi.fn(async () => null),
+      } },
+    } as unknown as typeof global.lx
+
+    await (module as any).activateEpisode(episode.id)
+
+    expect(playerStatus).toHaveBeenCalledWith(expect.objectContaining({
+      contentId: episode.id,
+      name: episode.title,
+      singer: 'Example source',
+      albumName: 'Example source',
+      picUrl: 'https://example.com/source.jpg',
+      progress: 0,
+      duration: episode.durationSeconds,
+      lyricLineStartMs: 0,
+      longFormContent: {
+        protocolVersion: 1,
+        contentId: episode.id,
+        revision: document.revision,
+        blockCount: 1,
+        characterCount: document.characterCount,
+      },
+    }))
+  })
+
+  it('publishes only long-form content and clears playback state for a blog without audio', async () => {
+    const playerStatus = vi.fn()
+    const episode = {
+      id: document.contentId,
+      sourceId: 'source-1',
+      title: document.title,
+      description: 'Summary',
+      originalUrl: document.originalUrl ?? '',
+      audioUrl: '',
+      artworkUrl: '',
+      durationSeconds: 600,
+      transcriptReferences: [],
+    }
+    const transcript = vi.spyOn(PodcastModule.prototype, 'transcript')
+    const module = new PodcastModule()
+    global.lx = {
+      player_status: { progress: 240, duration: 600 },
+      event_app: { player_status: playerStatus },
+      worker: { dbService: {
+        podcastEpisodeGet: vi.fn(async () => episode),
+        podcastSourcesGet: vi.fn(async () => [{
+          id: episode.sourceId,
+          title: 'Example blog',
+          artworkUrl: '',
+        }]),
+        podcastLongFormContentGet: vi.fn(async () => ({ ...document, audioUrl: null })),
+      } },
+    } as unknown as typeof global.lx
+
+    await (module as any).activateEpisode(episode.id)
+
+    expect(playerStatus).toHaveBeenCalledWith(expect.objectContaining({
+      mediaKind: 'podcast',
+      contentId: episode.id,
+      transcript: null,
+      progress: 0,
+      duration: 0,
+      lyricLineStartMs: 0,
+      lyricLineText: '',
+      lyricLineAllText: '',
+      longFormContent: expect.objectContaining({ contentId: episode.id }),
+    }))
+    expect(transcript).not.toHaveBeenCalled()
+    transcript.mockRestore()
+  })
+
+  it('rejects a document request after the active content changes', async () => {
+    const podcastLongFormContentGet = vi.fn()
+    const module = new PodcastModule()
+    ;(module as any).currentEpisodeId = 'article-2'
+    global.lx = {
+      worker: { dbService: { podcastLongFormContentGet } },
+    } as unknown as typeof global.lx
+
+    await expect(module.longFormContent('article-1', true)).resolves.toBeNull()
+    expect(podcastLongFormContentGet).not.toHaveBeenCalled()
+  })
+})
+
 const segments = (count: number) => Array.from({ length: count }, (_, index) => ({
   index,
   startMs: index * 30_000,

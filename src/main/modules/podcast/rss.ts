@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import { XMLParser } from 'fast-xml-parser'
+import { createLongFormContent, summarizeLongFormContent } from './longFormContent'
 
 const parser = new XMLParser({
   ignoreAttributes: false,
@@ -13,6 +14,7 @@ const parser = new XMLParser({
 export interface ParsedFeed {
   source: LX.Podcast.Source
   episodes: LX.Podcast.Episode[]
+  longFormContents: LX.Podcast.LongFormContentDocument[]
 }
 
 export const parsePodcastFeed = (xml: string, feedUrl: string): ParsedFeed => {
@@ -32,8 +34,8 @@ const parseRss = (channel: any, feedUrl: string): ParsedFeed => {
     artworkUrl,
     categories: collectCategories(channel['itunes:category']),
   })
-  const episodes = asArray(channel.item).map((item) => parseRssEpisode(item, source, artworkUrl))
-  return { source, episodes: episodes.filter((episode) => episode.audioUrl) }
+  const parsed = asArray(channel.item).map((item) => parseRssEpisode(item, source, artworkUrl))
+  return feedResult(source, parsed)
 }
 
 const parseAtom = (feed: any, feedUrl: string): ParsedFeed => {
@@ -46,7 +48,7 @@ const parseAtom = (feed: any, feedUrl: string): ParsedFeed => {
     artworkUrl: text(feed.logo) || text(feed.icon),
     categories: asArray(feed.category).map((item) => text(item?.['@_term'])).filter(Boolean),
   })
-  const episodes = asArray(feed.entry).map((entry) => {
+  const parsed = asArray(feed.entry).map((entry) => {
     const links = asArray(entry.link)
     const enclosure = links.find((link) => link?.['@_rel'] === 'enclosure')
     const alternate = links.find((link) => {
@@ -54,9 +56,11 @@ const parseAtom = (feed: any, feedUrl: string): ParsedFeed => {
       return (!rel || rel === 'alternate') && text(link?.['@_href'])
     })
     const guid = text(entry.id) || text(enclosure?.['@_href']) || text(entry.title)
-    return createEpisode(source, guid, {
+    const content = text(entry.content)
+    const summary = text(entry.summary)
+    const episode = createEpisode(source, guid, {
       title: text(entry.title),
-      description: text(entry.summary) || text(entry.content),
+      description: summary || summarizeLongFormContent(content),
       artworkUrl: source.artworkUrl,
       originalUrl: resolveHttpUrl(alternate?.['@_href'], feedUrl),
       audioUrl: text(enclosure?.['@_href']),
@@ -65,15 +69,19 @@ const parseAtom = (feed: any, feedUrl: string): ParsedFeed => {
       transcriptReferences: [],
       chaptersUrl: undefined,
     })
+    return {
+      episode,
+      longFormContent: createEpisodeLongFormContent(episode, content),
+    }
   })
-  return { source, episodes: episodes.filter((episode) => episode.audioUrl) }
+  return feedResult(source, parsed)
 }
 
 const parseRssEpisode = (
   item: any,
   source: LX.Podcast.Source,
   fallbackArtwork: string
-): LX.Podcast.Episode => {
+): ParsedEpisode => {
   const enclosure = asArray(item.enclosure)[0] ?? {}
   const rssGuid = text(item.guid?.['#text'] ?? item.guid)
   const guid = rssGuid || text(enclosure['@_url']) || text(item.link)
@@ -93,9 +101,11 @@ const parseRssEpisode = (
     })
     .filter((item): item is LX.Podcast.TranscriptReference => item != null)
   const chapters = item['podcast:chapters']
-  return createEpisode(source, guid, {
+  const content = text(item['content:encoded'])
+  const summary = text(item['itunes:summary']) || text(item.description)
+  const episode = createEpisode(source, guid, {
     title: text(item.title),
-    description: text(item['content:encoded']) || text(item.description) || text(item['itunes:summary']),
+    description: summary || summarizeLongFormContent(content),
     artworkUrl: text(item['itunes:image']?.['@_href']) || fallbackArtwork,
     originalUrl: resolveHttpUrl(item.link?.['@_href'] ?? item.link, source.feedUrl) ||
       resolveHttpUrl(guidPermalink, source.feedUrl),
@@ -105,7 +115,40 @@ const parseRssEpisode = (
     transcriptReferences,
     chaptersUrl: text(chapters?.['@_url']) || undefined,
   })
+  return {
+    episode,
+    longFormContent: createEpisodeLongFormContent(episode, content),
+  }
 }
+
+interface ParsedEpisode {
+  episode: LX.Podcast.Episode
+  longFormContent: LX.Podcast.LongFormContentDocument | null
+}
+
+const feedResult = (source: LX.Podcast.Source, parsed: ParsedEpisode[]): ParsedFeed => {
+  const available = parsed.filter(({ episode, longFormContent }) =>
+    !!episode.audioUrl || (!!episode.originalUrl && longFormContent != null)
+  )
+  return {
+    source,
+    episodes: available.map(({ episode }) => episode),
+    longFormContents: available
+      .map(({ longFormContent }) => longFormContent)
+      .filter((value): value is LX.Podcast.LongFormContentDocument => value != null),
+  }
+}
+
+const createEpisodeLongFormContent = (
+  episode: LX.Podcast.Episode,
+  content: string
+): LX.Podcast.LongFormContentDocument | null => createLongFormContent({
+  contentId: episode.id,
+  title: episode.title,
+  content,
+  originalUrl: episode.originalUrl,
+  audioUrl: episode.audioUrl,
+})
 
 const createSource = (
   id: string,

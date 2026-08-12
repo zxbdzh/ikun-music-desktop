@@ -208,6 +208,7 @@
                 <p>
                   {{ formatDate(episode.publishedAt) }}
                   <span v-if="episode.durationSeconds"> · {{ formatDuration(episode.durationSeconds) }}</span>
+                  <span v-if="!hasEpisodeAudio(episode)"> · 博客正文</span>
                   <span v-if="episode.transcriptReferences.length"> · 有发布者逐字稿</span>
                 </p>
                 <div
@@ -262,6 +263,7 @@
                     : episodeStates[episode.id]?.isFavorite ? '已收藏' : '收藏' }}
                 </button>
                 <button
+                  v-if="hasEpisodeAudio(episode)"
                   type="button"
                   :disabled="downloading.has(episode.id) || downloadStates[episode.id]?.isDownloaded"
                   :title="downloadStates[episode.id]?.isDownloaded ? '已下载' : '下载'"
@@ -272,6 +274,7 @@
                     : downloadStates[episode.id]?.isDownloaded ? '已下载' : '下载' }}
                 </button>
                 <button
+                  v-if="hasEpisodeAudio(episode)"
                   type="button"
                   :disabled="transcriptionAction(transcriptionStatuses[episode.id]).disabled"
                   :title="transcriptionAction(transcriptionStatuses[episode.id]).label"
@@ -280,7 +283,7 @@
                   {{ transcriptionAction(transcriptionStatuses[episode.id]).label }}
                 </button>
                 <button
-                  v-if="transcriptionStatuses[episode.id]?.transcriptState === 'ready'"
+                  v-if="hasEpisodeAudio(episode) && transcriptionStatuses[episode.id]?.transcriptState === 'ready'"
                   type="button"
                   :disabled="speakerActionDisabled(transcriptionStatuses[episode.id])"
                   :title="transcriptionStatuses[episode.id]?.speakerCount
@@ -290,7 +293,20 @@
                 >
                   AI 标注
                 </button>
-                <button type="button" title="播放" @click="playEpisode(index)">播放</button>
+                <button
+                  type="button"
+                  :disabled="shareBusy.size > 0"
+                  title="分享正文或逐字稿"
+                  @click="shareEpisode(episode, selectedSource)"
+                >
+                  {{ shareBusy.has(episode.id) ? '准备中' : '分享' }}
+                </button>
+                <button
+                  v-if="hasEpisodeAudio(episode)"
+                  type="button"
+                  title="播放"
+                  @click="playEpisode(episode)"
+                >播放</button>
               </div>
             </article>
             <button
@@ -314,12 +330,16 @@
           <h2 :id="`${activeView}-title`">{{ activeView === 'favorites' ? '我的收藏' : '播放历史' }}</h2>
           <p>{{ activeView === 'favorites' ? '已收藏的播客单集' : '最近播放和已播完的单集' }}</p>
         </div>
-        <button type="button" :disabled="loadingLibrary" @click="loadLibrary">刷新</button>
+        <button
+          type="button"
+          :disabled="loadingLibrary || loadingMoreLibrary"
+          @click="loadLibrary"
+        >刷新</button>
       </header>
       <p v-if="error" :class="$style.error" role="alert">{{ error }}</p>
       <div id="podcast-library-list" :class="$style.libraryList">
         <article
-          v-for="(item, index) in visibleLibraryItems"
+          v-for="item in libraryItems"
           :key="item.episode.id"
           :class="$style.libraryItem"
         >
@@ -330,10 +350,20 @@
           />
           <div>
             <h3>{{ item.episode.title }}</h3>
-            <p>{{ item.source.title }} · {{ formatDate(item.episode.publishedAt) }}</p>
+            <p>
+              {{ item.source.title }} · {{ formatDate(item.episode.publishedAt) }}
+              <span v-if="!hasEpisodeAudio(item.episode)"> · 博客正文</span>
+            </p>
             <small v-if="item.state.isFinished">已播完</small>
             <small v-else-if="item.state.positionSeconds">
               已播放至 {{ formatDuration(item.state.positionSeconds) }}
+            </small>
+            <small
+              v-if="episodeActionErrors[item.episode.id]"
+              :class="$style.episodeActionError"
+              role="alert"
+            >
+              {{ episodeActionErrors[item.episode.id] }}
             </small>
           </div>
           <div :class="$style.episodeActions">
@@ -346,7 +376,18 @@
                 ? '处理中'
                 : item.state.isFavorite ? '取消收藏' : '收藏' }}
             </button>
-            <button type="button" @click="playLibraryEpisode(index)">播放</button>
+            <button
+              type="button"
+              :disabled="shareBusy.size > 0"
+              @click="shareEpisode(item.episode, item.source)"
+            >
+              {{ shareBusy.has(item.episode.id) ? '准备中' : '分享' }}
+            </button>
+            <button
+              v-if="hasEpisodeAudio(item.episode)"
+              type="button"
+              @click="playLibraryEpisode(item)"
+            >播放</button>
           </div>
         </article>
         <button
@@ -354,9 +395,10 @@
           type="button"
           :class="$style.loadMore"
           aria-controls="podcast-library-list"
+          :disabled="loadingMoreLibrary"
           @click="loadMoreLibrary"
         >
-          加载更多（剩余 {{ libraryItems.length - visibleLibraryItems.length }} 集）
+          {{ loadingMoreLibrary ? '加载中' : '加载更多' }}
         </button>
       </div>
       <p v-if="!loadingLibrary && !libraryItems.length" :class="$style.empty">
@@ -736,6 +778,7 @@ import { openSaveDir, sendPodcastCommand, showSelectDialog } from '@renderer/uti
 import { setTempList } from '@renderer/store/list/action'
 import { playList } from '@renderer/core/player'
 import { appSetting, updateSetting } from '@renderer/store/setting'
+import { openShareMusicCard } from '@renderer/store/shareMusicCard'
 import {
   isTranscriptionWarning,
   shouldPollTranscription,
@@ -747,10 +790,26 @@ import {
   transcriptionWarning,
 } from './transcriptionStatus'
 import { syncStatusPresentation } from './syncStatus'
-import { nextVisibleItemCount, visibleListItems } from './progressiveList'
 import PodcastArtwork from './PodcastArtwork.vue'
 
-const toMusicInfo = (episode: LX.Podcast.Episode, source: LX.Podcast.Source): LX.Music.MusicInfoPodcast => ({
+type ShareableEpisode = LX.Podcast.Episode | LX.Podcast.LibraryEpisode
+type ShareableSource = LX.Podcast.Source | LX.Podcast.LibrarySource
+
+const audioExtension = (audioUrl: string) => {
+  if (!audioUrl.trim()) return 'audio'
+  try {
+    return new URL(audioUrl).pathname.split('.').pop() || 'audio'
+  } catch {
+    return 'audio'
+  }
+}
+
+const hasEpisodeAudio = (episode: ShareableEpisode) => !!episode.audioUrl.trim()
+
+const toMusicInfo = (
+  episode: ShareableEpisode,
+  source: ShareableSource
+): LX.Music.MusicInfoPodcast => ({
   id: episode.id,
   name: episode.title,
   singer: source.title,
@@ -761,7 +820,7 @@ const toMusicInfo = (episode: LX.Podcast.Episode, source: LX.Podcast.Source): LX
     albumName: source.title,
     picUrl: episode.artworkUrl || source.artworkUrl,
     filePath: episode.audioUrl,
-    ext: new URL(episode.audioUrl).pathname.split('.').pop() || 'audio',
+    ext: audioExtension(episode.audioUrl),
     podcast: true,
     audioUrl: episode.audioUrl,
     originalUrl: episode.originalUrl,
@@ -824,14 +883,11 @@ export default {
     const popularSources = ref<LX.Podcast.PopularSource[]>([])
     const loadingPopular = ref(false)
     const libraryItems = ref<LX.Podcast.LibraryItem[]>([])
-    const visibleLibraryCount = ref(EPISODE_PAGE_SIZE)
-    const visibleLibraryItems = computed(() =>
-      visibleListItems(libraryItems.value, visibleLibraryCount.value)
-    )
-    const hasMoreLibraryItems = computed(() =>
-      visibleLibraryCount.value < libraryItems.value.length
-    )
+    const loadedLibraryKind = ref<LX.Podcast.LibraryKind | null>(null)
+    const libraryCursor = ref<LX.Podcast.LibraryCursor | null>(null)
+    const hasMoreLibraryItems = computed(() => libraryCursor.value != null)
     const loadingLibrary = ref(false)
+    const loadingMoreLibrary = ref(false)
     const subscriptionGroups = ref<LX.Podcast.SubscriptionGroup[]>([])
     const newGroupName = ref('')
     const groupBusy = ref(false)
@@ -849,6 +905,7 @@ export default {
     const downloadStates = ref<Record<string, LX.Podcast.DownloadState | undefined>>({})
     const downloading = ref(new Set<string>())
     const favoriteBusy = ref(new Set<string>())
+    const shareBusy = ref(new Set<string>())
     const episodeActionErrors = ref<Record<string, string | undefined>>({})
     const visibleEpisodeCount = ref(EPISODE_PAGE_SIZE)
     const visibleEpisodes = computed(() => episodes.value.slice(0, visibleEpisodeCount.value))
@@ -1069,10 +1126,14 @@ export default {
     }
     const loadEpisodeMetadata = async (items: LX.Podcast.Episode[]) => {
       const episodeIds = items.map((episode) => episode.id)
-      await Promise.all([loadEpisodeStates(episodeIds), loadDownloadStates(episodeIds)])
-      void Promise.all(items.map((episode) => refreshTranscriptionStatus(episode.id)))
+      const audioItems = items.filter(hasEpisodeAudio)
+      await Promise.all([
+        loadEpisodeStates(episodeIds),
+        loadDownloadStates(audioItems.map((episode) => episode.id)),
+      ])
+      void Promise.all(audioItems.map((episode) => refreshTranscriptionStatus(episode.id)))
         .then((statuses) => statuses.forEach((status, index) => {
-          scheduleTranscriptionPoll(items[index]?.id, status)
+          scheduleTranscriptionPoll(audioItems[index]?.id, status)
         }))
     }
     const loadEpisodes = async (refresh = false) => {
@@ -1201,56 +1262,125 @@ export default {
         sourceActionBusy.value = false
       }
     }
-    const playEpisode = async (index: number) => {
+    const playEpisode = async (episode: LX.Podcast.Episode) => {
       if (!selectedSource.value) return
+      const playableEpisodes = episodes.value.filter(hasEpisodeAudio)
+      const index = playableEpisodes.findIndex((item) => item.id === episode.id)
+      if (index < 0) return
       await setTempList(
         `podcast:${selectedSource.value.id}`,
-        episodes.value.map((episode) => toMusicInfo(episode, selectedSource.value!))
+        playableEpisodes.map((item) => toMusicInfo(item, selectedSource.value!))
       )
       updateSetting({ 'player.playbackRate': appSetting['podcast.playbackRate'] })
       playList(LIST_IDS.TEMP, index)
-      trackEvent('podcast_play', episodes.value[index]?.id, { source: 'show' })
+      trackEvent('podcast_play', episode.id, { source: 'show' })
     }
-    const playLibraryEpisode = async (index: number) => {
+    const playLibraryEpisode = async (item: LX.Podcast.LibraryItem) => {
+      const playableItems = libraryItems.value.filter(({ episode }) => hasEpisodeAudio(episode))
+      const index = playableItems.findIndex(({ episode }) => episode.id === item.episode.id)
+      if (index < 0) return
       await setTempList(
         `podcast:library:${activeView.value}`,
-        libraryItems.value.map((item) => toMusicInfo(item.episode, item.source))
+        playableItems.map(({ episode, source }) => toMusicInfo(episode, source))
       )
       updateSetting({ 'player.playbackRate': appSetting['podcast.playbackRate'] })
       playList(LIST_IDS.TEMP, index)
-      trackEvent('podcast_play', libraryItems.value[index]?.episode.id, {
+      trackEvent('podcast_play', item.episode.id, {
         source: activeView.value,
       })
     }
+    const shareEpisode = async (episode: ShareableEpisode, source: ShareableSource) => {
+      if (shareBusy.value.size > 0) return
+      const generation = ++shareGeneration
+      shareBusy.value = new Set([...shareBusy.value, episode.id])
+      const nextErrors = { ...episodeActionErrors.value }
+      delete nextErrors[episode.id]
+      episodeActionErrors.value = nextErrors
+      try {
+        await sendPodcastCommand({ action: 'activate-episode', episodeId: episode.id })
+        if (generation !== shareGeneration) return
+        openShareMusicCard(toMusicInfo(episode, source))
+      } catch (value) {
+        episodeActionErrors.value = {
+          ...episodeActionErrors.value,
+          [episode.id]: value instanceof Error ? value.message : String(value),
+        }
+      } finally {
+        const next = new Set(shareBusy.value)
+        next.delete(episode.id)
+        shareBusy.value = next
+      }
+    }
+    let shareGeneration = 0
+    let libraryLoadGeneration = 0
     const loadLibrary = async () => {
       if (activeView.value === 'discover') return
+      const view = activeView.value
+      const generation = ++libraryLoadGeneration
       loadingLibrary.value = true
+      loadingMoreLibrary.value = false
       error.value = ''
+      if (loadedLibraryKind.value !== view) {
+        libraryItems.value = []
+        libraryCursor.value = null
+      }
       try {
-        libraryItems.value = await sendPodcastCommand<LX.Podcast.LibraryItem[]>({
+        const page = await sendPodcastCommand<LX.Podcast.LibraryPage>({
           action: 'library',
-          kind: activeView.value,
+          kind: view,
+          limit: EPISODE_PAGE_SIZE,
         })
-        visibleLibraryCount.value = EPISODE_PAGE_SIZE
+        if (generation !== libraryLoadGeneration || activeView.value !== view) return
+        libraryItems.value = page.items
+        libraryCursor.value = page.nextCursor
+        loadedLibraryKind.value = view
       } catch (value) {
+        if (generation !== libraryLoadGeneration || activeView.value !== view) return
         error.value = value instanceof Error ? value.message : String(value)
       } finally {
-        loadingLibrary.value = false
+        if (generation === libraryLoadGeneration) loadingLibrary.value = false
       }
     }
     const changeView = (view: PodcastView) => {
       activeView.value = view
-      if (view !== 'discover') void loadLibrary()
+      if (view === 'discover') {
+        libraryLoadGeneration++
+        loadingLibrary.value = false
+        loadingMoreLibrary.value = false
+        return
+      }
+      void loadLibrary()
     }
-    const loadMoreLibrary = () => {
-      visibleLibraryCount.value = nextVisibleItemCount(
-        visibleLibraryCount.value,
-        libraryItems.value.length,
-        EPISODE_PAGE_SIZE
-      )
+    const loadMoreLibrary = async () => {
+      const cursor = libraryCursor.value
+      if (activeView.value === 'discover' || !cursor || loadingMoreLibrary.value) return
+      const view = activeView.value
+      const generation = libraryLoadGeneration
+      loadingMoreLibrary.value = true
+      error.value = ''
+      try {
+        const page = await sendPodcastCommand<LX.Podcast.LibraryPage>({
+          action: 'library',
+          kind: view,
+          cursor,
+          limit: EPISODE_PAGE_SIZE,
+        })
+        if (generation !== libraryLoadGeneration || activeView.value !== view) return
+        const existingIds = new Set(libraryItems.value.map((item) => item.episode.id))
+        libraryItems.value = [
+          ...libraryItems.value,
+          ...page.items.filter((item) => !existingIds.has(item.episode.id)),
+        ]
+        libraryCursor.value = page.nextCursor
+      } catch (value) {
+        if (generation !== libraryLoadGeneration || activeView.value !== view) return
+        error.value = value instanceof Error ? value.message : String(value)
+      } finally {
+        if (generation === libraryLoadGeneration) loadingMoreLibrary.value = false
+      }
     }
     const toggleFavorite = async (
-      episode: LX.Podcast.Episode,
+      episode: ShareableEpisode,
       knownState?: LX.Podcast.EpisodeState
     ) => {
       if (favoriteBusy.value.has(episode.id)) return
@@ -1269,6 +1399,7 @@ export default {
         libraryItems.value = libraryItems.value
           .map((item) => item.episode.id === episode.id ? { ...item, state } : item)
           .filter((item) => activeView.value !== 'favorites' || item.state.isFavorite)
+        if (activeView.value !== 'discover') void loadLibrary()
         trackEvent(state.isFavorite ? 'podcast_favorite' : 'podcast_unfavorite', episode.id)
       } catch (value) {
         episodeActionErrors.value = {
@@ -1706,9 +1837,9 @@ export default {
       popularSources,
       loadingPopular,
       libraryItems,
-      visibleLibraryItems,
       hasMoreLibraryItems,
       loadingLibrary,
+      loadingMoreLibrary,
       subscriptionGroups,
       newGroupName,
       groupBusy,
@@ -1726,6 +1857,7 @@ export default {
       downloadStates,
       downloading,
       favoriteBusy,
+      shareBusy,
       episodeActionErrors,
       visibleEpisodes,
       hasMoreEpisodes,
@@ -1793,6 +1925,8 @@ export default {
       unsubscribe,
       playEpisode,
       playLibraryEpisode,
+      shareEpisode,
+      hasEpisodeAudio,
       toggleFavorite,
       downloadEpisode,
       handleTranscriptionAction,

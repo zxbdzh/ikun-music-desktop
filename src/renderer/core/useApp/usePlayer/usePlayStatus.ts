@@ -84,6 +84,7 @@ export default () => {
       mediaKind: podcast ? 'podcast' : 'music',
       contentId: podcast?.id ?? '',
       transcript: null,
+      ...(!podcast ? { longFormContent: null } : {}),
     })
   }
   const handleSetLyric = () => {
@@ -125,6 +126,7 @@ export default () => {
       mediaKind: 'music',
       contentId: '',
       transcript: null,
+      longFormContent: null,
     })
   }
   const handleSetProgress = (position: number) => {
@@ -303,6 +305,7 @@ export default () => {
       lxlyric: musicInfo.lxlrc ?? '',
       mediaKind: podcast ? 'podcast' : 'music',
       contentId: podcast?.id ?? '',
+      ...(!podcast ? { longFormContent: null } : {}),
     })
   }
 }

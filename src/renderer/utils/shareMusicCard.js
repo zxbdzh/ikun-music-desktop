@@ -18,14 +18,26 @@ const normalizeHttpUrl = (url) => {
   }
 }
 
-export const resolveMusicDetailWebUrl = (musicInfo) => {
+/**
+ * @param {any} musicInfo
+ * @param {{ originalUrl?: string | null, audioUrl?: string | null } | null} [longFormContent]
+ */
+export const resolveMusicDetailWebUrl = (musicInfo, longFormContent = null) => {
   if (!musicInfo) return ''
 
   const meta = getMeta(musicInfo)
   if (meta.podcast) {
-    const originalUrl = normalizeHttpUrl(meta.originalUrl)
-    if (originalUrl) return originalUrl
-    return normalizeHttpUrl(meta.audioUrl)
+    const candidates = [
+      longFormContent?.originalUrl,
+      meta.originalUrl,
+      longFormContent?.audioUrl,
+      meta.audioUrl,
+    ]
+    for (const candidate of candidates) {
+      const url = normalizeHttpUrl(candidate)
+      if (url) return url
+    }
+    return ''
   }
 
   const oldMusicInfo = toOldMusicInfo(musicInfo)
@@ -63,6 +75,72 @@ export const resolveMusicDetailWebUrl = (musicInfo) => {
 
   const searchText = encodeURIComponent(`${musicInfo.name} ${musicInfo.singer}`.trim())
   return `https://music.163.com/#/search/m/?s=${searchText}`
+}
+
+export const buildTranscriptSelectableLines = (transcript) => {
+  if (!transcript || !Array.isArray(transcript.upsertLines)) return []
+  const speakers = new Map(
+    Array.isArray(transcript.speakers)
+      ? transcript.speakers.map((speaker) => [speaker.id, speaker.name])
+      : []
+  )
+
+  return [...transcript.upsertLines]
+    .sort((left, right) => (
+      Number(left.startMs) - Number(right.startMs) || String(left.id).localeCompare(String(right.id))
+    ))
+    .flatMap((line) => {
+      const text = typeof line.displayText === 'string' ? line.displayText.trim() : ''
+      if (!text) return []
+      const speaker = line.speakerId ? speakers.get(line.speakerId) : ''
+      return [{
+        key: String(line.id),
+        text: speaker ? `${speaker}: ${text}` : text,
+        time: Number.isFinite(line.startMs) ? String(line.startMs) : '',
+        translation: '',
+        sourceKind: 'transcript',
+      }]
+    })
+}
+
+export const buildLongFormSelectableLines = (document) => {
+  if (document?.protocolVersion !== 1 || !Array.isArray(document.blocks)) return []
+
+  return document.blocks.flatMap((block, index) => {
+    const text = typeof block?.text === 'string' ? block.text.trim() : ''
+    if (!text) return []
+    return [{
+      key: String(block.id || `block-${index + 1}`),
+      text,
+      time: '',
+      translation: '',
+      sourceKind: 'long-form',
+      blockKind: block.kind,
+      level: block.level,
+    }]
+  })
+}
+
+/**
+ * @param {{
+ *   transcriptLines?: any[],
+ *   longFormLines?: any[],
+ *   longFormFailed?: boolean,
+ *   audioUrl?: string,
+ * }} [options]
+ */
+export const resolvePodcastShareContentSource = ({
+  transcriptLines = [],
+  longFormLines = [],
+  longFormFailed = false,
+  audioUrl = '',
+} = {}) => {
+  if (longFormLines.length && (!String(audioUrl).trim() || !transcriptLines.length)) {
+    return 'long-form'
+  }
+  if (transcriptLines.length) return 'transcript'
+  if (longFormLines.length || longFormFailed) return 'long-form'
+  return 'transcript'
 }
 
 const timeFieldExp = /^(?:\[[\d:.]+\])+/g

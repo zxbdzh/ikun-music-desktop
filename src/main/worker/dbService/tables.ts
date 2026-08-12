@@ -118,7 +118,10 @@ type Tables =
   | 'podcast_subscription_group'
   | 'podcast_episode'
   | 'podcast_episode_state'
+  | 'podcast_episode_state_favorites_library_idx'
+  | 'podcast_episode_state_history_library_idx'
   | 'podcast_transcript'
+  | 'podcast_long_form_content'
   | 'podcast_sync_state'
 
 const tables = new Map<Tables, string>()
@@ -347,6 +350,22 @@ tables.set(
 `
 )
 tables.set(
+  'podcast_episode_state_favorites_library_idx',
+  `
+  CREATE INDEX IF NOT EXISTS "podcast_episode_state_favorites_library_idx"
+    ON "podcast_episode_state" ("account_id", "client_updated_at" DESC, "episode_id" DESC)
+    WHERE "is_favorite" = 1;
+`
+)
+tables.set(
+  'podcast_episode_state_history_library_idx',
+  `
+  CREATE INDEX IF NOT EXISTS "podcast_episode_state_history_library_idx"
+    ON "podcast_episode_state" ("account_id", "client_updated_at" DESC, "episode_id" DESC)
+    WHERE "history_hidden" = 0 AND ("position_seconds" > 0 OR "is_finished" = 1);
+`
+)
+tables.set(
   'podcast_transcript',
   `
   CREATE TABLE "podcast_transcript" (
@@ -360,6 +379,17 @@ tables.set(
     "snapshot_json" TEXT NOT NULL,
     "updated_at" INTEGER NOT NULL,
     PRIMARY KEY("episode_id", "version_id")
+  );
+`
+)
+tables.set(
+  'podcast_long_form_content',
+  `
+  CREATE TABLE "podcast_long_form_content" (
+    "episode_id" TEXT NOT NULL,
+    "document_json" TEXT NOT NULL,
+    "updated_at" INTEGER NOT NULL,
+    PRIMARY KEY("episode_id")
   );
 `
 )
@@ -378,4 +408,4 @@ tables.set(
 
 export default tables
 
-export const DB_VERSION = '6'
+export const DB_VERSION = '8'

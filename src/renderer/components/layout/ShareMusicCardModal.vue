@@ -53,6 +53,27 @@
           </div>
 
           <div :class="$style.group">
+            <div
+              v-if="showPodcastSourceSwitch"
+              :class="$style.sourceSwitch"
+              role="group"
+              :aria-label="$t('share__content_source')"
+            >
+              <button
+                v-for="source in podcastContentSources"
+                :key="source.id"
+                :class="[
+                  $style.sourceSwitchButton,
+                  { [$style.active]: contentSource == source.id },
+                ]"
+                type="button"
+                :disabled="batchBusy || loadingLyrics"
+                :aria-pressed="contentSource == source.id"
+                @click="handleContentSourceChange(source.id)"
+              >
+                {{ source.label }}
+              </button>
+            </div>
             <div :class="$style.groupLine">
               <div :class="$style.groupTitle">{{ selectionLabel }}</div>
               <div :class="$style.selectionControls">
@@ -114,7 +135,18 @@
                   @change="handleLineSelection(item.index, $event.target.checked)"
                 />
                 <div>
-                  <div :class="$style.lineMain">{{ item.line.text }}</div>
+                  <div
+                    :class="[
+                      $style.lineMain,
+                      {
+                        [$style.longFormHeading]: item.line.blockKind == 'heading',
+                        [$style.longFormQuote]: item.line.blockKind == 'quote',
+                        [$style.longFormListItem]: item.line.blockKind == 'list-item',
+                      },
+                    ]"
+                  >
+                    {{ item.line.text }}
+                  </div>
                   <div v-if="item.line.translation" :class="$style.lineSub">
                     {{ item.line.translation }}
                   </div>
@@ -123,6 +155,21 @@
             </div>
             <div v-else :class="$style.emptyLyric" role="status" aria-live="polite">
               {{ loadingLyrics ? $t('share__loading_content') : emptySelectionText }}
+            </div>
+            <div
+              v-if="podcastContentLoadError && !loadingLyrics"
+              :class="$style.contentLoadError"
+              role="alert"
+            >
+              <span>{{ podcastContentLoadError }}</span>
+              <button
+                :class="$style.retryButton"
+                type="button"
+                :disabled="batchBusy"
+                @click="handleRetryPodcastContent"
+              >
+                {{ $t('share__retry_content') }}
+              </button>
             </div>
             <div
               v-if="selectionPageCount > 1"
@@ -151,9 +198,7 @@
                   min="1"
                   :max="selectionPageCount"
                   :disabled="batchBusy"
-                  :aria-label="$t(isPodcast
-                    ? 'share__transcript_selection_page_jump'
-                    : 'share__selection_page_jump')"
+                  :aria-label="selectionPageJumpLabel"
                   @change="handleSelectionPageJump"
                   @blur="handleSelectionPageJump"
                   @keydown.enter="$event.currentTarget.blur()"
@@ -232,7 +277,7 @@
             <button
               :class="$style.actionBtn"
               type="button"
-              :disabled="!shareUrl || batchBusy"
+              :disabled="!shareUrl || batchBusy || preparingShare"
               @click="handleCopyLink"
             >
               {{ $t('share__copy_link') }}
@@ -325,7 +370,18 @@
 
                 <div ref="dom_lyric_preview" :class="$style.lyricPreview">
                   <template v-for="(line, index) in currentLyricPage" :key="line.key + 'preview' + index">
-                    <p :class="$style.previewMain">{{ line.text }}</p>
+                    <p
+                      :class="[
+                        $style.previewMain,
+                        {
+                          [$style.previewLongFormHeading]: line.blockKind == 'heading',
+                          [$style.previewLongFormQuote]: line.blockKind == 'quote',
+                          [$style.previewLongFormListItem]: line.blockKind == 'list-item',
+                        },
+                      ]"
+                    >
+                      {{ line.text }}
+                    </p>
                     <p v-if="cardIncludeTranslation && line.translation" :class="$style.previewSub">
                       {{ line.translation }}
                     </p>
@@ -428,12 +484,20 @@ import {
   normalizeShareCardPageRange,
   resolveMusicDetailWebUrl,
   buildLyricSelectableLines,
+  buildLongFormSelectableLines,
+  buildTranscriptSelectableLines,
   paginateLyricLines,
+  resolvePodcastShareContentSource,
 } from '@renderer/utils/shareMusicCard'
 import { createShareForMusic } from '@renderer/utils/cerumusicShare'
 import { clipboardWriteText, clipboardWriteImageDataURL } from '@common/utils/electron'
 import { dialog } from '@renderer/plugins/Dialog'
-import { getPlayerLyric, openSaveDir, showSelectDialog } from '@renderer/utils/ipc'
+import {
+  getPlayerLyric,
+  openSaveDir,
+  sendPodcastCommand,
+  showSelectDialog,
+} from '@renderer/utils/ipc'
 import { musicInfo as playerMusicInfo } from '@renderer/store/player/state'
 import { toPng } from 'html-to-image'
 import QRCode from 'qrcode'
@@ -511,9 +575,12 @@ const dialogFocusableSelector = [
 const SELECTION_PAGE_SIZE = 40
 const CARD_MAX_LINES_PER_PAGE = 5
 const CARD_MAX_CHARACTERS_PER_PAGE = 120
+const CONTENT_SOURCE_TRANSCRIPT = 'transcript'
+const CONTENT_SOURCE_LONG_FORM = 'long-form'
 
 const stylePreset = ref('presetNebula')
 const includeTranslation = ref(true)
+const contentSource = ref(CONTENT_SOURCE_TRANSCRIPT)
 const lyricLines = ref([])
 const selectedLineIndexes = ref([])
 const currentPageIndex = ref(0)
@@ -531,6 +598,13 @@ const dom_lyric_preview = ref(null)
 const coverColors = ref(null)
 const rawLyric = ref('')
 const rawTlyric = ref('')
+const transcriptLines = ref([])
+const longFormLines = ref([])
+const longFormDocument = ref(null)
+const transcriptSelection = ref([])
+const longFormSelection = ref([])
+const transcriptLoadError = ref('')
+const longFormLoadError = ref('')
 const cerumusicUrl = ref('')
 const generating = ref(false)
 const batchPreparing = ref(false)
@@ -558,24 +632,63 @@ let openingMusicInfo = null
 
 const musicInfo = computed(() => shareMusicInfo.value)
 const isPodcast = computed(() => musicInfo.value?.meta?.podcast === true)
-const detailUrl = computed(() => resolveMusicDetailWebUrl(musicInfo.value))
+const detailUrl = computed(() => resolveMusicDetailWebUrl(musicInfo.value, longFormDocument.value))
 // 优先使用 CeruMusic 分享落地页链接,未生成时回退到平台详情链接
 const shareUrl = computed(() => isPodcast.value ? detailUrl.value : cerumusicUrl.value || detailUrl.value)
 const preparingShare = computed(() => (
   loadingLyrics.value || loadingQr.value || loadingCover.value
 ))
 const batchBusy = computed(() => batchPreparing.value || batchSaving.value)
+const podcastContentSources = computed(() => [
+  {
+    id: CONTENT_SOURCE_TRANSCRIPT,
+    label: window.i18n.t('share__source_transcript'),
+  },
+  {
+    id: CONTENT_SOURCE_LONG_FORM,
+    label: window.i18n.t('share__source_long_form'),
+  },
+])
+const showPodcastSourceSwitch = computed(() => {
+  if (!isPodcast.value) return false
+  const transcriptAvailable = transcriptLines.value.length > 0 || transcriptLoadError.value
+  const longFormAvailable = longFormLines.value.length > 0 || longFormLoadError.value
+  return Boolean(transcriptAvailable && longFormAvailable)
+})
 const selectionLabel = computed(() => window.i18n.t(
-  isPodcast.value ? 'share__select_transcript' : 'share__select_lyrics'
+  !isPodcast.value
+    ? 'share__select_lyrics'
+    : contentSource.value === CONTENT_SOURCE_LONG_FORM
+      ? 'share__select_long_form'
+      : 'share__select_transcript'
 ))
 const selectionNavigationLabel = computed(() => window.i18n.t(
-  isPodcast.value
-    ? 'share__transcript_selection_navigation'
-    : 'share__selection_navigation'
+  !isPodcast.value
+    ? 'share__selection_navigation'
+    : contentSource.value === CONTENT_SOURCE_LONG_FORM
+      ? 'share__long_form_selection_navigation'
+      : 'share__transcript_selection_navigation'
+))
+const selectionPageJumpLabel = computed(() => window.i18n.t(
+  !isPodcast.value
+    ? 'share__selection_page_jump'
+    : contentSource.value === CONTENT_SOURCE_LONG_FORM
+      ? 'share__long_form_selection_page_jump'
+      : 'share__transcript_selection_page_jump'
 ))
 const emptySelectionText = computed(() => window.i18n.t(
-  isPodcast.value ? 'share__no_transcript' : 'share__no_lyric'
+  !isPodcast.value
+    ? 'share__no_lyric'
+    : contentSource.value === CONTENT_SOURCE_LONG_FORM
+      ? 'share__no_long_form'
+      : 'share__no_transcript'
 ))
+const podcastContentLoadError = computed(() => {
+  if (!isPodcast.value) return ''
+  return contentSource.value === CONTENT_SOURCE_LONG_FORM
+    ? longFormLoadError.value
+    : transcriptLoadError.value
+})
 
 const selectedLyricLines = computed(() => {
   const selected = new Set(selectedLineIndexes.value)
@@ -658,15 +771,21 @@ const cardStylePreset = computed(() => batchCardSnapshot.value?.stylePreset ?? s
 const cardIncludeTranslation = computed(() => (
   batchCardSnapshot.value?.includeTranslation ?? includeTranslation.value
 ))
-const cardScanTextKey = computed(() => {
+const currentScanTextKey = computed(() => {
   const info = cardMusicInfo.value
   if (info?.meta?.podcast !== true) return 'share__scan_to_detail'
   const publisherUrl = resolveMusicDetailWebUrl({
     ...info,
     meta: { ...info.meta, audioUrl: '' },
+  }, {
+    originalUrl: longFormDocument.value?.originalUrl,
+    audioUrl: null,
   })
   return publisherUrl ? 'share__scan_to_detail' : 'share__scan_to_audio'
 })
+const cardScanTextKey = computed(() => (
+  batchCardSnapshot.value?.scanTextKey ?? currentScanTextKey.value
+))
 
 const coverStyle = computed(() => {
   if (stylePreset.value !== 'presetCover' || !coverColors.value) return {}
@@ -714,16 +833,139 @@ const handlePresetChange = (presetId) => {
   }
 }
 
-const resetLyricState = () => {
-  lyricLines.value = []
-  selectedLineIndexes.value = []
+const resetSelectionNavigation = () => {
   currentPageIndex.value = 0
   pageDraft.value = 1
   selectionPageIndex.value = 0
   selectionPageDraft.value = 1
   activeLyricIndex.value = 0
+}
+
+const resetLyricState = () => {
+  lyricLines.value = []
+  selectedLineIndexes.value = []
+  resetSelectionNavigation()
   rawLyric.value = ''
   rawTlyric.value = ''
+  transcriptLines.value = []
+  longFormLines.value = []
+  longFormDocument.value = null
+  transcriptSelection.value = []
+  longFormSelection.value = []
+  transcriptLoadError.value = ''
+  longFormLoadError.value = ''
+}
+
+const selectionForSource = (source) => (
+  source === CONTENT_SOURCE_LONG_FORM ? longFormSelection : transcriptSelection
+)
+
+const linesForSource = (source) => (
+  source === CONTENT_SOURCE_LONG_FORM ? longFormLines.value : transcriptLines.value
+)
+
+const saveCurrentPodcastSelection = () => {
+  if (!isPodcast.value) return
+  selectionForSource(contentSource.value).value = [...selectedLineIndexes.value]
+}
+
+const applyPodcastContentSource = (source, saveCurrent = true) => {
+  if (!isPodcast.value || batchBusy.value) return
+  if (saveCurrent) saveCurrentPodcastSelection()
+  contentSource.value = source
+  lyricLines.value = [...linesForSource(source)]
+  selectedLineIndexes.value = selectionForSource(source).value.filter(
+    (index) => index >= 0 && index < lyricLines.value.length
+  )
+  resetSelectionNavigation()
+}
+
+const handleContentSourceChange = (source) => {
+  if (source === contentSource.value || batchBusy.value || loadingLyrics.value) return
+  applyPodcastContentSource(source)
+}
+
+const loadPodcastTranscript = async (mInfo) => {
+  const transcript = await sendPodcastCommand({
+    action: 'transcript',
+    episodeId: mInfo.id,
+    sinceRevision: 0,
+  })
+  return buildTranscriptSelectableLines(transcript)
+}
+
+const loadPodcastLongForm = async (mInfo) => {
+  const document = await sendPodcastCommand({
+    action: 'long-form-content',
+    episodeId: mInfo.id,
+  })
+  return {
+    document,
+    lines: buildLongFormSelectableLines(document),
+  }
+}
+
+const refreshPodcastContent = async (generation, mInfo) => {
+  const transcriptRequest = mInfo.meta?.audioUrl?.trim()
+    ? loadPodcastTranscript(mInfo)
+    : Promise.resolve([])
+  const [transcriptResult, longFormResult] = await Promise.allSettled([
+    transcriptRequest,
+    loadPodcastLongForm(mInfo),
+  ])
+  if (generation !== lyricLoadGeneration || musicInfo.value !== mInfo) return
+
+  if (transcriptResult.status === 'fulfilled') {
+    transcriptLines.value = transcriptResult.value
+  } else {
+    transcriptLoadError.value = window.i18n.t('share__transcript_load_failed')
+  }
+  if (longFormResult.status === 'fulfilled') {
+    longFormDocument.value = longFormResult.value.document
+    longFormLines.value = longFormResult.value.lines
+  } else {
+    longFormLoadError.value = window.i18n.t('share__long_form_load_failed')
+  }
+
+  transcriptSelection.value = transcriptLines.value.map((_, index) => index)
+  longFormSelection.value = longFormLines.value.map((_, index) => index)
+  const source = resolvePodcastShareContentSource({
+    transcriptLines: transcriptLines.value,
+    longFormLines: longFormLines.value,
+    longFormFailed: Boolean(longFormLoadError.value),
+    audioUrl: mInfo.meta?.audioUrl,
+  })
+  applyPodcastContentSource(source, false)
+}
+
+const refreshMusicLyrics = async (generation, mInfo) => {
+  let sourceLyric = ''
+  let sourceTlyric = ''
+
+  // 如果正在播放这首歌，优先使用播放器的歌词
+  if (playerMusicInfo.id && playerMusicInfo.id == mInfo.id && playerMusicInfo.lrc) {
+    sourceLyric = playerMusicInfo.lxlrc || playerMusicInfo.lrc || ''
+    sourceTlyric = playerMusicInfo.tlrc || ''
+  }
+
+  // 如果没有歌词，从播放器获取
+  if (!sourceLyric) {
+    const playerLyric = await getPlayerLyric(mInfo).catch(() => null)
+    sourceLyric = playerLyric?.lyric || ''
+    sourceTlyric = playerLyric?.tlyric || ''
+  }
+
+  if (generation !== lyricLoadGeneration || musicInfo.value !== mInfo) return
+
+  rawLyric.value = sourceLyric
+  rawTlyric.value = sourceTlyric
+
+  const lines = buildLyricSelectableLines(sourceLyric, sourceTlyric)
+  lyricLines.value = lines
+  selectedLineIndexes.value = Array.from(
+    { length: Math.min(lines.length, 4) },
+    (_, index) => index
+  )
 }
 
 const refreshLyricData = async () => {
@@ -734,31 +976,49 @@ const refreshLyricData = async () => {
   if (!mInfo) return
 
   try {
-    let sourceLyric = ''
-    let sourceTlyric = ''
-
-    // 如果正在播放这首歌，优先使用播放器的歌词
-    if (playerMusicInfo.id && playerMusicInfo.id == mInfo.id && playerMusicInfo.lrc) {
-      sourceLyric = playerMusicInfo.lxlrc || playerMusicInfo.lrc || ''
-      sourceTlyric = playerMusicInfo.tlrc || ''
+    if (mInfo.meta?.podcast === true) {
+      await refreshPodcastContent(generation, mInfo)
+    } else {
+      contentSource.value = CONTENT_SOURCE_TRANSCRIPT
+      await refreshMusicLyrics(generation, mInfo)
     }
+  } finally {
+    if (generation === lyricLoadGeneration) loadingLyrics.value = false
+  }
+}
 
-    // 如果没有歌词，从播放器获取
-    if (!sourceLyric) {
-      const playerLyric = await getPlayerLyric(mInfo).catch(() => null)
-      sourceLyric = playerLyric?.lyric || ''
-      sourceTlyric = playerLyric?.tlyric || ''
+const handleRetryPodcastContent = async () => {
+  const generation = ++lyricLoadGeneration
+  const mInfo = musicInfo.value
+  if (!mInfo || !isPodcast.value || batchBusy.value) return
+  loadingLyrics.value = true
+  try {
+    if (contentSource.value === CONTENT_SOURCE_LONG_FORM) {
+      longFormLoadError.value = ''
+      try {
+        const result = await loadPodcastLongForm(mInfo)
+        if (generation !== lyricLoadGeneration || musicInfo.value !== mInfo) return
+        longFormDocument.value = result.document
+        longFormLines.value = result.lines
+        longFormSelection.value = result.lines.map((_, index) => index)
+      } catch {
+        if (generation !== lyricLoadGeneration || musicInfo.value !== mInfo) return
+        longFormLoadError.value = window.i18n.t('share__long_form_load_failed')
+      }
+    } else {
+      transcriptLoadError.value = ''
+      try {
+        transcriptLines.value = await loadPodcastTranscript(mInfo)
+        if (generation !== lyricLoadGeneration || musicInfo.value !== mInfo) return
+        transcriptSelection.value = transcriptLines.value.map((_, index) => index)
+      } catch {
+        if (generation !== lyricLoadGeneration || musicInfo.value !== mInfo) return
+        transcriptLoadError.value = window.i18n.t('share__transcript_load_failed')
+      }
     }
-
     if (generation !== lyricLoadGeneration || musicInfo.value !== mInfo) return
-
-    rawLyric.value = sourceLyric
-    rawTlyric.value = sourceTlyric
-
-    const lines = buildLyricSelectableLines(sourceLyric, sourceTlyric)
-    lyricLines.value = lines
-    const selectedCount = mInfo.meta?.podcast === true ? lines.length : Math.min(lines.length, 4)
-    selectedLineIndexes.value = Array.from({ length: selectedCount }, (_, index) => index)
+    applyPodcastContentSource(contentSource.value, false)
+    await refreshQRCode()
   } finally {
     if (generation === lyricLoadGeneration) loadingLyrics.value = false
   }
@@ -1054,9 +1314,9 @@ const handleCancelBatchSave = () => {
 const refreshCurrentShareContent = async () => {
   await Promise.all([
     refreshLyricData(),
-    refreshQRCode(),
     extractCoverColors(),
   ])
+  await refreshQRCode()
 }
 
 const runBatchSave = async (
@@ -1203,6 +1463,7 @@ const handleSaveAllImages = async () => {
     musicInfo: snapshotMusicInfo,
     qrDataUrl: qrDataUrl.value,
     shareUrl: shareUrl.value,
+    scanTextKey: currentScanTextKey.value,
     stylePreset: stylePreset.value,
     coverStyle: { ...coverStyle.value },
     includeTranslation: includeTranslation.value,
@@ -1497,6 +1758,48 @@ watch(
 .groupLine .groupTitle {
   margin-bottom: 0;
 }
+.sourceSwitch {
+  min-height: 50px;
+  margin-bottom: 8px;
+  padding: 3px;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  border-radius: 6px;
+  background: var(--color-button-background);
+}
+.sourceSwitchButton {
+  min-width: 0;
+  min-height: 44px;
+  padding: 6px 12px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--color-font);
+  background: transparent;
+  cursor: pointer;
+  transition: background-color 180ms ease, border-color 180ms ease, opacity 180ms ease;
+
+  &:hover:not(:disabled) {
+    background: var(--color-button-background-hover);
+  }
+
+  &.active {
+    border-color: var(--color-primary-alpha-600);
+    background: var(--color-button-background-active);
+    font-weight: 600;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+}
 .selectionControls {
   display: flex;
   flex-wrap: wrap;
@@ -1575,6 +1878,19 @@ watch(
   font-size: 13px;
   overflow-wrap: anywhere;
 }
+.longFormHeading {
+  font-weight: 600;
+}
+.longFormQuote {
+  padding-left: 8px;
+  border-left: 2px solid var(--color-primary-alpha-600);
+  opacity: 0.84;
+}
+.longFormListItem:before {
+  content: '\2022';
+  margin-right: 6px;
+  color: var(--color-primary);
+}
 .lineSub {
   font-size: 12px;
   opacity: 0.68;
@@ -1584,6 +1900,41 @@ watch(
   padding: 10px;
   font-size: 13px;
   opacity: 0.7;
+}
+.contentLoadError {
+  min-height: 44px;
+  padding: 8px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.retryButton {
+  min-width: 72px;
+  min-height: 44px;
+  flex: 0 0 auto;
+  padding: 6px 12px;
+  border: 1px solid var(--color-primary-alpha-600);
+  border-radius: 6px;
+  color: var(--color-font);
+  background: var(--color-button-background);
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: var(--color-button-background-hover);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
 }
 .selectionPager {
   min-height: 44px;
@@ -1775,6 +2126,19 @@ watch(
   margin: 0 0 8px;
   line-height: 1.35;
   overflow-wrap: anywhere;
+}
+.previewLongFormHeading {
+  font-size: 18px;
+  font-weight: 600;
+}
+.previewLongFormQuote {
+  padding-left: 10px;
+  border-left: 3px solid rgba(255, 255, 255, 0.42);
+  opacity: 0.86;
+}
+.previewLongFormListItem:before {
+  content: '\2022';
+  margin-right: 7px;
 }
 .previewSub {
   margin: -5px 0 10px;

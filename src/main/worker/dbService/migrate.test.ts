@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 import migrateDatabase, {
   migratePodcastEpisodeHistoryHidden,
   migratePodcastEpisodeOriginalUrl,
+  migratePodcastLibraryIndexes,
+  migratePodcastLongFormContent,
   migratePodcastSubscriptions,
   normalizePodcastSourceSchema,
 } from './migrate'
@@ -20,7 +22,7 @@ const database = (options: {
       return { get: vi.fn(() => ({ field_value: options.version ?? '5' })) }
     }
     if (sql.includes('sqlite_master')) {
-      return { get: vi.fn(() => options.hasGroupTable ? { name: 'podcast_subscription_group' } : undefined) }
+      return { get: vi.fn((_name?: string) => options.hasGroupTable ? { name: 'table' } : undefined) }
     }
     if (sql.includes('PRAGMA table_info(podcast_episode)')) {
       return { all: vi.fn(() => (options.episodeColumns ?? []).map((name) => ({ name }))) }
@@ -111,8 +113,42 @@ describe('podcast episode history visibility database migration', () => {
   })
 })
 
+describe('podcast long-form content database migration', () => {
+  it('creates independent long-form content storage', () => {
+    const db = database()
+
+    migratePodcastLongFormContent(db.value)
+
+    expect(db.exec.mock.calls.flat().join('\n')).toContain(
+      'CREATE TABLE "podcast_long_form_content"'
+    )
+  })
+
+  it('is idempotent when long-form storage already exists', () => {
+    const db = database({ hasGroupTable: true })
+
+    migratePodcastLongFormContent(db.value)
+
+    expect(db.exec).not.toHaveBeenCalled()
+  })
+})
+
+describe('podcast library index migration', () => {
+  it('creates partial indexes for favorites and playback history', () => {
+    const db = database()
+
+    migratePodcastLibraryIndexes(db.value)
+
+    const sql = db.exec.mock.calls.flat().join('\n')
+    expect(sql).toContain('podcast_episode_state_favorites_library_idx')
+    expect(sql).toContain('WHERE "is_favorite" = 1')
+    expect(sql).toContain('podcast_episode_state_history_library_idx')
+    expect(sql).toContain('"history_hidden" = 0')
+  })
+})
+
 describe('database migration dispatch', () => {
-  it('upgrades a v5 database to v6 with hidden history storage', () => {
+  it('upgrades a v5 database to v8 with hidden history, long-form storage and indexes', () => {
     const db = database({
       version: '5',
       episodeStateColumns: ['account_id', 'episode_id'],
@@ -123,7 +159,35 @@ describe('database migration dispatch', () => {
     expect(db.exec).toHaveBeenCalledWith(
       'ALTER TABLE podcast_episode_state ADD COLUMN "history_hidden" INTEGER NOT NULL DEFAULT 0'
     )
-    expect(db.run).toHaveBeenCalledWith({ name: 'version', value: '6' })
+    expect(db.exec.mock.calls.flat().join('\n')).toContain('podcast_long_form_content')
+    expect(db.exec.mock.calls.flat().join('\n')).toContain(
+      'podcast_episode_state_favorites_library_idx'
+    )
+    expect(db.run).toHaveBeenCalledWith({ name: 'version', value: '8' })
+  })
+
+  it('upgrades a v6 database to v8 with long-form storage and indexes', () => {
+    const db = database({ version: '6' })
+
+    migrateDatabase(db.value)
+
+    expect(db.exec.mock.calls.flat().join('\n')).toContain('podcast_long_form_content')
+    expect(db.exec.mock.calls.flat().join('\n')).toContain(
+      'podcast_episode_state_history_library_idx'
+    )
+    expect(db.run).toHaveBeenCalledWith({ name: 'version', value: '8' })
+  })
+
+  it('upgrades a v7 database to v8 by adding only the library indexes', () => {
+    const db = database({ version: '7' })
+
+    migrateDatabase(db.value)
+
+    const sql = db.exec.mock.calls.flat().join('\n')
+    expect(sql).toContain('podcast_episode_state_favorites_library_idx')
+    expect(sql).toContain('podcast_episode_state_history_library_idx')
+    expect(sql).not.toContain('podcast_long_form_content')
+    expect(db.run).toHaveBeenCalledWith({ name: 'version', value: '8' })
   })
 })
 

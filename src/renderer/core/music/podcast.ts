@@ -79,6 +79,7 @@ const toLrc = (delta: LX.Podcast.TranscriptDelta) => {
 }
 
 export const getMusicUrl = async (musicInfo: LX.Music.MusicInfoPodcast) => {
+  if (!musicInfo.meta.audioUrl?.trim()) throw new Error('当前博客没有可播放的音频')
   await activatePodcastEpisode(musicInfo)
   return musicInfo.meta.audioUrl
 }
