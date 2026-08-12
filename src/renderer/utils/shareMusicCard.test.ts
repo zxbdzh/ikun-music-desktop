@@ -13,8 +13,11 @@ import {
   buildShareCardPageFileName,
   buildShareCardPageIndexes,
   buildShareCardRetryPageIndexes,
+  buildLongFormSelectableLines,
+  buildTranscriptSelectableLines,
   normalizeShareCardPageRange,
   paginateLyricLines,
+  resolvePodcastShareContentSource,
   resolveMusicDetailWebUrl,
 } from './shareMusicCard'
 
@@ -27,6 +30,26 @@ const podcast = (meta: Record<string, string>) => ({
 })
 
 describe('podcast share URL', () => {
+  it('prefers the long-form document publisher URL over stale episode metadata', () => {
+    expect(resolveMusicDetailWebUrl(podcast({
+      originalUrl: '',
+      audioUrl: 'https://cdn.example.com/episodes/1.mp3',
+    }), {
+      originalUrl: 'https://podcast.example.com/articles/1',
+      audioUrl: 'https://cdn.example.com/articles/1.mp3',
+    })).toBe('https://podcast.example.com/articles/1')
+  })
+
+  it('falls back through document and episode audio URLs', () => {
+    expect(resolveMusicDetailWebUrl(podcast({
+      originalUrl: '',
+      audioUrl: 'https://cdn.example.com/episodes/1.mp3',
+    }), {
+      originalUrl: null,
+      audioUrl: 'https://cdn.example.com/articles/1.mp3',
+    })).toBe('https://cdn.example.com/articles/1.mp3')
+  })
+
   it('prefers the publisher episode page', () => {
     expect(resolveMusicDetailWebUrl(podcast({
       originalUrl: 'https://podcast.example.com/episodes/1',
@@ -71,6 +94,62 @@ describe('podcast share URL', () => {
       originalUrl: 'https://user:password@podcast.example.com/episodes/1',
       audioUrl: 'https://cdn.example.com/episodes/1.mp3',
     }))).toBe('https://cdn.example.com/episodes/1.mp3')
+  })
+})
+
+describe('podcast share sources', () => {
+  it('builds chronological transcript lines with speaker names', () => {
+    expect(buildTranscriptSelectableLines({
+      speakers: [{ id: 'speaker-1', name: 'Host' }],
+      upsertLines: [
+        { id: 'line-2', startMs: 2_000, displayText: 'Second' },
+        { id: 'line-1', startMs: 1_000, displayText: 'First', speakerId: 'speaker-1' },
+      ],
+    })).toEqual([
+      expect.objectContaining({ key: 'line-1', text: 'Host: First', sourceKind: 'transcript' }),
+      expect.objectContaining({ key: 'line-2', text: 'Second', sourceKind: 'transcript' }),
+    ])
+  })
+
+  it('turns long-form blocks into untimed selectable lines', () => {
+    expect(buildLongFormSelectableLines({
+      protocolVersion: 1,
+      blocks: [
+        { id: 'heading', kind: 'heading', level: 2, text: '  A heading  ' },
+        { id: 'body', kind: 'paragraph', text: 'Body copy' },
+      ],
+    })).toEqual([
+      expect.objectContaining({
+        key: 'heading',
+        text: 'A heading',
+        time: '',
+        blockKind: 'heading',
+        level: 2,
+      }),
+      expect.objectContaining({ key: 'body', text: 'Body copy', time: '' }),
+    ])
+  })
+
+  it('defaults pure blogs to article text and dual-source podcasts to transcripts', () => {
+    expect(resolvePodcastShareContentSource({
+      transcriptLines: [],
+      longFormLines: [{ text: 'Article' }],
+      audioUrl: '',
+    })).toBe('long-form')
+    expect(resolvePodcastShareContentSource({
+      transcriptLines: [{ text: 'Transcript' }],
+      longFormLines: [{ text: 'Article' }],
+      audioUrl: 'https://cdn.example.com/episode.mp3',
+    })).toBe('transcript')
+  })
+
+  it('selects a failed article source when it is the only retryable content', () => {
+    expect(resolvePodcastShareContentSource({
+      transcriptLines: [],
+      longFormLines: [],
+      longFormFailed: true,
+      audioUrl: '',
+    })).toBe('long-form')
   })
 })
 
