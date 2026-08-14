@@ -223,14 +223,21 @@
                       {{ transcriptionTitle(transcriptionStatuses[episode.id]) }}
                     </strong>
                     <span
-                      v-if="transcriptionProgress(transcriptionStatuses[episode.id]) != null"
-                      :class="$style.segmentProgress"
+                      v-if="shouldPollTranscription(transcriptionStatuses[episode.id]) || transcriptionProgress(transcriptionStatuses[episode.id]) != null"
+                      :class="[
+                        $style.segmentProgress,
+                        { [$style.segmentProgressIndeterminate]: transcriptionProgress(transcriptionStatuses[episode.id]) == null },
+                      ]"
                       role="progressbar"
-                      :aria-valuenow="transcriptionProgress(transcriptionStatuses[episode.id]) ?? 0"
+                      :aria-valuenow="transcriptionProgress(transcriptionStatuses[episode.id]) ?? undefined"
                       aria-valuemin="0"
                       aria-valuemax="100"
                     >
-                      <i :style="{ width: `${transcriptionProgress(transcriptionStatuses[episode.id]) ?? 0}%` }" />
+                      <i
+                        :style="transcriptionProgress(transcriptionStatuses[episode.id]) == null
+                          ? undefined
+                          : { transform: `scaleX(${(transcriptionProgress(transcriptionStatuses[episode.id]) ?? 0) / 100})` }"
+                      />
                     </span>
                   </div>
                   <small v-if="transcriptionDetail(transcriptionStatuses[episode.id], now)">
@@ -272,26 +279,6 @@
                   {{ downloading.has(episode.id)
                     ? '下载中'
                     : downloadStates[episode.id]?.isDownloaded ? '已下载' : '下载' }}
-                </button>
-                <button
-                  v-if="hasEpisodeAudio(episode)"
-                  type="button"
-                  :disabled="transcriptionAction(transcriptionStatuses[episode.id]).disabled"
-                  :title="transcriptionAction(transcriptionStatuses[episode.id]).label"
-                  @click="handleTranscriptionAction(episode)"
-                >
-                  {{ transcriptionAction(transcriptionStatuses[episode.id]).label }}
-                </button>
-                <button
-                  v-if="hasEpisodeAudio(episode) && transcriptionStatuses[episode.id]?.transcriptState === 'ready'"
-                  type="button"
-                  :disabled="speakerActionDisabled(transcriptionStatuses[episode.id])"
-                  :title="transcriptionStatuses[episode.id]?.speakerCount
-                    ? '使用 AI 标注主持人和嘉宾'
-                    : '先区分说话人，再使用 AI 标注主持人和嘉宾'"
-                  @click="identifySpeakers(episode)"
-                >
-                  AI 标注
                 </button>
                 <button
                   type="button"
@@ -406,81 +393,52 @@
       </p>
     </section>
 
-    <details :class="$style.settings" @toggle="handleSettingsToggle">
+    <details :class="$style.settings">
       <summary>播客设置</summary>
-      <section :class="$style.backendPanel" aria-labelledby="podcast-backend-title">
+      <section :class="$style.voxrailPanel" aria-labelledby="podcast-voxrail-title">
         <header>
           <div>
-            <strong id="podcast-backend-title">计算后端</strong>
-            <small>显示设备能力与最近任务实际使用的后端</small>
+            <strong id="podcast-voxrail-title">Voxrail 云端转写</strong>
+            <small>IKUN 只提交博客元数据，音频、转写和 AI 说话人标注在云端完成</small>
           </div>
-          <button type="button" :disabled="backendLoading" @click="loadBackendStatus">
-            {{ backendLoading ? '检测中' : '重新检测' }}
-          </button>
+          <span :class="[$style.connectionBadge, { [$style.connectionReady]: voxrailConfig?.hasAccessKey }]">
+            {{ voxrailConfig?.hasAccessKey ? 'Key 已配置' : '未连接' }}
+          </span>
         </header>
-        <p v-if="backendError" :class="$style.backendError">{{ backendError }}</p>
-        <div v-if="backendStatus" :class="$style.backendGrid">
-          <article>
-            <div :class="$style.backendHeadline">
-              <span>语音转写</span>
-              <strong
-                :class="{
-                  [$style.backendGpu]: backendExecutorIsGpu(
-                    backendDisplayExecutor(backendStatus.asr)
-                  ),
-                }"
-              >
-                {{ backendExecutorLabel(backendDisplayExecutor(backendStatus.asr)) }}
-              </strong>
-            </div>
-            <p>
-              {{ backendStatus.asr.actualExecutor ? '最近任务实际使用' : '当前可用' }}
-              · 首选 {{ backendExecutorLabel(backendStatus.asr.preferredExecutor) }}
-            </p>
-            <small v-if="backendStatus.asr.deviceName">{{ backendStatus.asr.deviceName }}</small>
-            <small :class="{ [$style.backendWarning]: !backendStatus.asr.gpuAvailable }">
-              {{ backendStatus.asr.capabilityMessage }}
-            </small>
-            <small>CPU 后备：已随应用提供</small>
-            <small v-if="backendStatus.asr.fallbackReason" :class="$style.backendWarning">
-              最近回退：{{ backendStatus.asr.fallbackReason }}
-            </small>
-          </article>
-          <article>
-            <div :class="$style.backendHeadline">
-              <span>说话人分离</span>
-              <strong
-                :class="{
-                  [$style.backendGpu]: backendExecutorIsGpu(
-                    backendDisplayExecutor(backendStatus.speakerDiarization)
-                  ),
-                }"
-              >
-                {{ backendExecutorLabel(backendDisplayExecutor(backendStatus.speakerDiarization)) }}
-              </strong>
-            </div>
-            <p>
-              {{ backendStatus.speakerDiarization.actualExecutor ? '最近任务实际使用' : '当前可用' }}
-              · 首选 {{ backendExecutorLabel(backendStatus.speakerDiarization.preferredExecutor) }}
-            </p>
-            <small v-if="backendStatus.speakerDiarization.deviceName">
-              {{ backendStatus.speakerDiarization.deviceName }}
-            </small>
-            <small
-              :class="{ [$style.backendWarning]: !backendStatus.speakerDiarization.gpuAvailable }"
-            >
-              {{ backendStatus.speakerDiarization.capabilityMessage }}
-            </small>
-            <small>CPU 后备：已随应用提供</small>
-            <small
-              v-if="backendStatus.speakerDiarization.fallbackReason"
-              :class="$style.backendWarning"
-            >
-              最近回退：{{ backendStatus.speakerDiarization.fallbackReason }}
-            </small>
-          </article>
+        <div :class="$style.voxrailFields">
+          <label>
+            服务地址
+            <input v-model="voxrailBaseUrl" type="url" placeholder="https://voxrail.example" autocomplete="url" />
+          </label>
+          <label>
+            Access Key
+            <input
+              v-model="voxrailAccessKey"
+              type="password"
+              autocomplete="new-password"
+              :placeholder="voxrailConfig?.hasAccessKey ? '已安全保存，输入新 Key 可轮换' : '粘贴 Access Key'"
+            />
+          </label>
         </div>
-        <small v-else-if="backendLoading">正在检查 CUDA、DirectML 与 CPU 后端…</small>
+        <div :class="$style.voxrailActions">
+          <button type="button" :disabled="voxrailSaving" @click="saveVoxrailConfig">
+            {{ voxrailSaving ? '保存中' : '保存设置' }}
+          </button>
+          <button type="button" :disabled="voxrailTesting" @click="testVoxrailConnection">
+            {{ voxrailTesting ? '测试中' : '测试连接' }}
+          </button>
+          <button
+            v-if="voxrailConfig?.hasAccessKey"
+            type="button"
+            :disabled="voxrailSaving"
+            @click="removeVoxrailKey"
+          >移除 Key</button>
+          <small
+            v-if="voxrailMessage"
+            :class="{ [$style.voxrailError]: voxrailMessageError }"
+            :role="voxrailMessageError ? 'alert' : 'status'"
+          >{{ voxrailMessage }}</small>
+        </div>
       </section>
       <div :class="$style.settingGrid">
         <label>
@@ -488,22 +446,6 @@
           <select :value="appSetting['podcast.playbackRate']" @change="changeRate">
             <option v-for="rate in rates" :key="rate" :value="rate">{{ rate }}x</option>
           </select>
-        </label>
-        <label>
-          识别模型
-          <select :value="appSetting['podcast.asrModel']" @change="changeModel">
-            <option value="base">base</option>
-            <option value="small">small（默认）</option>
-            <option value="medium">medium</option>
-          </select>
-        </label>
-        <label>
-          NVIDIA CUDA 加速
-          <input
-            type="checkbox"
-            :checked="appSetting['podcast.asrVulkan']"
-            @change="changeAsrAcceleration"
-          />
         </label>
         <div>
           <span>下载位置</span>
@@ -514,35 +456,6 @@
           <span>音频缓存位置</span>
           <button type="button" @click="choosePath('podcast.cachePath')">选择</button>
           <code>{{ appSetting['podcast.cachePath'] }}</code>
-        </div>
-        <label>
-          AI 身份标注
-          <input v-model="aiEnabled" type="checkbox" @change="saveAiPublicSettings" />
-        </label>
-        <label>
-          AI Base URL
-          <input v-model="aiBaseUrl" type="url" placeholder="https://api.openai.com/v1" />
-        </label>
-        <label>
-          AI 模型
-          <input v-model="aiModel" type="text" placeholder="gpt-4.1-mini" />
-        </label>
-        <label>
-          API Key
-          <input
-            v-model="aiApiKey"
-            type="password"
-            autocomplete="off"
-            :placeholder="aiConfig?.hasApiKey ? '已安全保存' : '输入 API Key'"
-          />
-          <button type="button" @click="saveAiConfig">保存</button>
-        </label>
-        <div>
-          <span>AI 连接</span>
-          <button type="button" :disabled="aiTesting" @click="testAiConnection">
-            {{ aiTesting ? '测试中' : '测试连接' }}
-          </button>
-          <small>{{ aiConnectionState }}</small>
         </div>
       </div>
       <section :class="$style.accountPanel" aria-labelledby="podcast-account-title">
@@ -782,9 +695,7 @@ import { openShareMusicCard } from '@renderer/store/shareMusicCard'
 import {
   isTranscriptionWarning,
   shouldPollTranscription,
-  transcriptionAction,
   transcriptionDetail,
-  transcriptionExecutorLabel,
   transcriptionProgress,
   transcriptionTitle,
   transcriptionWarning,
@@ -945,16 +856,13 @@ export default {
       if (authMode.value === 'reset') return '重置密码'
       return '登录'
     })
-    const aiConfig = ref<LX.Podcast.SpeakerAiConfig | null>(null)
-    const aiEnabled = ref(appSetting['podcast.aiEnabled'])
-    const aiBaseUrl = ref(appSetting['podcast.aiBaseUrl'])
-    const aiModel = ref(appSetting['podcast.aiModel'])
-    const aiApiKey = ref('')
-    const aiTesting = ref(false)
-    const aiConnectionState = ref('')
-    const backendStatus = ref<LX.Podcast.ComputeBackendStatus | null>(null)
-    const backendLoading = ref(false)
-    const backendError = ref('')
+    const voxrailConfig = ref<LX.Podcast.VoxrailConfig | null>(null)
+    const voxrailBaseUrl = ref(appSetting['podcast.voxrailBaseUrl'])
+    const voxrailAccessKey = ref('')
+    const voxrailSaving = ref(false)
+    const voxrailTesting = ref(false)
+    const voxrailMessage = ref('')
+    const voxrailMessageError = ref(false)
     const now = ref(Date.now())
     const rates = [0.75, 1, 1.25, 1.5, 1.75, 2]
     const transcriptionPollTimers = new Map<string, ReturnType<typeof setTimeout>>()
@@ -1456,7 +1364,6 @@ export default {
         episodeId,
       })
       transcriptionStatuses.value = { ...transcriptionStatuses.value, [episodeId]: status }
-      if (status?.asrExecutor || status?.executor) void loadBackendStatus()
       return status
     }
     const scheduleTranscriptionPoll = (
@@ -1478,44 +1385,6 @@ export default {
         }
       }, 1_000))
     }
-    const generateTranscript = async (episode: LX.Podcast.Episode) => {
-      const status = transcriptionStatuses.value[episode.id]
-      const command = status?.transcriptState === 'failed'
-        ? 'retry'
-        : status?.transcriptState === 'ready'
-          ? 'restart'
-          : 'start'
-      const next = await sendPodcastCommand<LX.Podcast.TranscriptionStatus>({
-        action: 'transcription-control',
-        episodeId: episode.id,
-        command,
-      })
-      transcriptionStatuses.value = { ...transcriptionStatuses.value, [episode.id]: next }
-      scheduleTranscriptionPoll(episode.id, next)
-    }
-    const cancelTranscription = async (episode: LX.Podcast.Episode) => {
-      const next = await sendPodcastCommand<LX.Podcast.TranscriptionStatus>({
-        action: 'transcription-control',
-        episodeId: episode.id,
-        command: 'cancel',
-      })
-      transcriptionStatuses.value = { ...transcriptionStatuses.value, [episode.id]: next }
-      scheduleTranscriptionPoll(episode.id, next)
-    }
-    const handleTranscriptionAction = (episode: LX.Podcast.Episode) =>
-      transcriptionAction(transcriptionStatuses.value[episode.id]).kind === 'cancel'
-        ? cancelTranscription(episode)
-        : generateTranscript(episode)
-    const identifySpeakers = async (episode: LX.Podcast.Episode) => {
-      const status = await sendPodcastCommand<LX.Podcast.TranscriptionStatus>({
-        action: 'identify-speakers',
-        episodeId: episode.id,
-      })
-      transcriptionStatuses.value = { ...transcriptionStatuses.value, [episode.id]: status }
-      scheduleTranscriptionPoll(episode.id, status)
-    }
-    const speakerActionDisabled = (status?: LX.Podcast.TranscriptionStatus | null) =>
-      !aiConfig.value?.enabled || !aiConfig.value?.hasApiKey || shouldPollTranscription(status)
     const clearSearch = () => {
       query.value = ''
       void loadSources()
@@ -1537,80 +1406,66 @@ export default {
     }
     const changeRate = (event: Event) =>
       updateSetting({ 'podcast.playbackRate': Number((event.target as HTMLSelectElement).value) })
-    const changeModel = (event: Event) =>
-      updateSetting({
-        'podcast.asrModel': (event.target as HTMLSelectElement).value as LX.AppSetting['podcast.asrModel'],
+    const loadVoxrailConfig = async () => {
+      voxrailConfig.value = await sendPodcastCommand<LX.Podcast.VoxrailConfig>({
+        action: 'voxrail-config',
       })
-    const changeAsrAcceleration = (event: Event) => {
-      updateSetting({
-        'podcast.asrVulkan': (event.target as HTMLInputElement).checked,
-      })
-      setTimeout(() => { void loadBackendStatus() }, 250)
+      voxrailBaseUrl.value = voxrailConfig.value.baseUrl
     }
-    const loadBackendStatus = async () => {
-      if (backendLoading.value) return
-      backendLoading.value = true
-      backendError.value = ''
+    const setVoxrailFeedback = (message: string, isError = false) => {
+      voxrailMessage.value = message
+      voxrailMessageError.value = isError
+    }
+    const persistVoxrailConfig = async () => {
+      voxrailConfig.value = await sendPodcastCommand<LX.Podcast.VoxrailConfig>({
+        action: 'voxrail-config-save',
+        baseUrl: voxrailBaseUrl.value.trim(),
+        accessKey: voxrailAccessKey.value.trim() || undefined,
+      })
+      voxrailBaseUrl.value = voxrailConfig.value.baseUrl
+      voxrailAccessKey.value = ''
+    }
+    const saveVoxrailConfig = async () => {
+      voxrailSaving.value = true
+      setVoxrailFeedback('')
       try {
-        backendStatus.value = await sendPodcastCommand<LX.Podcast.ComputeBackendStatus>({
-          action: 'backend-status',
-        })
+        await persistVoxrailConfig()
+        setVoxrailFeedback('Voxrail 设置已保存')
       } catch (value) {
-        backendError.value = value instanceof Error ? value.message : String(value)
+        setVoxrailFeedback(value instanceof Error ? value.message : String(value), true)
       } finally {
-        backendLoading.value = false
+        voxrailSaving.value = false
       }
     }
-    const handleSettingsToggle = (event: Event) => {
-      if ((event.target as HTMLDetailsElement).open) void loadBackendStatus()
-    }
-    const backendExecutorIsGpu = (
-      executor: LX.Podcast.AsrExecutor | LX.Podcast.TranscriptionExecutor
-    ) => executor != null && executor !== 'cpu'
-    const backendDisplayExecutor = (
-      backend: LX.Podcast.AsrComputeBackendStatus | LX.Podcast.SpeakerComputeBackendStatus
-    ) => backend.actualExecutor ?? (
-      backend.preferredExecutor !== 'cpu' && !backend.gpuAvailable
-        ? 'cpu'
-        : backend.preferredExecutor
-    )
-    const loadAiConfig = async () => {
-      aiConfig.value = await sendPodcastCommand<LX.Podcast.SpeakerAiConfig>({
-        action: 'speaker-ai-config',
-      })
-      aiEnabled.value = aiConfig.value.enabled
-      aiBaseUrl.value = aiConfig.value.baseUrl
-      aiModel.value = aiConfig.value.model
-    }
-    const saveAiPublicSettings = () => updateSetting({
-      'podcast.aiEnabled': aiEnabled.value,
-      'podcast.aiBaseUrl': aiBaseUrl.value.trim(),
-      'podcast.aiModel': aiModel.value.trim(),
-    })
-    const saveAiConfig = async () => {
-      saveAiPublicSettings()
-      if (aiApiKey.value) {
-        aiConfig.value = await sendPodcastCommand<LX.Podcast.SpeakerAiConfig>({
-          action: 'speaker-ai-key-save',
-          apiKey: aiApiKey.value,
-        })
-        aiApiKey.value = ''
-      } else {
-        await loadAiConfig()
-      }
-      aiConnectionState.value = '已保存'
-    }
-    const testAiConnection = async () => {
-      aiTesting.value = true
-      aiConnectionState.value = ''
+    const testVoxrailConnection = async () => {
+      voxrailTesting.value = true
+      setVoxrailFeedback('')
       try {
-        await saveAiConfig()
-        await sendPodcastCommand({ action: 'speaker-ai-test' })
-        aiConnectionState.value = '连接成功'
+        if (
+          voxrailAccessKey.value.trim() ||
+          voxrailBaseUrl.value.trim() !== voxrailConfig.value?.baseUrl
+        ) await persistVoxrailConfig()
+        const quota = await sendPodcastCommand<LX.Podcast.VoxrailQuota>({ action: 'voxrail-test' })
+        setVoxrailFeedback(`连接成功 · 剩余额度 ${quota.remainingMinutes} 分钟`)
       } catch (value) {
-        aiConnectionState.value = value instanceof Error ? value.message : String(value)
+        setVoxrailFeedback(value instanceof Error ? value.message : String(value), true)
       } finally {
-        aiTesting.value = false
+        voxrailTesting.value = false
+      }
+    }
+    const removeVoxrailKey = async () => {
+      voxrailSaving.value = true
+      setVoxrailFeedback('')
+      try {
+        voxrailConfig.value = await sendPodcastCommand<LX.Podcast.VoxrailConfig>({
+          action: 'voxrail-key-remove',
+        })
+        voxrailAccessKey.value = ''
+        setVoxrailFeedback('Access Key 已移除')
+      } catch (value) {
+        setVoxrailFeedback(value instanceof Error ? value.message : String(value), true)
+      } finally {
+        voxrailSaving.value = false
       }
     }
     const applySession = (value: LX.Podcast.Session) => {
@@ -1819,8 +1674,7 @@ export default {
     void loadPopular()
     void loadGroups()
     void loadSession()
-    void loadAiConfig()
-    void loadBackendStatus()
+    void loadVoxrailConfig()
     return {
       appSetting,
       views,
@@ -1882,16 +1736,13 @@ export default {
       authNeedsCode,
       authNeedsPassword,
       authSubmitLabel,
-      aiConfig,
-      aiEnabled,
-      aiBaseUrl,
-      aiModel,
-      aiApiKey,
-      aiTesting,
-      aiConnectionState,
-      backendStatus,
-      backendLoading,
-      backendError,
+      voxrailConfig,
+      voxrailBaseUrl,
+      voxrailAccessKey,
+      voxrailSaving,
+      voxrailTesting,
+      voxrailMessage,
+      voxrailMessageError,
       now,
       rates,
       loadSources,
@@ -1929,11 +1780,8 @@ export default {
       hasEpisodeAudio,
       toggleFavorite,
       downloadEpisode,
-      handleTranscriptionAction,
-      identifySpeakers,
-      speakerActionDisabled,
-      transcriptionAction,
       transcriptionProgress,
+      shouldPollTranscription,
       transcriptionTitle,
       transcriptionDetail,
       transcriptionWarning,
@@ -1941,16 +1789,9 @@ export default {
       clearSearch,
       choosePath,
       changeRate,
-      changeModel,
-      changeAsrAcceleration,
-      loadBackendStatus,
-      handleSettingsToggle,
-      backendExecutorLabel: transcriptionExecutorLabel,
-      backendExecutorIsGpu,
-      backendDisplayExecutor,
-      saveAiPublicSettings,
-      saveAiConfig,
-      testAiConnection,
+      saveVoxrailConfig,
+      testVoxrailConnection,
+      removeVoxrailKey,
       selectAuthMode,
       selectLoginMode,
       sendCode,
@@ -2042,23 +1883,25 @@ export default {
 .transcriptionWarning { opacity: 1; }
 .transcriptionAlert { color: #c98316; opacity: 1 !important; }
 .segmentProgress { position: relative; display: block; width: 112px; height: 4px; flex: none; overflow: hidden; border-radius: 2px; background: var(--color-primary-light-900-alpha-100); }
-.segmentProgress i { position: absolute; inset: 0 auto 0 0; display: block; background: var(--color-primary); transition: width .2s ease; }
+.segmentProgress i { position: absolute; inset: 0; display: block; background: var(--color-primary); transform-origin: left center; transition: transform 200ms cubic-bezier(.23, 1, .32, 1); }
+.segmentProgressIndeterminate i { right: auto; width: 38%; animation: transcription-progress-indeterminate 1.2s cubic-bezier(.65, 0, .35, 1) infinite; }
+@keyframes transcription-progress-indeterminate { from { transform: translateX(-100%); } to { transform: translateX(365%); } }
+@media (prefers-reduced-motion: reduce) { .segmentProgressIndeterminate i { animation: none; transform: translateX(80%); } }
 .settings { flex: none; border-top: 1px solid var(--color-primary-light-900-alpha-100); padding: 9px 24px; }
 .settings[open] { max-height: 68vh; overflow-y: auto; }
 .settings summary { position: sticky; top: 0; z-index: 1; cursor: pointer; margin: -9px 0 0; padding: 9px 0; font-weight: 600; background: var(--color-primary-light-100); }
-.backendPanel { margin-top: 12px; padding: 12px; border: 1px solid var(--color-primary-light-900-alpha-100); border-radius: 6px; background: var(--color-primary-light-100-alpha-300); }
-.backendPanel > header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.backendPanel > header div { display: grid; gap: 2px; }
-.backendPanel > header small, .backendPanel > small { opacity: .62; }
-.backendGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 10px; }
-.backendGrid article { min-width: 0; padding: 11px 12px; border-radius: 5px; background: var(--color-primary-light-300-alpha-300); }
-.backendHeadline { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.backendHeadline > span { font-size: 12px; font-weight: 600; }
-.backendHeadline > strong { flex: none; padding: 3px 7px; border-radius: 999px; background: var(--color-primary-light-900-alpha-100); font-family: Consolas, "Microsoft YaHei UI", sans-serif; font-size: 11px; }
-.backendHeadline > strong.backendGpu { color: var(--color-primary); background: var(--color-primary-alpha-100); }
-.backendGrid article p { margin: 7px 0 4px; opacity: .72; font-size: 11px; }
-.backendGrid article small { display: block; overflow-wrap: anywhere; opacity: .68; line-height: 1.5; }
-.backendGrid article small.backendWarning, .backendError { color: #c98316; opacity: 1; }
+.voxrailPanel { display: grid; gap: 12px; margin-top: 12px; padding: 14px; border: 1px solid var(--color-primary-light-900-alpha-100); border-radius: 6px; background: var(--color-primary-light-100-alpha-300); }
+.voxrailPanel > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.voxrailPanel > header div { display: grid; gap: 3px; min-width: 0; }
+.voxrailPanel > header small { opacity: .65; line-height: 1.5; }
+.connectionBadge { flex: none; padding: 3px 7px; border-radius: 4px; background: var(--color-primary-light-900-alpha-100); font-size: 11px; }
+.connectionReady { color: var(--color-primary); background: var(--color-primary-alpha-100); }
+.voxrailFields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.voxrailFields label { display: grid; gap: 6px; min-width: 0; font-size: 11px; }
+.voxrailFields input { width: 100%; min-width: 0; box-sizing: border-box; }
+.voxrailActions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.voxrailActions small { overflow-wrap: anywhere; opacity: .7; }
+.voxrailError { color: #d84a4a; opacity: 1 !important; }
 .settingGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 20px; padding: 12px 0 4px; }
 .settingGrid label, .settingGrid > div { display: grid; grid-template-columns: 110px auto minmax(0, 1fr); align-items: center; gap: 8px; }
 .settingGrid code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: .7; }
@@ -2094,6 +1937,9 @@ export default {
 .modal p { line-height: 1.6; opacity: .72; }
 .modal .modalError { color: #d84a4a; opacity: 1; }
 .modal div { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+@media (prefers-reduced-motion: reduce) {
+  .segmentProgress i { transition: none; }
+}
 @media (any-pointer: coarse), (max-width: 760px) {
   .page :is(button, input:not([type="checkbox"]), select) { min-height: 44px; box-sizing: border-box; }
   .page button { min-width: 44px; }
@@ -2116,7 +1962,7 @@ export default {
   .episodes { overflow: visible; padding: 14px; }
   .showHeader { grid-template-columns: auto minmax(0, 1fr); }
   .settingGrid { grid-template-columns: 1fr; }
-  .backendGrid { grid-template-columns: 1fr; }
+  .voxrailFields { grid-template-columns: 1fr; }
   .accountGrid { grid-template-columns: 1fr; }
   .settings[open] { max-height: 80vh; }
   .settingGrid label, .settingGrid > div { grid-template-columns: 100px minmax(0, 1fr); }

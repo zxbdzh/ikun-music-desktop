@@ -12,18 +12,6 @@ import {
   parseLongFormContent,
 } from './longFormContent'
 import { PodcastStorage } from './storage'
-import {
-  PodcastAsr,
-  PodcastAsrCancelledError,
-  PriorityTaskQueue,
-  isPodcastAsrCancelledError,
-  resolvePodcastAsrBinaryDir,
-  type PodcastAsrProgress,
-} from './asr'
-import { PodcastSpeakerDiarization, type SpeakerDiarizationProgress } from './speakerDiarization'
-import { applySpeakerLabels, reuseSpeakerLabels } from './speakerLabels'
-import { PodcastSpeakerIdentification } from './speakerIdentification'
-import { MAX_PODCAST_SPEAKER_COUNT } from './speakerClustering'
 import { simplifyAsrSnapshot } from './simplifiedChinese'
 import {
   createSubscriptionSnapshot,
@@ -41,37 +29,30 @@ import {
 import { normalizePopularSources } from './discovery'
 import { buildOpml, parseOpml } from './opml'
 import {
-  createPodcastComputeBackendStatus,
-  inspectPodcastComputeBackendCapabilities,
-  type PodcastComputeBackendCapabilities,
-} from './computeBackends'
+  VOXRAIL_RETRY_WINDOW_MS,
+  VoxrailClient,
+  VoxrailError,
+  localizeVoxrailSnapshot,
+  normalizeVoxrailBaseUrl,
+  type VoxrailRequestResponse,
+  type VoxrailTranscriptionProgress,
+} from './voxrailClient'
 
 const LOCAL_ACCOUNT_ID = 'local'
 const PROGRESS_DIRTY_MASK = 0b11
 const PREFERENCES_OUTBOX_KEY = 'subscriptions'
 
-interface PodcastAsrJob {
-  promise: Promise<LX.Podcast.TranscriptSnapshot>
-  positionMs: number
-  versionId: string
-  failed: boolean
+interface VoxrailJob {
   controller: AbortController
+  promise: Promise<LX.Podcast.TranscriptSnapshot | null>
   queuedAt: number
-  startedAt?: number
-  heartbeatTimer?: ReturnType<typeof setInterval>
-  cancelRequested: boolean
-  speakerReference?: LX.Podcast.TranscriptSnapshot
-}
-
-interface SpeakerIdentityJob {
-  controller: AbortController
-  promise: Promise<LX.Podcast.TranscriptionStatus>
-  heartbeatTimer?: ReturnType<typeof setInterval>
+  requestId?: string
+  lastRevisionId?: string
 }
 
 export class PodcastModule {
   private token: string | null = null
-  private aiApiKey: string | null = null
+  private voxrailAccessKey: string | null = null
   private session: LX.Podcast.Session = {
     account: null,
     syncEnabled: false,
@@ -79,7 +60,6 @@ export class PodcastModule {
   }
   private currentTranscript: LX.Podcast.TranscriptSnapshot | null = null
   private currentLongFormContent: LX.Podcast.LongFormContentDocument | null = null
-  private transcriptionStatus: LX.Podcast.TranscriptionStatus | null = null
   private readonly transcriptionStatuses = new Map<string, LX.Podcast.TranscriptionStatus>()
   private readonly transcriptHistory = new Map<
     string,
@@ -93,14 +73,8 @@ export class PodcastModule {
   private initialized = false
   private readonly client: AurioClubClient
   private readonly storage = new PodcastStorage()
-  private readonly asr = new PodcastAsr(this.storage)
-  private readonly speakerDiarization = new PodcastSpeakerDiarization()
-  private readonly speakerIdentification = new PodcastSpeakerIdentification()
-  private readonly asrQueue = new PriorityTaskQueue()
-  private readonly asrJobs = new Map<string, PodcastAsrJob>()
-  private readonly speakerIdentityJobs = new Map<string, SpeakerIdentityJob>()
-  private backendCapabilities: PodcastComputeBackendCapabilities | null = null
-  private backendCapabilitiesPromise: Promise<PodcastComputeBackendCapabilities> | null = null
+  private readonly voxrailJobs = new Map<string, VoxrailJob>()
+  private readonly voxrail: VoxrailClient
 
   constructor(client?: AurioClubClient) {
     this.client =
@@ -108,6 +82,10 @@ export class PodcastModule {
       new AurioClubClient({
         getToken: async () => this.token,
       })
+    this.voxrail = new VoxrailClient({
+      getBaseUrl: () => global.lx.appSetting['podcast.voxrailBaseUrl'],
+      getAccessKey: () => this.voxrailAccessKey,
+    })
   }
 
   async init() {
@@ -169,26 +147,20 @@ export class PodcastModule {
         return this.longFormContent(command.episodeId)
       case 'transcription-status':
         return this.loadTranscriptionStatus(command.episodeId)
-      case 'backend-status':
-        return this.getComputeBackendStatus()
-      case 'transcription-control':
-        return this.controlTranscription(command.episodeId, command.command)
-      case 'speaker-ai-config':
-        return this.getSpeakerAiConfig()
-      case 'speaker-ai-key-save':
-        return this.saveSpeakerAiKey(command.apiKey)
-      case 'speaker-ai-test':
-        await this.speakerIdentification.test(this.speakerAiRequestConfig())
-        return { ok: true }
-      case 'identify-speakers':
-        return this.startSpeakerIdentification(command.episodeId)
+      case 'voxrail-config':
+        return this.getVoxrailConfig()
+      case 'voxrail-config-save':
+        return this.saveVoxrailConfig(command.baseUrl, command.accessKey)
+      case 'voxrail-key-remove':
+        return this.removeVoxrailKey()
+      case 'voxrail-test':
+        return this.voxrail.quota()
       case 'activate-episode':
         return this.activateEpisode(command.episodeId)
       case 'deactivate-episode':
         this.currentEpisodeId = null
         this.currentTranscript = null
         this.currentLongFormContent = null
-        this.transcriptionStatus = null
         global.lx.event_app.player_status({ transcript: null, longFormContent: null })
         return undefined
       case 'download-states':
@@ -276,52 +248,8 @@ export class PodcastModule {
   }
 
   shutdown() {
-    for (const [contentId, job] of this.asrJobs) {
-      job.cancelRequested = true
-      if (job.heartbeatTimer) clearInterval(job.heartbeatTimer)
-      this.asrQueue.cancelPending(`${contentId}:`)
-      job.controller.abort()
-    }
-    for (const [contentId, job] of this.speakerIdentityJobs) {
-      if (job.heartbeatTimer) clearInterval(job.heartbeatTimer)
-      this.asrQueue.cancelPending(`${contentId}:estimate-speakers`)
-      this.asrQueue.cancelPending(`${contentId}:diarize`)
-      this.asrQueue.cancelPending(`${contentId}:identify`)
-      job.controller.abort()
-    }
-  }
-
-  async controlTranscription(
-    contentId: string,
-    action: 'start' | 'retry' | 'restart' | 'cancel'
-  ): Promise<LX.Podcast.TranscriptionStatus> {
-    if (!contentId) throw new Error('Transcript content is required')
-    const current = await this.loadTranscriptionStatus(contentId)
-    if (action === 'cancel') return this.cancelTranscription(contentId, current)
-    if (this.asrJobs.has(contentId)) return current ?? this.createQueuedStatus(contentId)
-    if (action === 'start' && current?.transcriptState === 'ready') return current
-    if (action === 'retry' && current && !['failed', 'unavailable'].includes(current.transcriptState)) {
-      return current
-    }
-    if (action === 'restart' && current?.transcriptSource !== 'asr') {
-      throw new Error('Only a local ASR transcript can be restarted')
-    }
-    const episode = await global.lx.worker.dbService.podcastEpisodeGet(contentId)
-    if (episode && typeof episode.audioUrl === 'string' && !episode.audioUrl.trim()) {
-      throw new Error('当前博客没有可转写的音频')
-    }
-
-    this.publishTranscriptionStatus(this.createQueuedStatus(contentId))
-    void this.startAsrJob(contentId, action === 'restart').catch((error) => {
-      this.publishTranscriptionStatus({
-        ...this.createQueuedStatus(contentId),
-        transcriptState: 'failed',
-        stage: 'failed',
-        modelState: 'error',
-        error: error instanceof Error ? error.message : String(error),
-      })
-    })
-    return this.getTranscriptionStatus(contentId) ?? this.createQueuedStatus(contentId)
+    for (const job of this.voxrailJobs.values()) job.controller.abort()
+    this.voxrailJobs.clear()
   }
 
   private async loadTranscriptionStatus(contentId: string) {
@@ -339,15 +267,21 @@ export class PodcastModule {
     sinceRevision = 0,
     forceReload = false
   ): Promise<LX.Podcast.TranscriptDelta> {
-    let snapshot = !forceReload && this.currentEpisodeId === episodeId ? this.currentTranscript : null
-    if (snapshot) snapshot = await this.normalizeStoredTranscript(snapshot)
-    if (!snapshot && !forceReload) {
-      snapshot = await this.loadStoredTranscript(episodeId)
-    }
-    if (!snapshot && !forceReload) {
-      snapshot = await this.loadPublisherTranscript(episodeId).catch((error) => {
+    let snapshot = !forceReload && this.currentEpisodeId === episodeId &&
+      this.currentTranscript?.source === 'publisher'
+      ? this.currentTranscript
+      : await this.loadPublisherTranscript(episodeId).catch((error) => {
         console.warn('[podcast] publisher transcript unavailable:', error instanceof Error ? error.message : error)
         return null
+      })
+    if (!snapshot && !forceReload && this.currentEpisodeId === episodeId) {
+      snapshot = this.currentTranscript
+    }
+    if (snapshot) snapshot = await this.normalizeStoredTranscript(snapshot)
+    if (!snapshot && !forceReload) snapshot = await this.loadStoredTranscript(episodeId)
+    if (!snapshot || snapshot.state !== 'ready') {
+      void this.ensureVoxrailTranscript(episodeId).catch((error) => {
+        console.warn('[podcast] Voxrail transcript unavailable:', error instanceof Error ? error.message : error)
       })
     }
     if (!snapshot) snapshot = emptyTranscript(episodeId)
@@ -377,7 +311,6 @@ export class PodcastModule {
     const hasAudio = !!episode.audioUrl.trim()
     this.currentEpisodeId = episodeId
     this.currentTranscript = null
-    this.transcriptionStatus = hasAudio ? this.getTranscriptionStatus(episodeId) : null
     const longFormContent = await this.longFormContent(episodeId)
     this.currentLongFormContent = longFormContent
     global.lx.event_app.player_status({
@@ -399,7 +332,7 @@ export class PodcastModule {
       transcript: null,
       longFormContent: longFormContent ? longFormContentDescriptor(longFormContent) : null,
     })
-    if (hasAudio) {
+    if (hasAudio || !longFormContent) {
       void this.transcript(episode.id).catch((error) => {
         console.warn('[podcast] transcript unavailable:', error instanceof Error ? error.message : error)
       })
@@ -499,347 +432,205 @@ export class PodcastModule {
     return snapshot
   }
 
-  private async startAsrJob(
-    episodeId: string,
-    restart: boolean
-  ): Promise<LX.Podcast.TranscriptSnapshot> {
+  private async ensureVoxrailTranscript(
+    episodeId: string
+  ): Promise<LX.Podcast.TranscriptSnapshot | null> {
+    const active = this.voxrailJobs.get(episodeId)
+    if (active) return active.promise
+    const status = this.getTranscriptionStatus(episodeId)
+    if (
+      status?.transcriptSource === 'voxrail' &&
+      status.stage === 'failed' &&
+      Date.now() - status.updatedAt < VOXRAIL_RETRY_WINDOW_MS
+    ) return null
     const episode = await global.lx.worker.dbService.podcastEpisodeGet(episodeId)
-    if (!episode) return emptyTranscript(episodeId)
-    const activeJob = this.asrJobs.get(episodeId)
-    if (activeJob) return activeJob.promise
-    const stored = await this.loadStoredTranscript(episodeId)
-    let speakerReference = needsWordTimingUpgrade(stored) ? stored! : undefined
-    if (restart && !speakerReference) {
-      const historical = await global.lx.worker.dbService
-        .podcastTranscriptSpeakerReferenceGet(episodeId)
-      if (needsWordTimingUpgrade(historical)) speakerReference = historical!
-    }
-    const wordTimingUpgrade = !!speakerReference
-    const initial: LX.Podcast.TranscriptSnapshot = {
-      ...(restart || !stored ? emptyTranscript(episodeId) : stored),
-      protocolVersion: 2,
-      revision: (stored?.revision ?? 0) + 1,
-      state: 'preparing',
-      source: 'asr',
-      language: global.lx.appSetting['podcast.asrLanguage'],
-      isPartial: true,
-      lines: restart
-        ? speakerReference?.lines ?? []
-        : stored?.lines ?? [],
-      speakers: speakerReference?.speakers ?? (restart ? [] : stored?.speakers ?? []),
-      completedSegmentIndexes: restart
-        ? []
-        : completedSegmentIndexes(stored, episodeId),
-      wordTimingUpgrade: wordTimingUpgrade ? true : undefined,
-      interruptionReason: undefined,
-      error: undefined,
-    }
-    const queuedAt = this.getTranscriptionStatus(episodeId)?.queuedAt ?? Date.now()
-    const job: PodcastAsrJob = {
-      positionMs: this.currentEpisodeId === episodeId
-        ? Math.max(0, (global.lx.player_status.progress || 0) * 1_000)
-        : 0,
-      versionId: `asr:${Date.now()}`,
-      failed: false,
+    if (!episode) return null
+    const source = await this.episodeSource(episode)
+    if (!source?.feedUrl) return null
+    const queuedAt = Date.now()
+    const job: VoxrailJob = {
       controller: new AbortController(),
       queuedAt,
-      cancelRequested: false,
-      speakerReference,
-      promise: Promise.resolve(initial),
+      promise: Promise.resolve(null),
     }
-    this.asrJobs.set(episodeId, job)
-    await this.publishSnapshot(initial, job.versionId)
-    this.publishTranscriptionStatus(this.createQueuedStatus(episodeId, initial.revision, queuedAt))
-    job.promise = this.runAsrJob(episode, initial, job)
-      .catch(async (error) => {
-        const latest = this.latestSnapshot(episodeId) ?? initial
-        if (job.cancelRequested || isPodcastAsrCancelledError(error)) {
-          const cancelled: LX.Podcast.TranscriptSnapshot = {
-            ...latest,
-            revision: latest.revision + 1,
-            state: 'preparing',
-            isPartial: true,
-            interruptionReason: 'cancelled',
-            error: undefined,
-          }
-          try {
-            await this.publishSnapshot(cancelled, job.versionId)
-          } catch (saveError) {
-            const failed: LX.Podcast.TranscriptSnapshot = {
-              ...latest,
-              revision: latest.revision + 1,
-              state: 'failed',
-              isPartial: latest.lines.length > 0,
-              interruptionReason: undefined,
-              error: `中止转写后保存部分字幕失败：${
-                saveError instanceof Error ? saveError.message : String(saveError)
-              }`,
-            }
-            this.publishTranscriptionStatus(this.statusFromSnapshot(failed))
-            return failed
-          }
-          this.publishTranscriptionStatus({
-            ...this.statusFromSnapshot(cancelled),
-            stage: 'cancelled',
-            startedAt: job.startedAt,
-            queuedAt: job.queuedAt,
-          })
-          return cancelled
-        }
-        const failed: LX.Podcast.TranscriptSnapshot = {
-          ...latest,
-          revision: latest.revision + 1,
-          state: 'failed',
-          isPartial: latest.lines.length > 0,
-          interruptionReason: undefined,
-          error: error instanceof Error ? error.message : String(error),
-        }
-        await this.publishSnapshot(failed, job.versionId)
-        this.publishTranscriptionStatus(this.statusFromSnapshot(failed))
-        return failed
+    this.voxrailJobs.set(episodeId, job)
+    this.publishTranscriptionStatus(this.createVoxrailStatus(episodeId, 'queued', queuedAt))
+    job.promise = this.runVoxrailJob(episode, source.feedUrl, job)
+      .catch((error) => {
+        if (job.controller.signal.aborted) return null
+        const message = error instanceof Error ? error.message : String(error)
+        this.publishTranscriptionStatus({
+          ...this.createVoxrailStatus(episodeId, 'failed', queuedAt),
+          error: message,
+        })
+        return null
       })
       .finally(() => {
-        if (job.heartbeatTimer) clearInterval(job.heartbeatTimer)
-        if (this.asrJobs.get(episodeId) === job) this.asrJobs.delete(episodeId)
+        if (this.voxrailJobs.get(episodeId) === job) this.voxrailJobs.delete(episodeId)
       })
     return job.promise
   }
 
-  private async runAsrJob(
+  private async runVoxrailJob(
     episode: LX.Podcast.Episode,
-    initial: LX.Podcast.TranscriptSnapshot,
-    job: PodcastAsrJob
-  ) {
-    const prepared = await this.asrQueue.enqueue(
-      `${episode.id}:prepare`,
-      () => this.currentEpisodeId === episode.id ? -100 : 9_000,
-      () => {
-        this.startAsrHeartbeat(episode.id, job)
-        return this.asr.prepare(
-          episode,
-          (progress) => this.handleAsrProgress(episode.id, progress),
-          job.controller.signal
-        )
-      }
-    )
-    if (job.controller.signal.aborted) throw new PodcastAsrCancelledError()
-    let snapshot = initial
-    const completed = new Set(completedSegmentIndexes(snapshot, episode.id))
-    this.updateSegmentStatus(episode.id, completed.size, prepared.segments.length)
-    const segmentTasks = prepared.segments
-      .filter((segment) => !completed.has(segment.index))
-      .map((segment) =>
-        this.asrQueue.enqueue(
-          `${episode.id}:segment-${segment.index}`,
-          () => this.segmentPriority(episode.id, segment.index, job.positionMs),
-          async () => {
-            if (job.controller.signal.aborted) throw new PodcastAsrCancelledError()
-            if (job.failed) return
-            this.updateSegmentStatus(
-              episode.id,
-              completed.size,
-              prepared.segments.length,
-              segment.index
-            )
-            try {
-              const recognizedLines = await this.asr.transcribeSegment(
-                prepared,
-                segment,
-                (progress) => this.handleAsrProgress(episode.id, progress),
-                job.controller.signal
-              )
-              const lines = job.speakerReference
-                ? reuseSpeakerLabels(recognizedLines, job.speakerReference).lines
-                : recognizedLines
-              const prefix = `${episode.id}:segment-${segment.index}:`
-              completed.add(segment.index)
-              snapshot = {
-                ...snapshot,
-                revision: snapshot.revision + 1,
-                state: 'preparing',
-                isPartial: true,
-                lines: [
-                  ...snapshot.lines.filter((line) => !line.id.startsWith(prefix)),
-                  ...lines,
-                ].sort((a, b) => a.startMs - b.startMs || a.id.localeCompare(b.id)),
-                completedSegmentIndexes: [...completed].sort((a, b) => a - b),
-              }
-              await this.publishSnapshot(snapshot, job.versionId)
-              this.updateSegmentStatus(episode.id, completed.size, prepared.segments.length)
-            } catch (error) {
-              if (isPodcastAsrCancelledError(error) || job.controller.signal.aborted) {
-                throw new PodcastAsrCancelledError()
-              }
-              job.failed = true
-              throw error
-            }
-          }
-        )
-      )
-    const results = await Promise.allSettled(segmentTasks)
-    const rejected = results.find(
-      (result): result is PromiseRejectedResult => result.status === 'rejected'
-    )
-    if (rejected) throw rejected.reason
-    if (job.controller.signal.aborted) throw new PodcastAsrCancelledError()
-    if (job.speakerReference) {
-      this.handleAsrProgress(episode.id, { stage: 'saving', progress: null })
-      const labels = reuseSpeakerLabels(snapshot.lines, job.speakerReference)
-      snapshot = {
-        ...snapshot,
-        revision: snapshot.revision + 1,
-        lines: labels.lines,
-        speakers: labels.speakers,
-      }
-      await this.publishSnapshot(snapshot, job.versionId)
-      const current = this.getTranscriptionStatus(episode.id) ?? this.createQueuedStatus(episode.id)
-      this.publishTranscriptionStatus({
-        ...current,
-        speakerCount: snapshot.speakers.length,
-        speakerIdentityMessage: '已保留现有说话人标注',
-      })
-    } else {
+    feedUrl: string,
+    job: VoxrailJob
+  ): Promise<LX.Podcast.TranscriptSnapshot | null> {
+    let response: VoxrailRequestResponse | null = null
+    let networkFailures = 0
+    while (!response && !job.controller.signal.aborted) {
       try {
-      const speakerAiEnabled = global.lx.appSetting['podcast.aiEnabled'] && !!this.aiApiKey
-      const source = speakerAiEnabled ? await this.episodeSource(episode) : null
-      const expectedSpeakerCount = speakerAiEnabled
-        ? await this.estimateSpeakerCountForDiarization(
-            episode,
-            snapshot,
-            job.controller.signal,
-            source
-          )
-        : undefined
-      const diarization = await this.asrQueue.enqueue(
-        `${episode.id}:diarize`,
-        () => this.currentEpisodeId === episode.id ? -50 : 9_100,
-        () => this.speakerDiarization.diarize(
-          prepared,
-          (progress) => this.handleSpeakerProgress(episode.id, progress),
-          job.controller.signal,
-          expectedSpeakerCount
+        response = await this.voxrail.createRequest(episode, feedUrl, job.controller.signal)
+      } catch (error) {
+        if (job.controller.signal.aborted) throw error
+        if (!(error instanceof VoxrailError) || error.code !== 'network_error') throw error
+        networkFailures += 1
+        if (networkFailures >= 5) throw error
+        await waitForVoxrailPoll(job.controller.signal, 5_000)
+      }
+    }
+    if (!response) return null
+    job.requestId = response.requestId
+    networkFailures = 0
+    while (!job.controller.signal.aborted) {
+      const snapshot = await this.acceptVoxrailResponse(episode.id, response, job)
+      if (response.status === 'completed') {
+        if (snapshot) return snapshot
+        const stored = await this.loadStoredTranscript(episode.id)
+        if (stored?.source === 'voxrail' && stored.state === 'ready') return stored
+        if (response.transcript?.kind === 'publisher') {
+          const publisher = await this.loadPublisherTranscript(episode.id)
+          if (publisher) return publisher
+        }
+        throw new VoxrailError('Voxrail 已完成任务但未返回可用字幕', 'transcript_missing', 502)
+      }
+      if (response.status === 'failed' || response.status === 'cancelled') {
+        throw new VoxrailError(
+          response.warnings[0] || 'Voxrail 云端转写失败',
+          `request_${response.status}`,
+          502
+        )
+      }
+      this.publishTranscriptionStatus(
+        this.createVoxrailStatus(
+          episode.id,
+          response.status,
+          job.queuedAt,
+          snapshot?.revision ?? 0,
+          response.progress
         )
       )
-      const labels = applySpeakerLabels(snapshot.lines, diarization.segments)
-      snapshot = {
-        ...snapshot,
-        revision: snapshot.revision + 1,
-        lines: labels.lines,
-        speakers: labels.speakers,
-      }
-      await this.publishSnapshot(snapshot, job.versionId)
-      if (speakerAiEnabled) {
-        try {
-          this.handleSpeakerProgress(episode.id, {
-            stage: 'identifying-speakers',
-            progress: null,
-          })
-          snapshot = {
-            ...await this.asrQueue.enqueue(
-              `${episode.id}:identify`,
-              () => this.currentEpisodeId === episode.id ? -40 : 9_200,
-              () => this.speakerIdentification.identify(
-                episode,
-                snapshot,
-                this.speakerAiRequestConfig(),
-                job.controller.signal,
-                source
-              )
-            ),
-            revision: snapshot.revision + 1,
-          }
-          await this.publishSnapshot(snapshot, job.versionId)
-          this.publishTranscriptionStatus({
-            ...this.statusFromSnapshot(snapshot),
-            speakerIdentityMessage: speakerIdentityMessage(snapshot),
-          })
-        } catch (error) {
-          if (job.controller.signal.aborted) throw new PodcastAsrCancelledError()
-          const current = this.getTranscriptionStatus(episode.id) ?? this.createQueuedStatus(episode.id)
-          this.publishTranscriptionStatus({
-            ...current,
-            speakerIdentityError: error instanceof Error ? error.message : String(error),
-          })
-        }
-      }
+      await waitForVoxrailPoll(job.controller.signal, networkFailures ? 5_000 : 2_000)
+      try {
+        response = await this.voxrail.getRequest(response.requestId, job.controller.signal)
+        networkFailures = 0
       } catch (error) {
-        if (job.controller.signal.aborted) throw new PodcastAsrCancelledError()
-        const current = this.getTranscriptionStatus(episode.id) ?? this.createQueuedStatus(episode.id)
-        this.publishTranscriptionStatus({
-          ...current,
-          speakerModelState: current.speakerModelState === 'ready' ? 'ready' : 'error',
-          speakerError: error instanceof Error ? error.message : String(error),
-        })
+        if (job.controller.signal.aborted) throw error
+        if (!(error instanceof VoxrailError) || error.code !== 'network_error') throw error
+        networkFailures += 1
+        if (networkFailures >= 5) throw error
       }
     }
-    const ready: LX.Podcast.TranscriptSnapshot = {
-      ...snapshot,
-      revision: snapshot.revision + 1,
-      state: 'ready',
-      isPartial: false,
-      completedSegmentIndexes: prepared.segments.map((segment) => segment.index),
-      wordTimingUpgrade: undefined,
-      interruptionReason: undefined,
+    return null
+  }
+
+  private async acceptVoxrailResponse(
+    episodeId: string,
+    response: VoxrailRequestResponse,
+    job: VoxrailJob
+  ) {
+    const transcript = response.transcript
+    if (!transcript || transcript.kind === 'publisher' || transcript.revisionId === job.lastRevisionId) {
+      return null
     }
-    await this.publishSnapshot(ready, job.versionId)
+    const previous = await this.loadStoredTranscript(episodeId)
+    const snapshot = localizeVoxrailSnapshot(
+      transcript.content,
+      episodeId,
+      previous?.revision ?? 0
+    )
+    job.lastRevisionId = transcript.revisionId
+    await this.publishSnapshot(snapshot, `voxrail:${transcript.revisionId}`)
     this.publishTranscriptionStatus({
-      ...this.statusFromSnapshot(ready),
-      completedSegments: prepared.segments.length,
-      totalSegments: prepared.segments.length,
+      ...this.statusFromSnapshot(snapshot),
+      queuedAt: job.queuedAt,
+      startedAt: job.queuedAt,
+      stage: snapshot.state === 'ready' ? 'completed' : 'running',
     })
-    return ready
+    return snapshot
   }
 
-  private segmentPriority(contentId: string, segmentIndex: number, positionMs: number) {
-    const currentIndex = Math.max(0, Math.floor(positionMs / 30_000))
-    const activePenalty = this.currentEpisodeId === contentId ? 0 : 10_000
-    if (segmentIndex >= currentIndex && segmentIndex <= currentIndex + 2) {
-      return activePenalty + segmentIndex - currentIndex
-    }
-    if (segmentIndex > currentIndex) return activePenalty + 100 + segmentIndex - currentIndex
-    return activePenalty + 1_000 + currentIndex - segmentIndex
-  }
-
-  private createQueuedStatus(
+  private createVoxrailStatus(
     contentId: string,
+    status: 'queued' | 'running' | 'failed',
+    queuedAt: number,
     revision = 0,
-    queuedAt = Date.now()
+    remoteProgress?: VoxrailTranscriptionProgress
   ): LX.Podcast.TranscriptionStatus {
     return {
       protocolVersion: 2,
       contentId,
-      transcriptState: 'preparing',
-      transcriptSource: 'asr',
+      transcriptState: status === 'failed' ? 'failed' : 'preparing',
+      transcriptSource: 'voxrail',
       revision,
-      isPartial: true,
-      model: global.lx.appSetting?.['podcast.asrModel'] ?? 'small',
-      modelState: 'checking',
-      stage: 'queued',
-      progress: null,
+      isPartial: status !== 'failed',
+      stage: status === 'queued' ? 'queued' : status === 'running' ? 'running' : 'failed',
+      progress: remoteProgress?.percent == null ? null : remoteProgress.percent / 100,
+      ...(remoteProgress ? { progressStage: remoteProgress.stage } : {}),
+      ...(remoteProgress?.processedSeconds == null
+        ? {}
+        : { processedSeconds: remoteProgress.processedSeconds }),
+      ...(remoteProgress?.totalSeconds == null
+        ? {}
+        : { totalSeconds: remoteProgress.totalSeconds }),
       queuedAt,
+      startedAt: status === 'running' ? queuedAt : undefined,
+      lastHeartbeatAt: Date.now(),
       updatedAt: Date.now(),
     }
   }
 
+  private getVoxrailConfig(): LX.Podcast.VoxrailConfig {
+    return {
+      baseUrl: global.lx.appSetting['podcast.voxrailBaseUrl'],
+      hasAccessKey: !!this.voxrailAccessKey,
+    }
+  }
+
+  private async saveVoxrailConfig(
+    baseUrl: string,
+    accessKey?: string
+  ): Promise<LX.Podcast.VoxrailConfig> {
+    const normalized = normalizeVoxrailBaseUrl(baseUrl)
+    global.lx.event_app.update_config({ 'podcast.voxrailBaseUrl': normalized })
+    if (accessKey?.trim()) {
+      if (!safeStorage.isEncryptionAvailable()) throw new Error('当前系统无法安全保存 Voxrail Key')
+      this.voxrailAccessKey = accessKey.trim()
+      await this.persistSession()
+    }
+    for (const [contentId, status] of this.transcriptionStatuses) {
+      if (status.transcriptSource === 'voxrail' && status.stage === 'failed') {
+        this.transcriptionStatuses.delete(contentId)
+      }
+    }
+    return this.getVoxrailConfig()
+  }
+
+  private async removeVoxrailKey(): Promise<LX.Podcast.VoxrailConfig> {
+    this.voxrailAccessKey = null
+    await this.persistSession()
+    return this.getVoxrailConfig()
+  }
+
   private statusFromSnapshot(snapshot: LX.Podcast.TranscriptSnapshot): LX.Podcast.TranscriptionStatus {
     const current = this.getTranscriptionStatus(snapshot.contentId)
-    const isAsr = snapshot.source === 'asr'
-    const stage: LX.Podcast.TranscriptionStage = snapshot.interruptionReason === 'cancelled'
-      ? 'cancelled'
-      : snapshot.state === 'ready'
+    const stage: LX.Podcast.TranscriptionStage = snapshot.state === 'ready'
       ? 'completed'
       : snapshot.state === 'failed'
         ? 'failed'
         : snapshot.state === 'preparing'
-          ? current?.stage ?? 'cancelled'
+          ? current?.stage ?? (snapshot.source === 'voxrail' ? 'queued' : 'idle')
           : 'idle'
-    const modelState: LX.Podcast.TranscriptionModelState = !isAsr
-      ? 'not-required'
-      : snapshot.state === 'ready'
-        ? 'ready'
-        : snapshot.state === 'failed'
-          ? current?.modelState === 'ready' ? 'ready' : 'error'
-          : current?.modelState ?? 'checking'
     return {
       protocolVersion: 2,
       contentId: snapshot.contentId,
@@ -847,297 +638,19 @@ export class PodcastModule {
       transcriptSource: snapshot.source,
       revision: snapshot.revision,
       isPartial: snapshot.isPartial,
-      model: isAsr ? global.lx.appSetting?.['podcast.asrModel'] ?? 'small' : null,
-      modelState,
-      speakerModelState: current?.speakerModelState,
       stage,
       progress: stage === 'completed' ? 1 : current?.progress ?? null,
-      asrExecutor: current?.asrExecutor,
-      asrExecutorFallbackReason: current?.asrExecutorFallbackReason,
-      executor: current?.executor,
-      executorFallbackReason: current?.executorFallbackReason,
+      progressStage: current?.progressStage,
+      processedSeconds: current?.processedSeconds,
+      totalSeconds: current?.totalSeconds,
       speakerCount: snapshot.speakers.length || current?.speakerCount,
-      speakerError: current?.speakerError,
-      speakerIdentityError: current?.speakerIdentityError,
-      speakerIdentityMessage: current?.speakerIdentityMessage,
-      speakerLabels: snapshot.speakers.map((speaker) => speaker.name).slice(0, MAX_PODCAST_SPEAKER_COUNT),
-      aiSpeakerCount: snapshot.speakers.filter((speaker) => speaker.origin === 'ai').length,
-      completedSegments: current?.completedSegments,
-      totalSegments: current?.totalSegments,
-      currentSegment: current?.currentSegment,
+      speakerLabels: snapshot.speakers.map((speaker) => speaker.name).slice(0, 32),
       queuedAt: current?.queuedAt,
       startedAt: current?.startedAt,
       lastHeartbeatAt: current?.lastHeartbeatAt,
-      lastSegmentCompletedAt: current?.lastSegmentCompletedAt,
-      currentSegmentStartedAt: current?.currentSegmentStartedAt,
       error: snapshot.error ?? current?.error,
       updatedAt: Date.now(),
     }
-  }
-
-  private handleAsrProgress(contentId: string, progress: PodcastAsrProgress) {
-    const current = this.getTranscriptionStatus(contentId)
-      ?? (this.transcriptionStatus?.contentId === contentId ? this.transcriptionStatus : null)
-      ?? this.createQueuedStatus(contentId)
-    this.publishTranscriptionStatus({
-      ...current,
-      transcriptState: progress.stage === 'failed' ? 'failed' : 'preparing',
-      modelState: progress.modelState ?? current.modelState,
-      stage: progress.stage ?? current.stage,
-      progress: progress.progress === undefined ||
-        (progress.progress === null && current.totalSegments)
-        ? current.progress
-        : progress.progress,
-      ...(progress.asrExecutor !== undefined
-        ? {
-            asrExecutor: progress.asrExecutor,
-            asrExecutorFallbackReason: progress.asrExecutorFallbackReason,
-          }
-        : {}),
-      error: progress.error,
-      updatedAt: Date.now(),
-    })
-  }
-
-  private handleSpeakerProgress(contentId: string, progress: SpeakerDiarizationProgress) {
-    const current = this.getTranscriptionStatus(contentId) ?? this.createQueuedStatus(contentId)
-    this.publishTranscriptionStatus({
-      ...current,
-      speakerModelState: progress.modelState ?? current.speakerModelState,
-      stage: progress.stage ?? current.stage,
-      progress: progress.progress === undefined ? current.progress : progress.progress,
-      executor: progress.executor ?? current.executor,
-      executorFallbackReason:
-        progress.executorFallbackReason ?? current.executorFallbackReason,
-      speakerCount: progress.speakerCount ?? current.speakerCount,
-      speakerError: undefined,
-    })
-  }
-
-  private getSpeakerAiConfig(): LX.Podcast.SpeakerAiConfig {
-    return {
-      enabled: global.lx.appSetting['podcast.aiEnabled'],
-      baseUrl: global.lx.appSetting['podcast.aiBaseUrl'],
-      model: global.lx.appSetting['podcast.aiModel'],
-      hasApiKey: !!this.aiApiKey,
-    }
-  }
-
-  private async getComputeBackendStatus(): Promise<LX.Podcast.ComputeBackendStatus> {
-    if (!this.backendCapabilities || Date.now() - this.backendCapabilities.checkedAt > 30_000) {
-      this.backendCapabilitiesPromise ??= inspectPodcastComputeBackendCapabilities({
-        binaryDir: resolvePodcastAsrBinaryDir(
-          global.staticPath,
-          process.resourcesPath,
-          process.env.NODE_ENV === 'production'
-        ),
-      }).then((value) => {
-        this.backendCapabilities = value
-        return value
-      }).finally(() => {
-        this.backendCapabilitiesPromise = null
-      })
-      await this.backendCapabilitiesPromise
-    }
-    return createPodcastComputeBackendStatus(
-      this.backendCapabilities!,
-      this.transcriptionStatuses.values(),
-      global.lx.appSetting['podcast.asrVulkan']
-    )
-  }
-
-  private async saveSpeakerAiKey(apiKey: string): Promise<LX.Podcast.SpeakerAiConfig> {
-    const value = apiKey.trim()
-    if (value && !safeStorage.isEncryptionAvailable()) {
-      throw new Error('当前系统无法使用安全存储，未保存 API Key')
-    }
-    this.aiApiKey = value || null
-    await this.persistSession()
-    return this.getSpeakerAiConfig()
-  }
-
-  private speakerAiRequestConfig() {
-    return {
-      baseUrl: global.lx.appSetting['podcast.aiBaseUrl'],
-      model: global.lx.appSetting['podcast.aiModel'],
-      apiKey: this.aiApiKey ?? '',
-    }
-  }
-
-  private async estimateSpeakerCountForDiarization(
-    episode: LX.Podcast.Episode,
-    snapshot: LX.Podcast.TranscriptSnapshot,
-    signal: AbortSignal,
-    source?: LX.Podcast.Source | null
-  ): Promise<number | undefined> {
-    this.handleSpeakerProgress(episode.id, {
-      stage: 'estimating-speakers',
-      progress: null,
-    })
-    try {
-      return await this.asrQueue.enqueue(
-        `${episode.id}:estimate-speakers`,
-        () => this.currentEpisodeId === episode.id ? -60 : 9_050,
-        () => this.speakerIdentification.estimateSpeakerCount(
-          episode,
-          snapshot,
-          this.speakerAiRequestConfig(),
-          signal,
-          source
-        )
-      )
-    } catch (error) {
-      if (signal.aborted) throw error
-      const current = this.getTranscriptionStatus(episode.id) ?? this.createQueuedStatus(episode.id)
-      this.publishTranscriptionStatus({
-        ...current,
-        speakerIdentityError: `AI 人数估算失败，已改用本地自动聚类：${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      })
-      return undefined
-    }
-  }
-
-  private async startSpeakerIdentification(
-    contentId: string
-  ): Promise<LX.Podcast.TranscriptionStatus> {
-    const active = this.speakerIdentityJobs.get(contentId)
-    if (active) return this.getTranscriptionStatus(contentId) ?? this.createQueuedStatus(contentId)
-    const episode = await global.lx.worker.dbService.podcastEpisodeGet(contentId)
-    const storedSnapshot = await this.normalizeStoredTranscript(
-      this.currentEpisodeId === contentId && this.currentTranscript
-        ? this.currentTranscript
-        : await global.lx.worker.dbService.podcastTranscriptGet(contentId)
-    )
-    if (!episode || !storedSnapshot) throw new Error('找不到可标注的播客字幕')
-    let snapshot: LX.Podcast.TranscriptSnapshot = storedSnapshot
-    if (!global.lx.appSetting['podcast.aiEnabled']) throw new Error('请先开启 AI 身份标注')
-    if (!this.aiApiKey) throw new Error('请先保存 AI API Key')
-    const source = await this.episodeSource(episode)
-    const hasUserLabels = snapshot.speakers.some((speaker) => speaker.origin === 'user')
-    const initiallyNeedsDiarization = !snapshot.speakers.length || (
-      snapshot.speakers.length > MAX_PODCAST_SPEAKER_COUNT &&
-      !hasUserLabels
-    )
-    const current = this.getTranscriptionStatus(contentId) ?? this.statusFromSnapshot(snapshot)
-    const startedAt = Date.now()
-    this.publishTranscriptionStatus({
-      ...current,
-      stage: hasUserLabels ? 'identifying-speakers' : 'estimating-speakers',
-      progress: null,
-      startedAt,
-      lastHeartbeatAt: startedAt,
-      speakerError: undefined,
-      speakerIdentityError: undefined,
-      speakerIdentityMessage: undefined,
-    })
-    const controller = new AbortController()
-    let phase: 'diarization' | 'identification' = initiallyNeedsDiarization
-      ? 'diarization'
-      : 'identification'
-    const run = async () => {
-      const expectedSpeakerCount = hasUserLabels
-        ? undefined
-        : await this.estimateSpeakerCountForDiarization(
-            episode,
-            snapshot,
-            controller.signal,
-            source
-          )
-      const shouldDiarize = initiallyNeedsDiarization || (
-        !hasUserLabels &&
-        expectedSpeakerCount != null &&
-        expectedSpeakerCount !== snapshot.speakers.length
-      )
-      if (shouldDiarize) {
-        phase = 'diarization'
-        const diarization = await this.asrQueue.enqueue(
-          `${contentId}:diarize`,
-          () => this.currentEpisodeId === contentId ? -50 : 9_100,
-          async () => {
-            const prepared = await this.asr.prepareAudio(
-              episode,
-              (progress) => this.handleSpeakerProgress(contentId, progress),
-              controller.signal
-            )
-            return this.speakerDiarization.diarize(
-              prepared,
-              (progress) => this.handleSpeakerProgress(contentId, progress),
-              controller.signal,
-              expectedSpeakerCount
-            )
-          }
-        )
-        const labels = applySpeakerLabels(snapshot.lines, diarization.segments)
-        snapshot = {
-          ...snapshot,
-          revision: snapshot.revision + 1,
-          lines: labels.lines,
-          speakers: labels.speakers,
-        }
-        await this.publishSnapshot(snapshot, `diarization:${Date.now()}`)
-      }
-
-      phase = 'identification'
-      this.publishTranscriptionStatus({
-        ...(this.getTranscriptionStatus(contentId) ?? current),
-        stage: 'identifying-speakers',
-        progress: null,
-        lastHeartbeatAt: Date.now(),
-      })
-      const identified = {
-        ...await this.asrQueue.enqueue(
-          `${contentId}:identify`,
-          () => this.currentEpisodeId === contentId ? -40 : 9_200,
-          () => this.speakerIdentification.identify(
-            episode,
-            snapshot,
-            this.speakerAiRequestConfig(),
-            controller.signal,
-            source
-          )
-        ),
-        revision: snapshot.revision + 1,
-      }
-      await this.publishSnapshot(identified, `ai:${Date.now()}`)
-      const completed = {
-        ...this.statusFromSnapshot(identified),
-        stage: 'completed' as const,
-        progress: 1,
-        speakerIdentityMessage: speakerIdentityMessage(identified),
-      }
-      this.publishTranscriptionStatus(completed)
-      return completed
-    }
-    const promise = run().catch((error) => {
-      const current = this.getTranscriptionStatus(contentId) ?? this.createQueuedStatus(contentId)
-      const message = controller.signal.aborted
-        ? 'AI 标注已中止'
-        : error instanceof Error ? error.message : String(error)
-      const failed: LX.Podcast.TranscriptionStatus = {
-        ...current,
-        stage: controller.signal.aborted ? 'cancelled' : 'completed',
-        progress: controller.signal.aborted ? current.progress : 1,
-        speakerError: phase === 'diarization' ? message : current.speakerError,
-        speakerIdentityError: phase === 'identification' ? message : current.speakerIdentityError,
-      }
-      this.publishTranscriptionStatus(failed)
-      return failed
-    }).finally(() => {
-      const job = this.speakerIdentityJobs.get(contentId)
-      if (job?.heartbeatTimer) clearInterval(job.heartbeatTimer)
-      this.speakerIdentityJobs.delete(contentId)
-    })
-    const heartbeatTimer = setInterval(() => {
-      if (controller.signal.aborted) return
-      const value = this.getTranscriptionStatus(contentId)
-      if (value) this.publishTranscriptionStatus({ ...value, lastHeartbeatAt: Date.now() })
-    }, 5_000)
-    heartbeatTimer.unref?.()
-    this.speakerIdentityJobs.set(contentId, { controller, promise, heartbeatTimer })
-    void promise
-    return this.getTranscriptionStatus(contentId)!
   }
 
   private async episodeSource(
@@ -1150,92 +663,6 @@ export class PodcastModule {
   private publishTranscriptionStatus(status: LX.Podcast.TranscriptionStatus) {
     const value = { ...status, updatedAt: Date.now() }
     this.transcriptionStatuses.set(status.contentId, value)
-    if (this.currentEpisodeId === status.contentId) {
-      this.transcriptionStatus = value
-    }
-  }
-
-  private updateSegmentStatus(
-    contentId: string,
-    completedSegments: number,
-    totalSegments: number,
-    currentSegment?: number
-  ) {
-    const current = this.getTranscriptionStatus(contentId) ?? this.createQueuedStatus(contentId)
-    const segmentCompleted = currentSegment == null &&
-      completedSegments > (current.completedSegments ?? 0)
-    this.publishTranscriptionStatus({
-      ...current,
-      transcriptState: 'preparing',
-      isPartial: true,
-      completedSegments,
-      totalSegments,
-      currentSegment: currentSegment == null ? undefined : currentSegment + 1,
-      currentSegmentStartedAt: currentSegment == null
-        ? undefined
-        : current.currentSegment === currentSegment + 1
-          ? current.currentSegmentStartedAt
-          : Date.now(),
-      lastSegmentCompletedAt: segmentCompleted ? Date.now() : current.lastSegmentCompletedAt,
-      progress: totalSegments > 0 ? completedSegments / totalSegments : null,
-    })
-  }
-
-  private async cancelTranscription(
-    contentId: string,
-    current: LX.Podcast.TranscriptionStatus | null
-  ): Promise<LX.Podcast.TranscriptionStatus> {
-    const identityJob = this.speakerIdentityJobs.get(contentId)
-    if (identityJob) {
-      this.publishTranscriptionStatus({
-        ...(this.getTranscriptionStatus(contentId) ?? current ?? this.createQueuedStatus(contentId)),
-        stage: 'cancelling',
-      })
-      this.asrQueue.cancelPending(`${contentId}:estimate-speakers`)
-      this.asrQueue.cancelPending(`${contentId}:diarize`)
-      this.asrQueue.cancelPending(`${contentId}:identify`)
-      identityJob.controller.abort()
-      return this.getTranscriptionStatus(contentId) ?? current ?? this.createQueuedStatus(contentId)
-    }
-    const job = this.asrJobs.get(contentId)
-    if (!job) {
-      if (current) return current
-      throw new Error('当前节目没有可中止的转写任务')
-    }
-    if (job.cancelRequested) {
-      return this.getTranscriptionStatus(contentId) ?? current ?? this.createQueuedStatus(contentId)
-    }
-
-    job.cancelRequested = true
-    const stage: LX.Podcast.TranscriptionStage = job.startedAt ? 'cancelling' : 'cancelled'
-    this.publishTranscriptionStatus({
-      ...(current ?? this.createQueuedStatus(contentId, 0, job.queuedAt)),
-      transcriptState: 'preparing',
-      stage,
-      error: undefined,
-    })
-    this.asrQueue.cancelPending(`${contentId}:`)
-    job.controller.abort()
-    return this.getTranscriptionStatus(contentId)!
-  }
-
-  private startAsrHeartbeat(contentId: string, job: PodcastAsrJob) {
-    if (job.startedAt) return
-    const now = Date.now()
-    job.startedAt = now
-    this.publishTranscriptionStatus({
-      ...(this.getTranscriptionStatus(contentId)
-        ?? this.createQueuedStatus(contentId, 0, job.queuedAt)),
-      startedAt: now,
-      lastHeartbeatAt: now,
-    })
-    job.heartbeatTimer = setInterval(() => {
-      if (this.asrJobs.get(contentId) !== job) return
-      const current = this.getTranscriptionStatus(contentId)
-      if (!current || ['cancelled', 'completed', 'failed'].includes(current.stage)) return
-      this.publishTranscriptionStatus({ ...current, lastHeartbeatAt: Date.now() })
-    }, 5_000)
-    job.heartbeatTimer.unref?.()
   }
 
   private rememberSnapshot(snapshot: LX.Podcast.TranscriptSnapshot) {
@@ -1246,11 +673,6 @@ export class PodcastModule {
     }
     history.set(snapshot.revision, snapshot)
     while (history.size > 64) history.delete(history.keys().next().value!)
-  }
-
-  private latestSnapshot(contentId: string) {
-    const history = this.transcriptHistory.get(contentId)
-    return history ? [...history.values()].at(-1) ?? null : null
   }
 
   private async publishSnapshot(snapshot: LX.Podcast.TranscriptSnapshot, versionId: string) {
@@ -1495,8 +917,6 @@ export class PodcastModule {
   }
 
   private async saveProgress(episodeId: string, positionSeconds: number, isFinished: boolean) {
-    const job = this.asrJobs.get(episodeId)
-    if (job && Number.isFinite(positionSeconds)) job.positionMs = Math.max(0, positionSeconds * 1_000)
     const accountId = this.session.account?.id ?? LOCAL_ACCOUNT_ID
     const current = await global.lx.worker.dbService.podcastEpisodeStateGet(accountId, episodeId)
     const next: LX.Podcast.EpisodeState = {
@@ -1650,14 +1070,16 @@ export class PodcastModule {
       const raw = JSON.parse(await readFile(this.sessionPath, 'utf8')) as {
         token?: string
         deviceId?: string
-        aiApiKey?: string
+        voxrailAccessKey?: string
       }
       this.deviceId = typeof raw.deviceId === 'string' ? raw.deviceId : ''
       if (raw.token && safeStorage.isEncryptionAvailable()) {
         this.token = safeStorage.decryptString(Buffer.from(raw.token, 'base64'))
       }
-      if (raw.aiApiKey && safeStorage.isEncryptionAvailable()) {
-        this.aiApiKey = safeStorage.decryptString(Buffer.from(raw.aiApiKey, 'base64'))
+      if (raw.voxrailAccessKey && safeStorage.isEncryptionAvailable()) {
+        this.voxrailAccessKey = safeStorage.decryptString(
+          Buffer.from(raw.voxrailAccessKey, 'base64')
+        )
       }
     } catch {}
   }
@@ -1668,10 +1090,14 @@ export class PodcastModule {
       this.token && safeStorage.isEncryptionAvailable()
         ? safeStorage.encryptString(this.token).toString('base64')
         : undefined
-    const aiApiKey = this.aiApiKey && safeStorage.isEncryptionAvailable()
-      ? safeStorage.encryptString(this.aiApiKey).toString('base64')
+    const voxrailAccessKey = this.voxrailAccessKey && safeStorage.isEncryptionAvailable()
+      ? safeStorage.encryptString(this.voxrailAccessKey).toString('base64')
       : undefined
-    await writeFile(this.sessionPath, JSON.stringify({ token, aiApiKey, deviceId: this.deviceId }), {
+    await writeFile(this.sessionPath, JSON.stringify({
+      token,
+      voxrailAccessKey,
+      deviceId: this.deviceId,
+    }), {
       encoding: 'utf8',
       mode: 0o600,
     })
@@ -1682,56 +1108,37 @@ export class PodcastModule {
   }
 }
 
-const speakerIdentityMessage = (snapshot: LX.Podcast.TranscriptSnapshot) => {
-  const count = snapshot.speakers.filter((speaker) => speaker.origin === 'ai').length
-  return count > 0
-    ? `AI 已标注 ${count} 位说话人`
-    : 'AI 未找到足够可信的身份，已保留本地说话人标签'
-}
-
 const emptyTranscript = (contentId: string): LX.Podcast.TranscriptSnapshot => ({
   protocolVersion: 2,
   contentId,
   revision: 0,
   state: 'missing',
-  source: 'asr',
+  source: 'voxrail',
   language: 'auto',
   isPartial: false,
   lines: [],
   speakers: [],
-  completedSegmentIndexes: [],
 })
 
-const needsWordTimingUpgrade = (
-  snapshot: LX.Podcast.TranscriptSnapshot | null
-) => !!snapshot &&
-  snapshot.source === 'asr' &&
-  snapshot.lines.length > 0 &&
-  snapshot.speakers.length > 0 &&
-  snapshot.lines.some((line) => !!line.speakerId) &&
-  (snapshot.wordTimingUpgrade === true || (
-    snapshot.state === 'ready' &&
-    snapshot.lines.every((line) => line.words.length === 0)
-  ))
-
-const completedSegmentIndexes = (
-  snapshot: LX.Podcast.TranscriptSnapshot | null | undefined,
-  contentId: string
-) => {
-  if (!snapshot) return []
-  const values = new Set(
-    (snapshot.completedSegmentIndexes ?? [])
-      .filter((value) => Number.isSafeInteger(value) && value >= 0)
-  )
-  if (snapshot.wordTimingUpgrade) return [...values].sort((a, b) => a - b)
-  const prefix = `${contentId}:segment-`
-  for (const line of snapshot.lines) {
-    if (!line.id.startsWith(prefix)) continue
-    const index = Number.parseInt(line.id.slice(prefix.length).split(':', 1)[0], 10)
-    if (Number.isSafeInteger(index) && index >= 0) values.add(index)
+const waitForVoxrailPoll = (signal: AbortSignal, delayMs: number) => new Promise<void>(
+  (resolve, reject) => {
+    if (signal.aborted) {
+      reject(signal.reason ?? new Error('Voxrail polling aborted'))
+      return
+    }
+    const timer = setTimeout(done, delayMs)
+    function done() {
+      signal.removeEventListener('abort', aborted)
+      resolve()
+    }
+    function aborted() {
+      clearTimeout(timer)
+      signal.removeEventListener('abort', aborted)
+      reject(signal.reason ?? new Error('Voxrail polling aborted'))
+    }
+    signal.addEventListener('abort', aborted, { once: true })
   }
-  return [...values].sort((a, b) => a - b)
-}
+)
 
 const normalizeCatalog = (value: unknown): LX.Podcast.Source[] => {
   const record = asRecord(value)

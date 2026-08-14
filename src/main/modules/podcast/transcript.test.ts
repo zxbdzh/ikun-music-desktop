@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createTranscriptDelta, lineFromSegment, shouldRetryAsr } from './transcript'
+import { createTranscriptDelta, lineFromSegment } from './transcript'
 
 describe('podcast transcript', () => {
   it('does not invent word timing when the source only supplies line timing', () => {
@@ -65,22 +65,4 @@ describe('podcast transcript', () => {
     })
   })
 
-  it('retries a failed local ASR snapshot on the next request', () => {
-    const failed: LX.Podcast.TranscriptSnapshot = {
-      protocolVersion: 2,
-      contentId: 'episode',
-      revision: 2,
-      state: 'failed',
-      source: 'asr',
-      language: 'auto',
-      isPartial: false,
-      lines: [],
-      speakers: [],
-      error: 'sidecar missing',
-    }
-
-    expect(shouldRetryAsr(failed)).toBe(true)
-    expect(shouldRetryAsr({ ...failed, source: 'publisher' })).toBe(false)
-    expect(shouldRetryAsr({ ...failed, state: 'ready' })).toBe(false)
-  })
 })

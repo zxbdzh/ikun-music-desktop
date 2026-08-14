@@ -177,12 +177,7 @@ const defaultSetting: LX.AppSetting = {
   'podcast.cachePath': path.join(os.homedir(), 'AppData', 'Local', 'IKUN Music', 'PodcastCache'),
   'podcast.downloadLimitGB': 20,
   'podcast.cacheLimitGB': 5,
-  'podcast.asrModel': 'small',
-  'podcast.asrLanguage': 'auto',
-  'podcast.asrVulkan': true,
-  'podcast.aiEnabled': false,
-  'podcast.aiBaseUrl': '',
-  'podcast.aiModel': '',
+  'podcast.voxrailBaseUrl': '',
 
   // 'theme.id': 'blue_plus',
   'theme.id': 'green',
