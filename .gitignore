@@ -73,6 +73,12 @@ src/**/*-internal.js
 # Development
 todo.md
 
+# Local test and build artifacts
+.apifox/
+.artifacts/
+.playwright-cli/
+build-cuda*/
+
 .idea
 .claude
 CLAUDE.md

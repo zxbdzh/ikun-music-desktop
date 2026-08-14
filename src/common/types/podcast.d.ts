@@ -2,66 +2,21 @@ declare namespace LX {
   namespace Podcast {
     type TranscriptState = 'missing' | 'preparing' | 'ready' | 'failed' | 'unavailable'
 
-    type TranscriptSource = 'publisher' | 'asr' | 'ai'
-
-    type TranscriptionModelState =
-      | 'not-required'
-      | 'checking'
-      | 'not-installed'
-      | 'downloading'
-      | 'ready'
-      | 'error'
-
-    type TranscriptionExecutor = 'vulkan' | 'directml' | 'cpu' | null
-
-    type AsrExecutor = 'cuda' | 'vulkan' | 'cpu' | null
-
-    type ComputeRuntimeSource = 'bundled' | 'system' | null
-
-    interface AsrComputeBackendStatus {
-      preferredExecutor: 'cuda' | 'cpu'
-      actualExecutor: AsrExecutor
-      actualUpdatedAt: number | null
-      gpuAvailable: boolean
-      deviceName: string | null
-      runtimeSource: ComputeRuntimeSource
-      capabilityMessage: string
-      fallbackReason: string | null
-    }
-
-    interface SpeakerComputeBackendStatus {
-      preferredExecutor: 'directml' | 'cpu'
-      actualExecutor: TranscriptionExecutor
-      actualUpdatedAt: number | null
-      gpuAvailable: boolean
-      deviceName: string | null
-      runtimeSource: ComputeRuntimeSource
-      capabilityMessage: string
-      fallbackReason: string | null
-    }
-
-    interface ComputeBackendStatus {
-      checkedAt: number
-      asr: AsrComputeBackendStatus
-      speakerDiarization: SpeakerComputeBackendStatus
-    }
+    type TranscriptSource = 'publisher' | 'asr' | 'ai' | 'voxrail'
 
     type TranscriptionStage =
       | 'idle'
       | 'queued'
-      | 'downloading-audio'
-      | 'preparing-model'
-      | 'converting-audio'
-      | 'recognizing'
-      | 'estimating-speakers'
-      | 'preparing-speaker-model'
-      | 'diarizing'
-      | 'identifying-speakers'
-      | 'saving'
-      | 'cancelling'
-      | 'cancelled'
+      | 'running'
       | 'completed'
       | 'failed'
+
+    type TranscriptionProgressStage =
+      | 'downloading-media'
+      | 'transcribing'
+      | 'diarizing'
+      | 'annotating-speakers'
+      | 'publishing-final'
 
     interface TranscriptionStatus {
       protocolVersion: 2
@@ -70,38 +25,32 @@ declare namespace LX {
       transcriptSource: TranscriptSource | null
       revision: number
       isPartial: boolean
-      model: 'base' | 'small' | 'medium' | null
-      modelState: TranscriptionModelState
-      speakerModelState?: TranscriptionModelState
       stage: TranscriptionStage
       progress: number | null
-      asrExecutor?: AsrExecutor
-      asrExecutorFallbackReason?: string
-      executor?: TranscriptionExecutor
-      executorFallbackReason?: string
+      progressStage?: TranscriptionProgressStage
+      processedSeconds?: number
+      totalSeconds?: number
       speakerCount?: number
-      speakerError?: string
-      speakerIdentityError?: string
-      speakerIdentityMessage?: string
       speakerLabels?: string[]
-      aiSpeakerCount?: number
-      completedSegments?: number
-      totalSegments?: number
-      currentSegment?: number
       queuedAt?: number
       startedAt?: number
       lastHeartbeatAt?: number
-      lastSegmentCompletedAt?: number
-      currentSegmentStartedAt?: number
       error?: string
       updatedAt: number
     }
 
-    interface SpeakerAiConfig {
-      enabled: boolean
+    interface VoxrailConfig {
       baseUrl: string
-      model: string
-      hasApiKey: boolean
+      hasAccessKey: boolean
+    }
+
+    interface VoxrailQuota {
+      usedMinutes: number
+      reservedMinutes: number
+      remainingMinutes: number
+      concurrencyLimit: number
+      activeJobs: number
+      expiresAt: string
     }
 
     interface Source {
@@ -205,9 +154,6 @@ declare namespace LX {
       isPartial: boolean
       lines: TranscriptLine[]
       speakers: Speaker[]
-      completedSegmentIndexes?: number[]
-      wordTimingUpgrade?: boolean
-      interruptionReason?: 'cancelled'
       error?: string
     }
 
@@ -368,16 +314,10 @@ declare namespace LX {
       | { action: 'transcript'; episodeId: string; sinceRevision?: number }
       | { action: 'long-form-content'; episodeId: string }
       | { action: 'transcription-status'; episodeId: string }
-      | { action: 'backend-status' }
-      | {
-          action: 'transcription-control'
-          episodeId: string
-          command: 'start' | 'retry' | 'restart' | 'cancel'
-        }
-      | { action: 'speaker-ai-config' }
-      | { action: 'speaker-ai-key-save'; apiKey: string }
-      | { action: 'speaker-ai-test' }
-      | { action: 'identify-speakers'; episodeId: string }
+      | { action: 'voxrail-config' }
+      | { action: 'voxrail-config-save'; baseUrl: string; accessKey?: string }
+      | { action: 'voxrail-key-remove' }
+      | { action: 'voxrail-test' }
       | { action: 'activate-episode'; episodeId: string }
       | { action: 'deactivate-episode' }
       | { action: 'download-states'; episodeIds: string[] }

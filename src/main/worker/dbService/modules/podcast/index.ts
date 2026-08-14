@@ -383,27 +383,6 @@ export const podcastTranscriptGet = (episodeId: string): LX.Podcast.TranscriptSn
   return row ? parseTranscriptSnapshot(row.snapshot_json) : null
 }
 
-export const podcastTranscriptSpeakerReferenceGet = (
-  episodeId: string
-): LX.Podcast.TranscriptSnapshot | null => {
-  const rows = getDB()
-    .prepare<[string]>(`
-      SELECT snapshot_json FROM podcast_transcript
-      WHERE episode_id=? AND state='ready'
-      ORDER BY updated_at DESC
-    `)
-    .all(episodeId) as { snapshot_json: string }[]
-  for (const row of rows) {
-    const snapshot = parseTranscriptSnapshot(row.snapshot_json)
-    if (!snapshot || snapshot.source !== 'asr' || !snapshot.speakers.length) continue
-    const speakerIds = new Set(snapshot.speakers.map((speaker) => speaker.id))
-    if (snapshot.lines.some((line) => line.speakerId && speakerIds.has(line.speakerId))) {
-      return snapshot
-    }
-  }
-  return null
-}
-
 export const podcastTranscriptSave = (
   versionId: string,
   snapshot: LX.Podcast.TranscriptSnapshot,

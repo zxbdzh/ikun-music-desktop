@@ -50,7 +50,7 @@ const toLrc = (delta: LX.Podcast.TranscriptDelta) => {
     delta.state === 'preparing'
       ? '当前片段正在生成'
       : delta.state === 'failed'
-        ? '字幕生成失败，请在 IKUN 中重试'
+        ? '云端字幕生成失败，稍后将自动重试'
         : ''
   const output: Array<{ startMs: number; text: string }> = []
 
@@ -78,6 +78,40 @@ const toLrc = (delta: LX.Podcast.TranscriptDelta) => {
     .join('\n')
 }
 
+const transcriptionLyricStatus = (
+  status: LX.Podcast.TranscriptionStatus | null
+) => {
+  if (!status || status.transcriptSource !== 'voxrail') return ''
+  if (status.stage === 'queued') return 'Voxrail 排队中'
+  if (status.stage === 'failed') return `Voxrail 转写失败${status.error ? ` · ${status.error}` : ''}`
+  if (status.stage === 'completed') return 'Voxrail 字幕已就绪'
+  const stageLabels: Record<LX.Podcast.TranscriptionProgressStage, string> = {
+    'downloading-media': '下载云端音频中',
+    transcribing: '云端转写中',
+    diarizing: '区分说话人中',
+    'annotating-speakers': '标注说话人中',
+    'publishing-final': '发布字幕中',
+  }
+  const label = status.progressStage ? stageLabels[status.progressStage] : '云端转写中'
+  const progress = status.progress == null
+    ? ''
+    : ` · ${Math.round(Math.max(0, Math.min(1, status.progress)) * 100)}%`
+  const processed = status.processedSeconds != null && status.totalSeconds != null
+    ? ` · ${formatAudioTime(status.processedSeconds)} / ${formatAudioTime(status.totalSeconds)}`
+    : ''
+  return `Voxrail ${label}${progress}${processed}`
+}
+
+const formatAudioTime = (value: number) => {
+  const seconds = Math.max(0, Math.floor(value))
+  const hours = Math.floor(seconds / 3_600)
+  const minutes = Math.floor((seconds % 3_600) / 60)
+  const rest = seconds % 60
+  return hours
+    ? `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}`
+    : `${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}`
+}
+
 export const getMusicUrl = async (musicInfo: LX.Music.MusicInfoPodcast) => {
   if (!musicInfo.meta.audioUrl?.trim()) throw new Error('当前博客没有可播放的音频')
   await activatePodcastEpisode(musicInfo)
@@ -99,13 +133,30 @@ export const getLyricInfo = async (
   if (requestGeneration !== lyricRequestGeneration) {
     throw new Error('Podcast lyric request superseded')
   }
+  const generatedLyric = toLrc(delta)
+  let cloudStatus = ''
+  if (!generatedLyric && (delta.state === 'missing' || delta.state === 'preparing')) {
+    try {
+      cloudStatus = transcriptionLyricStatus(
+        await sendPodcastCommand<LX.Podcast.TranscriptionStatus | null>({
+          action: 'transcription-status',
+          episodeId: musicInfo.id,
+        })
+      )
+    } catch {
+      cloudStatus = ''
+    }
+    if (requestGeneration !== lyricRequestGeneration) {
+      throw new Error('Podcast lyric request superseded')
+    }
+  }
   const statusText: Partial<Record<LX.Podcast.TranscriptState, string>> = {
-    missing: '暂无字幕，请在 IKUN 中生成',
-    preparing: '正在生成字幕',
-    failed: '字幕生成失败，请在 IKUN 中重试',
+    missing: '字幕尚未就绪，Voxrail 将自动处理',
+    preparing: 'Voxrail 正在生成字幕',
+    failed: '云端字幕生成失败，稍后将自动重试',
     unavailable: '当前内容不支持字幕',
   }
-  const lyric = toLrc(delta) || `[00:00.000]${statusText[delta.state] ?? ''}`
+  const lyric = generatedLyric || `[00:00.000]${cloudStatus || statusText[delta.state] || ''}`
   return {
     lyric,
     tlyric: '',

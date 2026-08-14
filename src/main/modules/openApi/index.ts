@@ -99,19 +99,6 @@ const isLoopbackRequest = (req: http.IncomingMessage) => {
   return address === '127.0.0.1' || address === '::1' || address === '::ffff:127.0.0.1'
 }
 
-const readJsonBody = async (req: http.IncomingMessage) => {
-  const chunks: Buffer[] = []
-  let size = 0
-  for await (const value of req) {
-    const chunk = Buffer.isBuffer(value) ? value : Buffer.from(value)
-    size += chunk.length
-    if (size > 64 * 1024) throw new Error('Request body is too large')
-    chunks.push(chunk)
-  }
-  const text = Buffer.concat(chunks).toString('utf8')
-  return text ? JSON.parse(text) as unknown : null
-}
-
 const handleStartServer = async (port: number, ip: string) =>
   new Promise<void>((resolve, reject) => {
     playerStatusKeys = Object.keys(global.lx.player_status) as SubscribeKeys[]
@@ -121,7 +108,7 @@ const handleStartServer = async (port: number, ip: string) =>
       const query = requestUrl.searchParams.toString()
       let code = 200
       let msg = 'OK'
-      if (req.method !== 'GET' && !(req.method === 'POST' && endUrl === '/transcription-control')) {
+      if (req.method !== 'GET') {
         sendResponse(res, 405, 'Method Not Allowed')
         return
       }
@@ -256,32 +243,6 @@ const handleStartServer = async (port: number, ip: string) =>
             return
           }
           sendResponse(res, 200, transcription, 'application/json; charset=utf-8', false)
-          return
-        }
-        case '/transcription-control': {
-          if (!isLoopbackRequest(req)) {
-            sendResponse(res, 403, 'Forbidden')
-            return
-          }
-          void readJsonBody(req)
-            .then(async (body) => {
-              const value = body && typeof body === 'object' ? body as Record<string, unknown> : {}
-              const contentId = typeof value.contentId === 'string' ? value.contentId.trim() : ''
-              const action = value.action
-              if (!contentId || !['start', 'retry', 'restart', 'cancel'].includes(String(action))) {
-                sendResponse(res, 400, 'Invalid transcription control request', undefined, false)
-                return
-              }
-              const result = await podcastModule.controlTranscription(
-                contentId,
-                action as 'start' | 'retry' | 'restart' | 'cancel'
-              )
-              sendResponse(res, 200, result, 'application/json; charset=utf-8', false)
-            })
-            .catch((error) => {
-              const message = error instanceof Error ? error.message : String(error)
-              sendResponse(res, 409, message, undefined, false)
-            })
           return
         }
         case '/play':

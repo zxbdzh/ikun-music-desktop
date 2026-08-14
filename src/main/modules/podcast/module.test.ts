@@ -1,1061 +1,291 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { PodcastAsrCancelledError } from './asr'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 import { PodcastModule } from './module'
+import { VOXRAIL_RETRY_WINDOW_MS, VoxrailError } from './voxrailClient'
+
+const { safeStorage } = vi.hoisted(() => {
+  const value = {
+    available: true,
+    isEncryptionAvailable: vi.fn(() => value.available),
+    encryptString: vi.fn((plainText: string) => Buffer.from(`encrypted:${plainText}`)),
+    decryptString: vi.fn((encrypted: Buffer) => encrypted.toString().replace(/^encrypted:/, '')),
+  }
+  return { safeStorage: value }
+})
 
 vi.mock('electron', () => ({
-  safeStorage: {
-    isEncryptionAvailable: () => false,
-    encryptString: (value: string) => Buffer.from(value),
-    decryptString: (value: Buffer) => value.toString(),
-  },
+  app: { getVersion: () => '1.4.5' },
+  safeStorage,
 }))
 
 afterEach(() => {
   vi.useRealTimers()
+  safeStorage.available = true
+  vi.clearAllMocks()
 })
 
-describe('PodcastModule transcript preparation', () => {
-  it('returns missing without starting ASR automatically', async () => {
-    const module = new PodcastModule()
-    const episode = { id: 'episode-1', transcriptReferences: [] }
-    const prepare = vi.fn()
-    ;(module as any).asr = { prepare }
-    global.lx = {
-      appSetting: { 'podcast.asrModel': 'small' },
-      player_status: { progress: 0 },
-      event_app: { player_status: vi.fn() },
-      worker: {
-        dbService: {
-          podcastEpisodeGet: vi.fn(async () => episode),
-          podcastTranscriptGet: vi.fn(async () => null),
-        },
-      },
-    } as unknown as typeof global.lx
+describe('PodcastModule cloud transcript lifecycle', () => {
+  it('prefers publisher subtitles and never creates a Voxrail request', async () => {
+    const proxyText = vi.fn(async () => (
+      'WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nPublisher line'
+    ))
+    const module = new PodcastModule({ proxyText } as any)
+    const episode = podcastEpisode({
+      transcriptReferences: [{ url: 'https://cdn.example/show.vtt', type: 'text/vtt' }],
+    })
+    const createRequest = vi.fn()
+    ;(module as any).voxrail = { createRequest }
+    global.lx = podcastGlobals({
+      episode,
+      stored: null,
+    })
 
     const result = await module.transcript(episode.id)
 
-    expect(result).toMatchObject({
-      contentId: episode.id,
-      protocolVersion: 2,
-      revision: 0,
-      state: 'missing',
-      isPartial: false,
-    })
-    expect(prepare).not.toHaveBeenCalled()
+    expect(result).toMatchObject({ state: 'ready', revision: 1 })
+    expect(result.upsertLines[0].displayText).toBe('Publisher line')
+    expect(proxyText).toHaveBeenCalledWith('https://cdn.example/show.vtt')
+    expect(createRequest).not.toHaveBeenCalled()
   })
 
-  it('returns the active transcript from memory without another database round trip', async () => {
+  it('uses an existing ready local transcript before Voxrail', async () => {
     const module = new PodcastModule()
-    const snapshot: LX.Podcast.TranscriptSnapshot = {
-      protocolVersion: 2,
-      contentId: 'episode-1',
-      revision: 2,
-      state: 'ready',
-      source: 'asr',
-      language: 'auto',
-      isPartial: false,
-      lines: [],
-      speakers: [],
-    }
-    const podcastTranscriptGet = vi.fn(async () => {
-      throw new Error('database should not be queried')
-    })
-    ;(module as any).currentEpisodeId = snapshot.contentId
-    ;(module as any).currentTranscript = snapshot
-    global.lx = {
-      appSetting: { 'podcast.asrModel': 'small' },
-      worker: { dbService: { podcastTranscriptGet } },
-      event_app: { player_status: vi.fn() },
-    } as unknown as typeof global.lx
+    const episode = podcastEpisode()
+    const stored = transcriptSnapshot({ source: 'asr', revision: 9 })
+    const createRequest = vi.fn()
+    ;(module as any).voxrail = { createRequest }
+    global.lx = podcastGlobals({ episode, stored })
 
-    await expect(module.transcript(snapshot.contentId)).resolves.toMatchObject({
-      contentId: snapshot.contentId,
-      revision: snapshot.revision,
-      state: 'ready',
-    })
-    expect(podcastTranscriptGet).not.toHaveBeenCalled()
+    const result = await module.transcript(episode.id)
+
+    expect(result).toMatchObject({ state: 'ready', revision: 9 })
+    expect(createRequest).not.toHaveBeenCalled()
   })
 
-  it('migrates a stored ASR transcript to simplified Chinese with a new revision', async () => {
-    const module = new PodcastModule()
-    const snapshot: LX.Podcast.TranscriptSnapshot = {
-      protocolVersion: 2,
-      contentId: 'episode-traditional',
-      revision: 153,
-      state: 'ready',
-      source: 'asr',
-      language: 'auto',
-      isPartial: false,
-      lines: [{
-        id: 'line-1',
-        startMs: 80_520,
-        endMs: 83_880,
-        displayText: '就是大家都覺得AI是一個非常了不起的一個事',
-        words: [],
-      }],
-      speakers: [],
-    }
-    const podcastTranscriptSave = vi.fn()
-    global.lx = {
-      appSetting: { 'podcast.asrModel': 'small' },
-      worker: {
-        dbService: {
-          podcastTranscriptGet: vi.fn(async () => snapshot),
-          podcastTranscriptSave,
-        },
-      },
-      event_app: { player_status: vi.fn() },
-    } as unknown as typeof global.lx
-
-    const result = await module.transcript(snapshot.contentId, snapshot.revision)
-
-    expect(result).toMatchObject({ revision: 154, reset: true })
-    expect(result.upsertLines[0].displayText).toBe(
-      '就是大家都觉得AI是一个非常了不起的一个事'
-    )
-    expect(podcastTranscriptSave).toHaveBeenCalledWith(
-      'normalization:simplified-v1',
-      expect.objectContaining({ revision: 154 }),
-      true
-    )
-  })
-
-  it('does not normalize and overwrite an in-progress ASR snapshot', async () => {
-    const module = new PodcastModule()
-    const snapshot: LX.Podcast.TranscriptSnapshot = {
-      protocolVersion: 2,
-      contentId: 'episode-active-asr',
-      revision: 24,
-      state: 'preparing',
-      source: 'asr',
-      language: 'auto',
-      isPartial: true,
-      lines: [{
-        id: 'line-1',
-        startMs: 0,
-        endMs: 1_000,
-        displayText: '這個測試',
-        words: [],
-      }],
-      speakers: [],
-      completedSegmentIndexes: [0],
-    }
-    const podcastTranscriptSave = vi.fn()
-    ;(module as any).currentEpisodeId = snapshot.contentId
-    ;(module as any).currentTranscript = snapshot
-    global.lx = {
-      appSetting: { 'podcast.asrModel': 'small' },
-      worker: { dbService: { podcastTranscriptSave } },
-      event_app: { player_status: vi.fn() },
-    } as unknown as typeof global.lx
-
-    const result = await module.transcript(snapshot.contentId)
-
-    expect(result).toMatchObject({
-      revision: snapshot.revision,
-      state: 'preparing',
-      upsertLines: [expect.objectContaining({ displayText: '這個測試' })],
-    })
-    expect(podcastTranscriptSave).not.toHaveBeenCalled()
-  })
-
-  it('starts segmented ASR manually and publishes detailed status', async () => {
-    const module = new PodcastModule()
-    const episode = { id: 'episode-1', transcriptReferences: [] }
-    const playerStatus = vi.fn()
-    ;(module as any).currentEpisodeId = episode.id
-    ;(module as any).asr = {
-      prepare: vi.fn(async (_episode, onProgress) => {
-        onProgress({ stage: 'preparing-model', modelState: 'downloading', progress: 0.5 })
-        return {
-          episode,
-          segments: [
-            { index: 0, startMs: 0, endMs: 30_000, recognitionStartMs: 0, recognitionEndMs: 30_000 },
-          ],
-          language: 'auto',
-        }
-      }),
-      transcribeSegment: vi.fn(async () => [segmentLine(episode.id, 0)]),
-    }
-    ;(module as any).speakerDiarization = {
-      diarize: vi.fn(async (_prepared, onProgress) => {
-        onProgress({
-          stage: 'diarizing',
-          modelState: 'ready',
-          progress: 1,
-          executor: 'cpu',
-          executorFallbackReason: 'DirectML provider 不可用',
-          speakerCount: 1,
-        })
-        return {
-          segments: [{ start: 0, end: 30, speaker: 7 }],
-          executor: 'cpu',
-          executorFallbackReason: 'DirectML provider 不可用',
-        }
-      }),
-    }
-    global.lx = {
-      appSetting: { 'podcast.asrModel': 'small', 'podcast.asrLanguage': 'auto' },
-      player_status: { progress: 0 },
-      event_app: { player_status: playerStatus },
-      worker: {
-        dbService: {
-          podcastEpisodeGet: vi.fn(async () => episode),
-          podcastTranscriptGet: vi.fn(async () => null),
-          podcastTranscriptSave: vi.fn(),
-        },
-      },
-    } as unknown as typeof global.lx
-
-    await expect(module.controlTranscription(episode.id, 'start')).resolves.toMatchObject({
-      protocolVersion: 2,
-      stage: 'queued',
-    })
-    await (module as any).asrJobs.get(episode.id).promise
-
-    expect(module.getTranscriptionStatus(episode.id)).toMatchObject({
-      transcriptState: 'ready',
-      modelState: 'ready',
-      stage: 'completed',
-      progress: 1,
-      completedSegments: 1,
-      totalSegments: 1,
-      speakerModelState: 'ready',
-      executor: 'cpu',
-      executorFallbackReason: 'DirectML provider 不可用',
-      speakerCount: 1,
-    })
-    expect((module as any).currentTranscript).toMatchObject({
-      lines: [expect.objectContaining({ speakerId: 'speaker-1' })],
-      speakers: [{ id: 'speaker-1', name: '说话人 1', origin: 'local' }],
-    })
-    expect(playerStatus).toHaveBeenCalledWith({
-      transcript: expect.objectContaining({ protocolVersion: 2, state: 'ready' }),
-    })
-  })
-
-  it('runs automatic speaker identification through the shared ASR queue', async () => {
-    const module = new PodcastModule()
-    const episode = { id: 'episode-auto-identify', sourceId: 'source-1', transcriptReferences: [] }
-    const enqueue = vi.spyOn((module as any).asrQueue, 'enqueue')
-    ;(module as any).currentEpisodeId = episode.id
-    ;(module as any).aiApiKey = 'test-key'
-    ;(module as any).asr = {
-      prepare: vi.fn(async () => ({
-        episode,
-        segments: segments(1),
-        language: 'auto',
-      })),
-      transcribeSegment: vi.fn(async () => [segmentLine(episode.id, 0)]),
-    }
-    const diarize = vi.fn(async (
-      _prepared: unknown,
-      _onProgress?: unknown,
-      _signal?: AbortSignal,
-      _expectedSpeakerCount?: number
-    ) => ({
-        segments: [{ start: 0, end: 30, speaker: 0 }],
-        executor: 'cpu',
-      }))
-    const estimateSpeakerCount = vi.fn(async () => 2)
-    ;(module as any).speakerDiarization = { diarize }
-    ;(module as any).speakerIdentification = {
-      estimateSpeakerCount,
-      identify: vi.fn(async (_episode, snapshot) => snapshot),
-    }
-    global.lx = podcastGlobals(episode, null)
-    Object.assign(global.lx.appSetting, {
-      'podcast.aiEnabled': true,
-      'podcast.aiBaseUrl': 'https://example.test/v1',
-      'podcast.aiModel': 'test-model',
-    })
-
-    await module.controlTranscription(episode.id, 'start')
-    await vi.waitFor(() => expect(module.getTranscriptionStatus(episode.id)?.stage).toBe('completed'))
-
-    expect(enqueue.mock.calls.map(([id]) => id)).toContain(`${episode.id}:identify`)
-    expect(estimateSpeakerCount).toHaveBeenCalledWith(
-      episode,
-      expect.any(Object),
-      expect.any(Object),
-      expect.any(AbortSignal),
-      expect.objectContaining({ id: episode.sourceId })
-    )
-    expect(diarize.mock.calls[0]?.[3]).toBe(2)
-  })
-
-  it('re-runs diarization when AI estimates a different plausible speaker count', async () => {
-    const module = new PodcastModule()
-    const episode = {
-      id: 'episode-speaker-count-changed',
-      sourceId: 'source-1',
-      transcriptReferences: [],
-    }
-    const snapshot: LX.Podcast.TranscriptSnapshot = {
-      protocolVersion: 2,
-      contentId: episode.id,
-      revision: 9,
-      state: 'ready',
-      source: 'asr',
-      language: 'auto',
-      isPartial: false,
-      lines: [
-        { ...segmentLine(episode.id, 0), speakerId: 'speaker-1' },
-        { ...segmentLine(episode.id, 1), speakerId: 'speaker-2' },
-      ],
-      speakers: [
-        { id: 'speaker-1', name: '说话人 1', origin: 'local' },
-        { id: 'speaker-2', name: '说话人 2', origin: 'local' },
-      ],
-    }
-    const diarize = vi.fn(async (
-      _prepared: unknown,
-      _onProgress?: unknown,
-      _signal?: AbortSignal,
-      expectedSpeakerCount?: number
-    ) => ({
-      segments: [
-        { start: 0, end: 20, speaker: 0 },
-        { start: 20, end: 40, speaker: 1 },
-        { start: 40, end: 60, speaker: 2 },
-      ],
-      executor: 'cpu',
-      expectedSpeakerCount,
-    }))
-    ;(module as any).aiApiKey = 'test-key'
-    ;(module as any).asr = { prepareAudio: vi.fn(async () => ({ episode })) }
-    ;(module as any).speakerDiarization = { diarize }
-    ;(module as any).speakerIdentification = {
-      estimateSpeakerCount: vi.fn(async () => 3),
-      identify: vi.fn(async (_episode, value) => value),
-    }
-    global.lx = podcastGlobals(episode, snapshot)
-    Object.assign(global.lx.appSetting, {
-      'podcast.aiEnabled': true,
-      'podcast.aiBaseUrl': 'https://example.test/v1',
-      'podcast.aiModel': 'test-model',
-    })
-
-    await (module as any).startSpeakerIdentification(episode.id)
-    await vi.waitFor(() => expect(module.getTranscriptionStatus(episode.id)?.stage).toBe('completed'))
-
-    expect(diarize).toHaveBeenCalled()
-    expect(diarize.mock.calls[0]?.[3]).toBe(3)
-  })
-
-  it('re-runs diarization when a legacy transcript contains excessive speaker clusters', async () => {
-    const module = new PodcastModule()
-    const episode = {
-      id: 'episode-excessive-speakers', sourceId: 'source-1', transcriptReferences: [],
-    }
-    const snapshot: LX.Podcast.TranscriptSnapshot = {
-      protocolVersion: 2,
-      contentId: episode.id,
-      revision: 9,
-      state: 'ready',
-      source: 'asr',
-      language: 'auto',
-      isPartial: false,
-      lines: [
-        { ...segmentLine(episode.id, 0), speakerId: 'speaker-1' },
-        { ...segmentLine(episode.id, 1), speakerId: 'speaker-2' },
-      ],
-      speakers: Array.from({ length: 64 }, (_, index) => ({
-        id: `speaker-${index + 1}`,
-        name: `说话人 ${index + 1}`,
-        origin: 'local' as const,
-      })),
-    }
-    const estimateSpeakerCount = vi.fn(async () => 2)
-    const diarize = vi.fn(async (
-      _prepared: unknown,
-      _onProgress?: unknown,
-      _signal?: AbortSignal,
-      _expectedSpeakerCount?: number
-    ) => ({
-      segments: [
-        { start: 0, end: 30, speaker: 0 },
-        { start: 30, end: 60, speaker: 1 },
-      ],
-      executor: 'cpu',
-    }))
-    const identify = vi.fn(async (_episode, value) => value)
-    ;(module as any).aiApiKey = 'test-key'
-    ;(module as any).asr = { prepareAudio: vi.fn(async () => ({ episode })) }
-    ;(module as any).speakerDiarization = { diarize }
-    ;(module as any).speakerIdentification = { estimateSpeakerCount, identify }
-    global.lx = podcastGlobals(episode, snapshot)
-    Object.assign(global.lx.appSetting, {
-      'podcast.aiEnabled': true,
-      'podcast.aiBaseUrl': 'https://example.test/v1',
-      'podcast.aiModel': 'test-model',
-    })
-
-    await (module as any).startSpeakerIdentification(episode.id)
-    await vi.waitFor(() => expect(module.getTranscriptionStatus(episode.id)?.stage).toBe('completed'))
-
-    expect(estimateSpeakerCount).toHaveBeenCalled()
-    expect(diarize.mock.calls[0]?.[3]).toBe(2)
-    expect(identify).toHaveBeenCalledWith(
-      episode,
-      expect.objectContaining({
-        speakers: [
-          { id: 'speaker-1', name: '说话人 1', origin: 'local' },
-          { id: 'speaker-2', name: '说话人 2', origin: 'local' },
-        ],
-      }),
-      expect.any(Object),
-      expect.any(AbortSignal),
-      expect.objectContaining({ id: episode.sourceId })
-    )
-  })
-
-  it('runs diarization before manual AI identification when an old ASR transcript has no speakers', async () => {
-    const module = new PodcastModule()
-    const episode = {
-      id: 'episode-manual-identify', sourceId: 'source-1', transcriptReferences: [],
-    }
-    const snapshot: LX.Podcast.TranscriptSnapshot = {
-      protocolVersion: 2,
-      contentId: episode.id,
-      revision: 9,
-      state: 'ready',
-      source: 'asr',
-      language: 'auto',
-      isPartial: false,
-      lines: [segmentLine(episode.id, 0)],
-      speakers: [],
-    }
-    const enqueue = vi.spyOn((module as any).asrQueue, 'enqueue')
-    const prepareAudio = vi.fn(async () => ({ episode }))
-    const identify = vi.fn(async (_episode, value) => value)
-    ;(module as any).aiApiKey = 'test-key'
-    ;(module as any).asr = { prepareAudio }
-    ;(module as any).speakerDiarization = {
-      diarize: vi.fn(async () => ({
-        segments: [{ start: 0, end: 30, speaker: 0 }],
-        executor: 'cpu',
-      })),
-    }
-    ;(module as any).speakerIdentification = {
-      estimateSpeakerCount: vi.fn(async () => 2),
-      identify,
-    }
-    global.lx = podcastGlobals(episode, snapshot)
-    Object.assign(global.lx.appSetting, {
-      'podcast.aiEnabled': true,
-      'podcast.aiBaseUrl': 'https://example.test/v1',
-      'podcast.aiModel': 'test-model',
-    })
-
-    await (module as any).startSpeakerIdentification(episode.id)
-    await vi.waitFor(() => expect(module.getTranscriptionStatus(episode.id)?.stage).toBe('completed'))
-
-    expect(prepareAudio).toHaveBeenCalledWith(episode, expect.any(Function), expect.any(AbortSignal))
-    expect(enqueue.mock.calls.map(([id]) => id)).toEqual([
-      `${episode.id}:estimate-speakers`,
-      `${episode.id}:diarize`,
-      `${episode.id}:identify`,
-    ])
-    expect(identify).toHaveBeenCalledWith(
-      episode,
-      expect.objectContaining({
-        speakers: [{ id: 'speaker-1', name: '说话人 1', origin: 'local' }],
-      }),
-      expect.any(Object),
-      expect.any(AbortSignal),
-      expect.objectContaining({ id: episode.sourceId })
-    )
-  })
-
-  it('keeps a ready transcript available when speaker diarization fails', async () => {
-    const module = new PodcastModule()
-    const episode = { id: 'episode-speaker-failure', transcriptReferences: [] }
-    const snapshot: LX.Podcast.TranscriptSnapshot = {
-      protocolVersion: 2,
-      contentId: episode.id,
-      revision: 9,
-      state: 'ready',
-      source: 'asr',
-      language: 'auto',
-      isPartial: false,
-      lines: [segmentLine(episode.id, 0)],
-      speakers: [],
-    }
-    ;(module as any).aiApiKey = 'test-key'
-    ;(module as any).asr = {
-      prepareAudio: vi.fn(async (_episode, onProgress) => {
-        onProgress({ stage: 'downloading-audio', progress: null })
-        return { episode }
-      }),
-    }
-    ;(module as any).speakerDiarization = {
-      diarize: vi.fn(async (_prepared, onProgress) => {
-        onProgress({
-          stage: 'preparing-speaker-model',
-          modelState: 'downloading',
-          progress: 1,
-        })
-        throw new Error('说话人分割模型校验失败')
-      }),
-    }
-    global.lx = podcastGlobals(episode, snapshot)
-    Object.assign(global.lx.appSetting, {
-      'podcast.aiEnabled': true,
-      'podcast.aiBaseUrl': 'https://example.test/v1',
-      'podcast.aiModel': 'test-model',
-    })
-
-    await (module as any).startSpeakerIdentification(episode.id)
-    await vi.waitFor(() => expect(
-      module.getTranscriptionStatus(episode.id)?.speakerError
-    ).toBe('说话人分割模型校验失败'))
-
-    expect(module.getTranscriptionStatus(episode.id)).toMatchObject({
-      transcriptState: 'ready',
-      revision: snapshot.revision,
-      stage: 'completed',
-      speakerError: '说话人分割模型校验失败',
-    })
-  })
-
-  it('stops queued segment work after a failure and keeps the completed slices', async () => {
-    const module = new PodcastModule()
-    const episode = { id: 'episode-failure', transcriptReferences: [] }
-    const saved: LX.Podcast.TranscriptSnapshot[] = []
-    const transcribeSegment = vi.fn(async (_prepared, segment) => {
-      if (segment.index === 1) throw new Error('segment failed')
-      return [segmentLine(episode.id, segment.index)]
-    })
-    ;(module as any).currentEpisodeId = episode.id
-    ;(module as any).asr = {
-      prepare: vi.fn(async () => ({
-        episode,
-        segments: segments(3),
-        language: 'auto',
-      })),
-      transcribeSegment,
-    }
-    global.lx = podcastGlobals(episode, null, (snapshot) => saved.push(snapshot))
-
-    await module.controlTranscription(episode.id, 'start')
-    await vi.waitFor(() => expect(saved.at(-1)?.state).toBe('failed'))
-    const result = saved.at(-1)!
-
-    expect(transcribeSegment.mock.calls.map(([, segment]) => segment.index)).toEqual([0, 1])
-    expect(result).toMatchObject({
-      state: 'failed',
-      completedSegmentIndexes: [0],
-      lines: [expect.objectContaining({ id: `${episode.id}:segment-0:line-0` })],
-    })
-    expect(saved.at(-1)?.state).toBe('failed')
-    expect(module.getTranscriptionStatus(episode.id)).toMatchObject({
-      transcriptState: 'failed',
-      completedSegments: 1,
-      totalSegments: 3,
-    })
-  })
-
-  it('retries only slices that were not completed by the failed ASR job', async () => {
-    const module = new PodcastModule()
-    const episode = { id: 'episode-retry', transcriptReferences: [] }
-    const stored: LX.Podcast.TranscriptSnapshot = {
-      protocolVersion: 2,
-      contentId: episode.id,
-      revision: 4,
-      state: 'failed',
-      source: 'asr',
-      language: 'auto',
-      isPartial: true,
-      lines: [segmentLine(episode.id, 0)],
-      speakers: [],
-      completedSegmentIndexes: [0],
-      error: 'segment failed',
-    }
-    const transcribeSegment = vi.fn(async (_prepared, segment) => [
-      segmentLine(episode.id, segment.index),
-    ])
-    const saved: LX.Podcast.TranscriptSnapshot[] = []
-    ;(module as any).currentEpisodeId = episode.id
-    ;(module as any).asr = {
-      prepare: vi.fn(async () => ({
-        episode,
-        segments: segments(2),
-        language: 'auto',
-      })),
-      transcribeSegment,
-    }
-    global.lx = podcastGlobals(episode, stored, (snapshot) => saved.push(snapshot))
-
-    await module.controlTranscription(episode.id, 'retry')
-    await vi.waitFor(() => expect(saved.at(-1)?.state).toBe('ready'))
-    const result = saved.at(-1)!
-
-    expect(transcribeSegment.mock.calls.map(([, segment]) => segment.index)).toEqual([1])
-    expect(result).toMatchObject({
-      state: 'ready',
-      completedSegmentIndexes: [0, 1],
-    })
-    expect(result.lines.map((line) => line.id)).toEqual([
-      `${episode.id}:segment-0:line-0`,
-      `${episode.id}:segment-1:line-0`,
-    ])
-  })
-
-  it('cancels a queued job before ASR starts', async () => {
-    const module = new PodcastModule()
-    const episode = { id: 'episode-queued-cancel', transcriptReferences: [] }
-    const saved: LX.Podcast.TranscriptSnapshot[] = []
-    const prepare = vi.fn()
-    let releaseBlocker!: () => void
-    const blocker = new Promise<void>((resolve) => { releaseBlocker = resolve })
-    ;(module as any).asr = { prepare }
-    global.lx = podcastGlobals(episode, null, (snapshot) => saved.push(snapshot))
-    const active = (module as any).asrQueue.enqueue('other:active', () => -1, () => blocker)
-
-    await module.controlTranscription(episode.id, 'start')
-    await vi.waitFor(() => expect((module as any).asrJobs.has(episode.id)).toBe(true))
-    const job = (module as any).asrJobs.get(episode.id)
-
-    await expect(module.controlTranscription(episode.id, 'cancel')).resolves.toMatchObject({
-      stage: 'cancelled',
-    })
-    await job.promise
-    releaseBlocker()
-    await active
-
-    expect(prepare).not.toHaveBeenCalled()
-    expect(saved.at(-1)).toMatchObject({
-      state: 'preparing',
-      isPartial: true,
-      interruptionReason: 'cancelled',
-    })
-    expect(module.getTranscriptionStatus(episode.id)).toMatchObject({ stage: 'cancelled' })
-  })
-
-  it('stops a running job, preserves completed slices, and treats repeated cancellation as idempotent', async () => {
-    const module = new PodcastModule()
-    const episode = { id: 'episode-running-cancel', transcriptReferences: [] }
-    const saved: LX.Podcast.TranscriptSnapshot[] = []
-    const transcribeSegment = vi.fn(async (_prepared, segment, _onProgress, signal) => {
-      if (segment.index === 0) return [segmentLine(episode.id, segment.index)]
-      return new Promise<LX.Podcast.TranscriptLine[]>((_resolve, reject) => {
-        signal.addEventListener('abort', () => reject(new PodcastAsrCancelledError()), { once: true })
-      })
-    })
-    ;(module as any).asr = {
-      prepare: vi.fn(async () => ({ episode, segments: segments(2), language: 'auto' })),
-      transcribeSegment,
-    }
-    global.lx = podcastGlobals(episode, null, (snapshot) => saved.push(snapshot))
-
-    await module.controlTranscription(episode.id, 'start')
-    await vi.waitFor(() => expect(module.getTranscriptionStatus(episode.id)?.currentSegment).toBe(2))
-    const job = (module as any).asrJobs.get(episode.id)
-    const firstCancellation = await module.controlTranscription(episode.id, 'cancel')
-    expect(['cancelling', 'cancelled']).toContain(firstCancellation.stage)
-    const repeatedCancellation = await module.controlTranscription(episode.id, 'cancel')
-    expect(['cancelling', 'cancelled']).toContain(repeatedCancellation.stage)
-    await job.promise
-
-    expect(saved.at(-1)).toMatchObject({
-      state: 'preparing',
-      isPartial: true,
-      interruptionReason: 'cancelled',
-      completedSegmentIndexes: [0],
-      lines: [expect.objectContaining({ id: `${episode.id}:segment-0:line-0` })],
-    })
-    expect(module.getTranscriptionStatus(episode.id)).toMatchObject({
-      stage: 'cancelled',
-      completedSegments: 1,
-      totalSegments: 2,
-    })
-  })
-
-  it('continues a cancelled transcript from the first incomplete slice', async () => {
-    const module = new PodcastModule()
-    const episode = { id: 'episode-continue', transcriptReferences: [] }
-    const stored: LX.Podcast.TranscriptSnapshot = {
-      protocolVersion: 2,
-      contentId: episode.id,
-      revision: 3,
-      state: 'preparing',
-      source: 'asr',
-      language: 'auto',
-      isPartial: true,
-      lines: [segmentLine(episode.id, 0)],
-      speakers: [],
-      completedSegmentIndexes: [0],
-      interruptionReason: 'cancelled',
-    }
-    const saved: LX.Podcast.TranscriptSnapshot[] = []
-    const transcribeSegment = vi.fn(async (_prepared, segment) => [
-      segmentLine(episode.id, segment.index),
-    ])
-    ;(module as any).asr = {
-      prepare: vi.fn(async () => ({ episode, segments: segments(2), language: 'auto' })),
-      transcribeSegment,
-    }
-    global.lx = podcastGlobals(episode, stored, (snapshot) => saved.push(snapshot))
-
-    await expect(module.controlTranscription(episode.id, 'start')).resolves.toMatchObject({
-      stage: 'queued',
-    })
-    await vi.waitFor(() => expect(saved.at(-1)?.state).toBe('ready'))
-
-    expect(transcribeSegment.mock.calls.map(([, segment]) => segment.index)).toEqual([1])
-    expect(saved.at(-1)).toMatchObject({
-      state: 'ready',
-      isPartial: false,
-      completedSegmentIndexes: [0, 1],
-      interruptionReason: undefined,
-    })
-  })
-
-  it('rebuilds missing word timings while preserving existing AI speaker labels', async () => {
-    const module = new PodcastModule()
-    const episode = { id: 'episode-word-timing-upgrade', transcriptReferences: [] }
-    const stored: LX.Podcast.TranscriptSnapshot = {
-      protocolVersion: 2,
-      contentId: episode.id,
-      revision: 12,
-      state: 'ready',
-      source: 'asr',
-      language: 'auto',
-      isPartial: false,
-      lines: [{
-        ...segmentLine(episode.id, 0),
-        speakerId: 'speaker-host',
-      }],
-      speakers: [{ id: 'speaker-host', name: 'Host', origin: 'ai' }],
-      completedSegmentIndexes: [0],
-    }
-    const saved: LX.Podcast.TranscriptSnapshot[] = []
-    const timedLine: LX.Podcast.TranscriptLine = {
-      ...segmentLine(episode.id, 0),
-      words: [{
-        id: `${episode.id}:segment-0:line-0:word-0`,
-        startIndex: 0,
-        length: 7,
-        startMs: 0,
-        endMs: 1_000,
-      }],
-    }
-    const transcribeSegment = vi.fn(async () => [timedLine])
-    const diarize = vi.fn()
-    ;(module as any).asr = {
-      prepare: vi.fn(async () => ({ episode, segments: segments(1), language: 'auto' })),
-      transcribeSegment,
-    }
-    ;(module as any).speakerDiarization = { diarize }
-    global.lx = podcastGlobals(episode, stored, (snapshot) => saved.push(snapshot))
-
-    await expect(module.controlTranscription(episode.id, 'restart')).resolves.toMatchObject({
-      stage: 'queued',
-    })
-    await vi.waitFor(() => expect(saved.at(-1)?.state).toBe('ready'))
-
-    expect(transcribeSegment).toHaveBeenCalledOnce()
-    expect(diarize).not.toHaveBeenCalled()
-    expect(saved[0]).toMatchObject({
-      state: 'preparing',
-      wordTimingUpgrade: true,
-      lines: [expect.objectContaining({ speakerId: 'speaker-host' })],
-      speakers: [{ id: 'speaker-host', name: 'Host', origin: 'ai' }],
-    })
-    expect(saved.some((snapshot) => snapshot.lines.some(
-      (line) => line.words.length > 0 && line.speakerId === 'speaker-host'
-    ))).toBe(true)
-    expect(saved.at(-1)).toMatchObject({
-      state: 'ready',
-      wordTimingUpgrade: undefined,
-      lines: [{
-        speakerId: 'speaker-host',
-        words: [expect.objectContaining({ startMs: 0, endMs: 1_000 })],
-      }],
-      speakers: [{ id: 'speaker-host', name: 'Host', origin: 'ai' }],
-    })
-  })
-
-  it('recovers a speaker reference from history after an interrupted legacy timing upgrade', async () => {
-    const module = new PodcastModule()
-    const episode = { id: 'episode-historical-speaker-reference', transcriptReferences: [] }
-    const timedLine: LX.Podcast.TranscriptLine = {
-      ...segmentLine(episode.id, 0),
-      words: [{
-        id: `${episode.id}:segment-0:line-0:word-0`,
-        startIndex: 0,
-        length: 7,
-        startMs: 0,
-        endMs: 1_000,
-      }],
-    }
-    const interrupted: LX.Podcast.TranscriptSnapshot = {
-      protocolVersion: 2,
-      contentId: episode.id,
-      revision: 18,
-      state: 'preparing',
-      source: 'asr',
-      language: 'auto',
-      isPartial: true,
-      lines: [timedLine],
-      speakers: [],
-      completedSegmentIndexes: [0],
-      interruptionReason: 'cancelled',
-    }
-    const historical: LX.Podcast.TranscriptSnapshot = {
-      ...interrupted,
-      revision: 12,
-      state: 'ready',
-      isPartial: false,
-      lines: [{ ...segmentLine(episode.id, 0), speakerId: 'speaker-host' }],
-      speakers: [{ id: 'speaker-host', name: 'Host', origin: 'ai' }],
-      completedSegmentIndexes: [0],
-      interruptionReason: undefined,
-    }
-    const saved: LX.Podcast.TranscriptSnapshot[] = []
-    const diarize = vi.fn()
-    const historicalReferenceGet = vi.fn(async () => historical)
-    ;(module as any).asr = {
-      prepare: vi.fn(async () => ({ episode, segments: segments(1), language: 'auto' })),
-      transcribeSegment: vi.fn(async () => [timedLine]),
-    }
-    ;(module as any).speakerDiarization = { diarize }
-    global.lx = podcastGlobals(episode, interrupted, (snapshot) => saved.push(snapshot))
-    ;(global.lx.worker.dbService as any).podcastTranscriptSpeakerReferenceGet =
-      historicalReferenceGet
-
-    await module.controlTranscription(episode.id, 'restart')
-    await vi.waitFor(() => expect(saved.at(-1)?.state).toBe('ready'))
-
-    expect(historicalReferenceGet).toHaveBeenCalledWith(episode.id)
-    expect(diarize).not.toHaveBeenCalled()
-    expect(saved.at(-1)).toMatchObject({
-      state: 'ready',
-      lines: [expect.objectContaining({ speakerId: 'speaker-host' })],
-      speakers: [{ id: 'speaker-host', name: 'Host', origin: 'ai' }],
-    })
-  })
-
-  it('publishes a five-second heartbeat only after the queued job starts', () => {
+  it('creates and polls a Voxrail request when no ready transcript exists', async () => {
     vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-08-10T09:00:00Z'))
     const module = new PodcastModule()
-    const contentId = 'episode-heartbeat'
-    const job = {
-      promise: Promise.resolve({}),
-      positionMs: 0,
-      versionId: 'asr:test',
-      failed: false,
-      controller: new AbortController(),
-      queuedAt: Date.now() - 10_000,
-      cancelRequested: false,
-      heartbeatTimer: undefined as ReturnType<typeof setInterval> | undefined,
-    }
-    ;(module as any).asrJobs.set(contentId, job)
-    ;(module as any).publishTranscriptionStatus((module as any).createQueuedStatus(
-      contentId,
-      0,
-      job.queuedAt
-    ))
+    const episode = podcastEpisode()
+    const createRequest = vi.fn(async () => requestResponse('queued'))
+    const getRequest = vi
+      .fn()
+      .mockResolvedValueOnce(requestResponse('running', undefined, {
+        stage: 'transcribing',
+        percent: 42,
+        processedSeconds: 2520,
+        totalSeconds: 6000,
+      }))
+      .mockResolvedValueOnce(requestResponse('completed', transcriptSnapshot({
+        contentId: 'global-request-id',
+        source: 'voxrail',
+        revision: 12,
+      })))
+    ;(module as any).voxrail = { createRequest, getRequest }
+    const saved: LX.Podcast.TranscriptSnapshot[] = []
+    global.lx = podcastGlobals({ episode, stored: null, onSave: (snapshot) => saved.push(snapshot) })
 
-    expect(module.getTranscriptionStatus(contentId)?.startedAt).toBeUndefined()
-    ;(module as any).startAsrHeartbeat(contentId, job)
-    const startedAt = Date.now()
-    expect(module.getTranscriptionStatus(contentId)).toMatchObject({
-      startedAt,
-      lastHeartbeatAt: startedAt,
+    await module.transcript(episode.id)
+    await vi.advanceTimersByTimeAsync(2_000)
+    await vi.waitFor(() => expect(module.getTranscriptionStatus(episode.id)).toMatchObject({
+      stage: 'running',
+      progress: 0.42,
+      progressStage: 'transcribing',
+      processedSeconds: 2520,
+      totalSeconds: 6000,
+    }))
+    await vi.advanceTimersByTimeAsync(2_000)
+    await vi.waitFor(() => expect(saved).toHaveLength(1))
+
+    expect(createRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ id: episode.id }),
+      'https://feeds.example/show.xml',
+      expect.any(AbortSignal)
+    )
+    expect(getRequest).toHaveBeenCalledWith(REQUEST_ID, expect.any(AbortSignal))
+    expect(saved[0]).toMatchObject({
+      contentId: episode.id,
+      source: 'voxrail',
+      state: 'ready',
+      revision: 12,
     })
-
-    vi.advanceTimersByTime(5_000)
-    expect(module.getTranscriptionStatus(contentId)?.lastHeartbeatAt).toBe(startedAt + 5_000)
-    clearInterval(job.heartbeatTimer!)
+    expect(module.getTranscriptionStatus(episode.id)).toMatchObject({
+      transcriptSource: 'voxrail',
+      stage: 'completed',
+    })
   })
 
-  it('restores an interrupted preparing snapshot as resumable instead of actively queued', async () => {
+  it('submits Feed identity even when IKUN has no local audio URL', async () => {
     const module = new PodcastModule()
-    const episode = { id: 'episode-interrupted', transcriptReferences: [] }
-    const stored: LX.Podcast.TranscriptSnapshot = {
+    const episode = podcastEpisode({ audioUrl: '' })
+    const snapshot = transcriptSnapshot({ contentId: episode.id, source: 'voxrail' })
+    const createRequest = vi.fn(async () => requestResponse('completed', snapshot))
+    ;(module as any).voxrail = { createRequest }
+    global.lx = podcastGlobals({ episode, stored: null })
+
+    await expect((module as any).ensureVoxrailTranscript(episode.id)).resolves.toMatchObject({
+      contentId: episode.id,
+      source: 'voxrail',
+      state: 'ready',
+    })
+
+    expect(createRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ id: episode.id, guid: episode.guid, audioUrl: '' }),
+      'https://feeds.example/show.xml',
+      expect.any(AbortSignal)
+    )
+  })
+
+  it('backs off a failed cloud request until the automatic retry window expires', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-14T00:00:00.000Z'))
+    const module = new PodcastModule()
+    const episode = podcastEpisode()
+    const snapshot = transcriptSnapshot({ contentId: episode.id, source: 'voxrail' })
+    const createRequest = vi.fn(async () => requestResponse('completed', snapshot))
+    ;(module as any).voxrail = { createRequest }
+    global.lx = podcastGlobals({ episode, stored: null })
+    ;(module as any).transcriptionStatuses.set(episode.id, {
       protocolVersion: 2,
       contentId: episode.id,
-      revision: 2,
-      state: 'preparing',
-      source: 'asr',
-      language: 'auto',
-      isPartial: true,
-      lines: [],
-      speakers: [],
-    }
-    global.lx = podcastGlobals(episode, stored)
-
-    await expect(module.controlTranscription(episode.id, 'cancel')).resolves.toMatchObject({
-      transcriptState: 'preparing',
-      stage: 'cancelled',
-    })
-  })
-
-  it('reports a failure when preserving partial subtitles after cancellation fails', async () => {
-    const module = new PodcastModule()
-    const episode = { id: 'episode-cancel-save-failure', transcriptReferences: [] }
-    ;(module as any).asr = {
-      prepare: vi.fn(async () => ({ episode, segments: segments(1), language: 'auto' })),
-      transcribeSegment: vi.fn(async (_prepared, _segment, _onProgress, signal) =>
-        new Promise((_resolve, reject) => {
-          signal.addEventListener('abort', () => reject(new PodcastAsrCancelledError()), { once: true })
-        })
-      ),
-    }
-    global.lx = podcastGlobals(episode, null)
-    ;(global.lx.worker.dbService as any).podcastTranscriptSave = vi.fn(
-      async (_versionId: string, snapshot: LX.Podcast.TranscriptSnapshot) => {
-        if (snapshot.interruptionReason === 'cancelled') throw new Error('disk full')
-      }
-    )
-
-    await module.controlTranscription(episode.id, 'start')
-    await vi.waitFor(() => expect(module.getTranscriptionStatus(episode.id)?.currentSegment).toBe(1))
-    const job = (module as any).asrJobs.get(episode.id)
-    await module.controlTranscription(episode.id, 'cancel')
-    await job.promise
-
-    expect(module.getTranscriptionStatus(episode.id)).toMatchObject({
       transcriptState: 'failed',
+      transcriptSource: 'voxrail',
+      revision: 0,
+      isPartial: false,
       stage: 'failed',
-      error: '中止转写后保存部分字幕失败：disk full',
+      progress: null,
+      updatedAt: Date.now(),
     })
+
+    await expect((module as any).ensureVoxrailTranscript(episode.id)).resolves.toBeNull()
+    expect(createRequest).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(VOXRAIL_RETRY_WINDOW_MS)
+    await expect((module as any).ensureVoxrailTranscript(episode.id)).resolves.toMatchObject({
+      contentId: episode.id,
+      state: 'ready',
+    })
+    expect(createRequest).toHaveBeenCalledOnce()
   })
 
-  it('prioritizes the current slice, then the next two slices', () => {
+  it('retries a transient initial request failure before marking the job failed', async () => {
+    vi.useFakeTimers()
     const module = new PodcastModule()
-    ;(module as any).currentEpisodeId = 'episode-priority'
+    const episode = podcastEpisode()
+    const snapshot = transcriptSnapshot({ contentId: episode.id, source: 'voxrail' })
+    const createRequest = vi
+      .fn()
+      .mockRejectedValueOnce(new VoxrailError('temporary outage', 'network_error', 0))
+      .mockResolvedValueOnce(requestResponse('completed', snapshot))
+    ;(module as any).voxrail = { createRequest }
+    global.lx = podcastGlobals({ episode, stored: null })
 
-    expect((module as any).segmentPriority('episode-priority', 4, 120_000)).toBe(0)
-    expect((module as any).segmentPriority('episode-priority', 5, 120_000)).toBe(1)
-    expect((module as any).segmentPriority('episode-priority', 6, 120_000)).toBe(2)
-    expect((module as any).segmentPriority('episode-priority', 7, 120_000)).toBe(103)
-    expect((module as any).segmentPriority('episode-priority', 3, 120_000)).toBe(1_001)
+    const result = (module as any).ensureVoxrailTranscript(episode.id)
+    await vi.advanceTimersByTimeAsync(5_000)
+
+    await expect(result).resolves.toMatchObject({ contentId: episode.id, state: 'ready' })
+    expect(createRequest).toHaveBeenCalledTimes(2)
+    expect(module.getTranscriptionStatus(episode.id)).toMatchObject({ stage: 'completed' })
   })
 
-  it('rejects restarting a publisher transcript', async () => {
+  it('returns a persisted final snapshot when completed polling repeats its revision', async () => {
     const module = new PodcastModule()
-    ;(module as any).currentEpisodeId = 'episode-1'
-    const status = {
+    const episode = podcastEpisode()
+    const stored = transcriptSnapshot({ source: 'voxrail', revision: 12 })
+    const response = requestResponse('completed', stored)
+    const job = {
+      controller: new AbortController(),
+      queuedAt: 1,
+      lastRevisionId: 'revision-final',
+    }
+    global.lx = podcastGlobals({ episode, stored })
+
+    ;(module as any).voxrail = { createRequest: vi.fn(async () => response) }
+    await expect(
+      (module as any).runVoxrailJob(episode, 'https://feeds.example/show.xml', job)
+    ).resolves.toMatchObject({ contentId: episode.id, revision: 12, state: 'ready' })
+  })
+
+  it('encrypts a saved Voxrail key and never returns the secret in config', async () => {
+    const module = new PodcastModule()
+    ;(module as any).initialized = true
+    global.lx = podcastGlobals({ episode: podcastEpisode(), stored: null })
+    const dataPath = await mkdtemp(path.join(os.tmpdir(), 'ikun-voxrail-test-'))
+    global.lxDataPath = dataPath
+    ;(module as any).transcriptionStatuses.set('episode-1', {
       protocolVersion: 2,
       contentId: 'episode-1',
-      transcriptState: 'ready',
-      transcriptSource: 'publisher',
-      revision: 1,
+      transcriptState: 'failed',
+      transcriptSource: 'voxrail',
+      revision: 0,
       isPartial: false,
-      model: null,
-      modelState: 'not-required',
-      stage: 'completed',
-      progress: 1,
+      stage: 'failed',
+      progress: null,
       updatedAt: Date.now(),
-    } satisfies LX.Podcast.TranscriptionStatus
-    ;(module as any).transcriptionStatus = status
-    ;(module as any).transcriptionStatuses.set('episode-1', status)
-    global.lx = {
-      worker: { dbService: { podcastTranscriptGet: vi.fn(async () => null) } },
-    } as unknown as typeof global.lx
+    })
+    try {
+      const config = await module.execute({
+        action: 'voxrail-config-save',
+        baseUrl: 'https://voxrail.example',
+        accessKey: 'vr_secret',
+      })
 
-    await expect(module.controlTranscription('episode-1', 'restart')).rejects.toThrow(
-      'Only a local ASR transcript can be restarted'
-    )
+      expect(config).toEqual({
+        baseUrl: 'https://voxrail.example/api/v1',
+        hasAccessKey: true,
+      })
+      expect(config).not.toHaveProperty('accessKey')
+      const serialized = await readFile(path.join(dataPath, 'podcast', 'session.json'), 'utf8')
+      expect(serialized).not.toContain('vr_secret')
+      expect(serialized).toContain(Buffer.from('encrypted:vr_secret').toString('base64'))
+      expect(safeStorage.encryptString).toHaveBeenCalledWith('vr_secret')
+      expect(module.getTranscriptionStatus('episode-1')).toBeNull()
+      expect(global.lx.event_app.update_config).toHaveBeenCalledWith({
+        'podcast.voxrailBaseUrl': 'https://voxrail.example/api/v1',
+      })
+    } finally {
+      await rm(dataPath, { recursive: true, force: true })
+    }
   })
 })
 
 describe('PodcastModule long-form content lifecycle', () => {
-  const document: LX.Podcast.LongFormContentDocument = {
-    protocolVersion: 1,
-    contentId: 'article-1',
-    revision: 9,
-    title: 'Long article',
-    blocks: [{ id: 'block-1', kind: 'paragraph', text: 'Full article body' }],
-    blockCount: 1,
-    characterCount: 17,
-    originalUrl: 'https://example.com/articles/1',
-    audioUrl: 'https://cdn.example.com/articles/1.mp3',
-    shareUrl: 'https://example.com/articles/1',
-  }
-
-  it('publishes a lightweight descriptor when an article is activated', async () => {
-    const playerStatus = vi.fn()
-    const episode = {
-      id: document.contentId,
-      sourceId: 'source-1',
-      title: document.title,
-      description: 'Summary',
-      originalUrl: document.originalUrl ?? '',
-      audioUrl: document.audioUrl ?? '',
-      artworkUrl: '',
-      durationSeconds: 1_800,
-      transcriptReferences: [],
-    }
+  it('requests a Feed-resolved transcript when the local enclosure hint is missing', async () => {
     const module = new PodcastModule()
-    global.lx = {
-      player_status: { progress: 0 },
-      event_app: { player_status: playerStatus },
-      worker: { dbService: {
-        podcastEpisodeGet: vi.fn(async () => episode),
-        podcastSourcesGet: vi.fn(async () => [{
-          id: episode.sourceId,
-          title: 'Example source',
-          artworkUrl: 'https://example.com/source.jpg',
-        }]),
-        podcastLongFormContentGet: vi.fn(async () => document),
-        podcastTranscriptGet: vi.fn(async () => null),
-      } },
-    } as unknown as typeof global.lx
+    const episode = podcastEpisode({ audioUrl: '', description: '' })
+    const transcript = vi.spyOn(module, 'transcript').mockResolvedValue({} as any)
+    global.lx = podcastGlobals({ episode, stored: null })
 
     await (module as any).activateEpisode(episode.id)
 
-    expect(playerStatus).toHaveBeenCalledWith(expect.objectContaining({
-      contentId: episode.id,
-      name: episode.title,
-      singer: 'Example source',
-      albumName: 'Example source',
-      picUrl: 'https://example.com/source.jpg',
-      progress: 0,
-      duration: episode.durationSeconds,
-      lyricLineStartMs: 0,
-      longFormContent: {
-        protocolVersion: 1,
-        contentId: episode.id,
-        revision: document.revision,
-        blockCount: 1,
-        characterCount: document.characterCount,
-      },
-    }))
+    expect(transcript).toHaveBeenCalledWith(episode.id)
   })
 
-  it('publishes only long-form content and clears playback state for a blog without audio', async () => {
-    const playerStatus = vi.fn()
-    const episode = {
-      id: document.contentId,
-      sourceId: 'source-1',
-      title: document.title,
-      description: 'Summary',
-      originalUrl: document.originalUrl ?? '',
-      audioUrl: '',
-      artworkUrl: '',
-      durationSeconds: 600,
-      transcriptReferences: [],
-    }
-    const transcript = vi.spyOn(PodcastModule.prototype, 'transcript')
+  it('publishes only long-form content for a blog without audio', async () => {
     const module = new PodcastModule()
-    global.lx = {
-      player_status: { progress: 240, duration: 600 },
-      event_app: { player_status: playerStatus },
-      worker: { dbService: {
-        podcastEpisodeGet: vi.fn(async () => episode),
-        podcastSourcesGet: vi.fn(async () => [{
-          id: episode.sourceId,
-          title: 'Example blog',
-          artworkUrl: '',
-        }]),
-        podcastLongFormContentGet: vi.fn(async () => ({ ...document, audioUrl: null })),
-      } },
-    } as unknown as typeof global.lx
+    const playerStatus = vi.fn()
+    const episode = podcastEpisode({
+      id: 'article-1',
+      title: 'Long article',
+      audioUrl: '',
+      durationSeconds: 600,
+    })
+    const document: LX.Podcast.LongFormContentDocument = {
+      protocolVersion: 1,
+      contentId: episode.id,
+      revision: 1,
+      title: episode.title,
+      blocks: [{ id: 'block-1', kind: 'paragraph', text: 'Full article body' }],
+      blockCount: 1,
+      characterCount: 17,
+      originalUrl: episode.originalUrl ?? null,
+      audioUrl: null,
+      shareUrl: episode.originalUrl ?? null,
+    }
+    global.lx = podcastGlobals({ episode, stored: null })
+    global.lx.event_app.player_status = playerStatus
+    ;(global.lx.worker.dbService as any).podcastLongFormContentGet = vi.fn(async () => document)
 
     await (module as any).activateEpisode(episode.id)
 
@@ -1063,73 +293,123 @@ describe('PodcastModule long-form content lifecycle', () => {
       mediaKind: 'podcast',
       contentId: episode.id,
       transcript: null,
-      progress: 0,
       duration: 0,
-      lyricLineStartMs: 0,
-      lyricLineText: '',
-      lyricLineAllText: '',
       longFormContent: expect.objectContaining({ contentId: episode.id }),
     }))
-    expect(transcript).not.toHaveBeenCalled()
-    transcript.mockRestore()
-  })
-
-  it('rejects a document request after the active content changes', async () => {
-    const podcastLongFormContentGet = vi.fn()
-    const module = new PodcastModule()
-    ;(module as any).currentEpisodeId = 'article-2'
-    global.lx = {
-      worker: { dbService: { podcastLongFormContentGet } },
-    } as unknown as typeof global.lx
-
-    await expect(module.longFormContent('article-1', true)).resolves.toBeNull()
-    expect(podcastLongFormContentGet).not.toHaveBeenCalled()
   })
 })
 
-const segments = (count: number) => Array.from({ length: count }, (_, index) => ({
-  index,
-  startMs: index * 30_000,
-  endMs: (index + 1) * 30_000,
-  recognitionStartMs: index * 30_000,
-  recognitionEndMs: (index + 1) * 30_000,
-}))
+const REQUEST_ID = '120f40c2-7e1a-4f18-a6ab-8f63a388d657'
 
-const segmentLine = (contentId: string, index: number): LX.Podcast.TranscriptLine => ({
-  id: `${contentId}:segment-${index}:line-0`,
-  startMs: index * 30_000,
-  endMs: (index + 1) * 30_000,
-  displayText: `segment ${index}`,
-  words: [],
+const podcastEpisode = (
+  value: Partial<LX.Podcast.Episode> = {}
+): LX.Podcast.Episode => ({
+  id: 'episode-1',
+  sourceId: 'source-1',
+  guid: 'guid-1',
+  title: 'Episode one',
+  description: '',
+  artworkUrl: '',
+  originalUrl: 'https://example.com/episodes/1',
+  audioUrl: 'https://cdn.example/episode.mp3',
+  publishedAt: 1_786_032_000_000,
+  durationSeconds: 1_800,
+  transcriptReferences: [],
+  chapters: [],
+  updatedAt: 1,
+  ...value,
 })
 
-const podcastGlobals = (
-  episode: { id: string; sourceId?: string; transcriptReferences: never[] },
-  stored: LX.Podcast.TranscriptSnapshot | null,
-  onSave: (snapshot: LX.Podcast.TranscriptSnapshot) => void = () => undefined
+const transcriptSnapshot = (
+  value: Partial<LX.Podcast.TranscriptSnapshot> = {}
+): LX.Podcast.TranscriptSnapshot => ({
+  protocolVersion: 2,
+  contentId: 'episode-1',
+  revision: 1,
+  state: 'ready',
+  source: 'voxrail',
+  language: 'zh',
+  isPartial: false,
+  lines: [{
+    id: 'line-1',
+    startMs: 0,
+    endMs: 1_000,
+    displayText: 'Cloud line',
+    words: [],
+  }],
+  speakers: [],
+  ...value,
+})
+
+const requestResponse = (
+  status: 'queued' | 'running' | 'completed',
+  snapshot?: LX.Podcast.TranscriptSnapshot,
+  progress?: {
+    stage: 'transcribing'
+    percent: number
+    processedSeconds: number
+    totalSeconds: number
+  }
 ) => ({
-  appSetting: { 'podcast.asrModel': 'small', 'podcast.asrLanguage': 'auto' },
+  requestId: REQUEST_ID,
+  status,
+  cacheHit: false,
+  joined: false,
+  pollUrl: `https://voxrail.example/api/v1/transcription-requests/${REQUEST_ID}`,
+  createdAt: '2026-08-13T00:00:00.000Z',
+  completedAt: status === 'completed' ? '2026-08-13T00:01:00.000Z' : null,
+  warnings: [],
+  ...(progress ? { progress } : {}),
+  ...(snapshot ? {
+    transcript: {
+      revisionId: 'revision-final',
+      kind: 'final' as const,
+      language: 'zh',
+      content: snapshot,
+      plainText: 'Cloud line',
+      durationSeconds: 60,
+      warnings: [],
+      createdAt: '2026-08-13T00:01:00.000Z',
+    },
+  } : {}),
+})
+
+const podcastGlobals = ({
+  episode,
+  stored,
+  proxyText = '',
+  onSave = () => undefined,
+}: {
+  episode: LX.Podcast.Episode
+  stored: LX.Podcast.TranscriptSnapshot | null
+  proxyText?: string
+  onSave?: (snapshot: LX.Podcast.TranscriptSnapshot) => void
+}) => ({
+  appSetting: { 'podcast.voxrailBaseUrl': 'https://voxrail.example/api/v1' },
   player_status: { progress: 0 },
-  event_app: { player_status: vi.fn() },
+  event_app: { player_status: vi.fn(), update_config: vi.fn() },
   worker: {
     dbService: {
       podcastEpisodeGet: vi.fn(async () => episode),
       podcastSourcesGet: vi.fn(async () => [{
-        id: episode.sourceId ?? 'source-1',
-        title: '测试节目',
-        author: '测试主播',
-        description: '测试节目简介',
+        id: episode.sourceId,
+        title: 'Example show',
+        author: 'Host',
+        description: '',
         artworkUrl: '',
-        feedUrl: '',
+        feedUrl: 'https://feeds.example/show.xml',
         categories: [],
         subscribed: true,
         autoDownload: false,
         groupId: 'default_group',
         subscriptionOrder: 0,
-        updatedAt: 0,
+        updatedAt: 1,
       }]),
       podcastTranscriptGet: vi.fn(async () => stored),
       podcastTranscriptSave: vi.fn(async (_versionId, snapshot) => onSave(snapshot)),
+      podcastLongFormContentGet: vi.fn(async () => null),
+      podcastLongFormContentsSave: vi.fn(),
     },
   },
+  client: { proxyText: vi.fn(async () => proxyText) },
 }) as unknown as typeof global.lx

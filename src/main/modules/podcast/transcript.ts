@@ -4,10 +4,6 @@ export interface TimedTranscriptWord {
   text: string
 }
 
-export const shouldRetryAsr = (
-  snapshot: LX.Podcast.TranscriptSnapshot | null | undefined
-) => snapshot?.source === 'asr' && snapshot.state === 'failed'
-
 export const transcriptDescriptor = (
   snapshot: LX.Podcast.TranscriptSnapshot
 ): LX.Podcast.TranscriptDescriptor => ({

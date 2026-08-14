@@ -12,7 +12,6 @@
     "pack:win": "node build-config/pack.js && npm run pack:win:setup:x64 && npm run pack:win:setup:x86 && npm run pack:win:setup:arm64 && npm run pack:win:setup:x86_64 && npm run pack:win:7z",
     "pack:win:setup:x86_64": "node build-config/build-pack.js target=win arch=x86_64 type=setup",
     "pack:win:setup:x64": "pnpm build && node build-config/build-pack.js target=win arch=x64 type=setup",
-    "pack:win:setup:x64:cuda": "pnpm build && cross-env IKUN_BUNDLE_CUDA_RUNTIME=1 node build-config/build-pack.js target=win arch=x64 type=setup",
     "pack:win:setup:x86": "node build-config/build-pack.js target=win arch=x86 type=setup",
     "pack:win:setup:arm64": "node build-config/build-pack.js target=win arch=arm64 type=setup",
     "pack:win:portable": "npm run pack:win:portable:x86_64 && npm run pack:win:portable:x64 && npm run pack:win:portable:x86",
@@ -213,7 +212,6 @@
     "opencc-js": "1.4.1",
     "pako": "^2.1.0",
     "qrcode": "^1.5.4",
-    "sherpa-onnx-node": "1.13.4",
     "sortablejs": "^1.15.6",
     "tunnel": "^0.0.6",
     "undici": "^7.16.0",
@@ -221,9 +219,6 @@
     "vue-router": "~4.5.1",
     "webdav": "^5.10.0",
     "ws": "^8.18.3"
-  },
-  "optionalDependencies": {
-    "sherpa-onnx-win-x64": "1.13.4"
   },
   "overrides": {
     "got": "^11",

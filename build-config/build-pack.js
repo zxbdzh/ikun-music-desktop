@@ -1,9 +1,6 @@
 const builder = require('electron-builder')
 const beforePack = require('./build-before-pack')
 const afterPack = require('./build-after-pack')
-const { bundleCudaRuntime, createCudaExtraResources } = require('./cuda-runtime')
-
-const cudaExtraResources = createCudaExtraResources()
 
 /**
  * @type {import('electron-builder').Configuration}
@@ -43,22 +40,16 @@ const options = {
     'node_modules/node-hid/prebuilds/HID-win32-ia32/**',
     'node_modules/node-hid/prebuilds/HID-win32-arm64/**',
     'node_modules/pkg-prebuilds',
-    'node_modules/sherpa-onnx-node',
-    'node_modules/sherpa-onnx-win-x64',
     // windows-smtc-monitor(空闲时镜像系统媒体标题):主包(JS 入口 + binding.js)。
     // 平台 napi 预编译二进制(.node)在独立平台包里,pnpm 不会 hoist 到顶层,故由
     // beforePack 钩子把当前架构的 .node 复制进主包目录,随主包一起进 asar,运行时
     // binding.js 走 existsSync 本地加载分支;缺失架构(如非本机架构)则静默降级。
     'node_modules/@coooookies/windows-smtc-monitor',
     'dist/**/*',
-    '!dist/static/podcast/whisper/**/*',
   ],
   asar: {
     smartUnpack: false,
   },
-  asarUnpack: [
-    'node_modules/sherpa-onnx-win-x64/**/*',
-  ],
   extraResources: ['./licenses'],
   publish: [
     {
@@ -73,15 +64,7 @@ const options = {
  * @see https://www.electron.build/configuration/configuration
  */
 const winOptions = {
-  extraResources: [
-    './licenses',
-    {
-      from: './src/static/podcast/whisper',
-      to: 'podcast/whisper',
-      filter: ['**/*'],
-    },
-    ...cudaExtraResources,
-  ],
+  extraResources: ['./licenses'],
   win: {
     icon: './resources/icons/icon.ico',
     legalTrademarks: 'zxbdzh',
@@ -199,12 +182,7 @@ const createTarget = {
   win(arch, packageType) {
     switch (packageType) {
       case 'setup':
-        if (bundleCudaRuntime && arch !== 'x64' && arch !== 'x86_64') {
-          throw new Error('CUDA 运行库版本当前只支持 Windows x64 安装包')
-        }
-        winOptions.artifactName = bundleCudaRuntime
-          ? `\${productName}-v\${version}-${arch}-CUDA-Setup.\${ext}`
-          : `\${productName}-v\${version}-${arch}-Setup.\${ext}`
+        winOptions.artifactName = `\${productName}-v\${version}-${arch}-Setup.\${ext}`
         return {
           buildOptions: { win: ['nsis'] },
           options: winOptions,

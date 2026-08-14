@@ -53,6 +53,33 @@ describe('podcast lyrics', () => {
     expect(sendPodcastCommand).toHaveBeenCalledTimes(1)
   })
 
+  it('shows Voxrail progress while subtitles are not ready', async () => {
+    vi.mocked(sendPodcastCommand)
+      .mockResolvedValueOnce(transcript('missing', 0))
+      .mockResolvedValueOnce({
+        protocolVersion: 2,
+        contentId: 'episode-1',
+        transcriptState: 'preparing',
+        transcriptSource: 'voxrail',
+        revision: 0,
+        isPartial: true,
+        stage: 'running',
+        progress: 0.42,
+        progressStage: 'transcribing',
+        processedSeconds: 2520,
+        totalSeconds: 6000,
+        updatedAt: 1,
+      } as LX.Podcast.TranscriptionStatus)
+
+    const result = await getLyricInfo({ id: 'episode-1' } as LX.Music.MusicInfoPodcast)
+
+    expect(result.lyric).toContain('Voxrail 云端转写中 · 42% · 42:00 / 01:40:00')
+    expect(sendPodcastCommand).toHaveBeenNthCalledWith(2, {
+      action: 'transcription-status',
+      episodeId: 'episode-1',
+    })
+  })
+
   it('marks an ungenerated gap instead of leaving the last old line active', async () => {
     vi.mocked(sendPodcastCommand).mockResolvedValueOnce(
       transcript('preparing', 9, [
@@ -77,6 +104,15 @@ describe('podcast lyrics', () => {
 
     expect(result.lyric).toContain('[00:59.041]当前片段正在生成')
     expect(result.lyric).toContain('[66:58.000]是让我想起')
+  })
+
+  it('describes cloud retry without pointing to a removed manual action', async () => {
+    vi.mocked(sendPodcastCommand).mockResolvedValueOnce(transcript('failed', 3))
+
+    const result = await getLyricInfo({ id: 'episode-1' } as LX.Music.MusicInfoPodcast)
+
+    expect(result.lyric).toContain('稍后将自动重试')
+    expect(result.lyric).not.toContain('请在 IKUN 中重试')
   })
 
   it('stops polling when playback switches away from the episode', async () => {

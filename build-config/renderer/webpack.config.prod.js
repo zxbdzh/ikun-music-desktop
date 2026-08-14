@@ -18,7 +18,6 @@ module.exports = merge(baseConfig, {
         {
           from: path.join(SRC, 'static'),
           to: path.join(DIST, 'static'),
-          globOptions: { ignore: ['**/podcast/whisper/**'] },
         },
       ],
     }),

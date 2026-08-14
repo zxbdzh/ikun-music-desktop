@@ -7,7 +7,6 @@ import {
   podcastLongFormContentGet,
   podcastLongFormContentsSave,
   podcastTranscriptGet,
-  podcastTranscriptSpeakerReferenceGet,
 } from './index'
 
 vi.mock('../../db', () => ({
@@ -155,13 +154,10 @@ describe('podcast library pagination', () => {
 
 describe('podcastTranscriptGet', () => {
   const transcriptRow = vi.fn()
-  const transcriptRows = vi.fn()
-
   beforeEach(() => {
     transcriptRow.mockReset()
-    transcriptRows.mockReset()
     vi.mocked(getDB).mockReturnValue({
-      prepare: vi.fn(() => ({ get: transcriptRow, all: transcriptRows })),
+      prepare: vi.fn(() => ({ get: transcriptRow })),
     } as unknown as ReturnType<typeof getDB>)
   })
 
@@ -199,33 +195,6 @@ describe('podcastTranscriptGet', () => {
     expect(podcastTranscriptGet('episode-v2')).toEqual(snapshot)
   })
 
-  it('returns the latest valid historical snapshot with speaker labels', () => {
-    const reference = {
-      protocolVersion: 2,
-      contentId: 'episode-v2',
-      revision: 5,
-      state: 'ready',
-      source: 'asr',
-      language: 'auto',
-      isPartial: false,
-      lines: [{
-        id: 'line-1',
-        startMs: 0,
-        endMs: 1_000,
-        displayText: 'hello',
-        words: [],
-        speakerId: 'speaker-1',
-      }],
-      speakers: [{ id: 'speaker-1', name: 'Host', origin: 'ai' }],
-    }
-    transcriptRows.mockReturnValue([
-      { snapshot_json: '{invalid' },
-      { snapshot_json: JSON.stringify({ ...reference, speakers: [] }) },
-      { snapshot_json: JSON.stringify(reference) },
-    ])
-
-    expect(podcastTranscriptSpeakerReferenceGet('episode-v2')).toEqual(reference)
-  })
 })
 
 describe('podcast long-form content persistence', () => {
